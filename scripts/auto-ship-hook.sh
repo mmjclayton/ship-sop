@@ -157,12 +157,35 @@ if [ -f "$DIFF_HASH_FILE" ]; then
     fi
 fi
 
+# ── Detect docs-only diff ─────────────────────────────────────────────────────
+#
+# When every changed file is documentation (^docs/, *.md, *.mdx, ^README),
+# hard-blocking gates (security, compliance) have no real surface to evaluate.
+# Mirror /ship's behaviour: filter to advisory gates (block_on: "never") only.
+# This keeps diagram-builder running so generated docs stay in sync, while
+# avoiding noise from gates that would always APPROVE on a docs-only diff.
+
+DOCS_ONLY=true
+while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    if ! echo "$f" | grep -qE '^docs/|\.(md|mdx)$|^README'; then
+        DOCS_ONLY=false
+        break
+    fi
+done < <(git diff --name-only "$BASE..HEAD")
+
 # ── Build the gate plan from config ───────────────────────────────────────────
 
-ENABLED_AGENTS=$(jq -r '.agents | to_entries[] | select(.value.enabled == true) | .key' "$CONFIG")
+if [ "$DOCS_ONLY" = true ]; then
+    # On docs-only diffs, run only advisory gates. A gate is advisory iff its
+    # block_on is "never" — hard-blocking gates (CRITICAL/HIGH/MEDIUM) are skipped.
+    ENABLED_AGENTS=$(jq -r '.agents | to_entries[] | select(.value.enabled == true and .value.block_on == "never") | .key' "$CONFIG")
+else
+    ENABLED_AGENTS=$(jq -r '.agents | to_entries[] | select(.value.enabled == true) | .key' "$CONFIG")
+fi
 
 if [ -z "$ENABLED_AGENTS" ]; then
-    # No agents enabled — exit silently
+    # No agents to run — exit silently
     exit 0
 fi
 
@@ -186,6 +209,9 @@ DIRECTIVE_FILE="$ROOT/.ship/.pending-auto-fire.md"
     echo "Triggered: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "Diff range: \`$BASE..HEAD\` ($DIFF_LINES lines)"
     echo "Branch: $CURRENT_BRANCH"
+    if [ "$DOCS_ONLY" = true ]; then
+        echo "Mode: docs-only (hard-blocking gates skipped — only advisory gates listed below)"
+    fi
     echo ""
     echo "## Run these gates against the diff above"
     echo ""
