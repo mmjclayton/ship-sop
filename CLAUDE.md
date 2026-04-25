@@ -43,7 +43,9 @@ After shipping: update Backlog.md + docs/feature-map.md + docs/build-plans/phase
 
 ### Current Priority Items (as of 2026-04-25)
 
-**Done — no active priorities.** Open the Backlog and look at the [SHIPPED] block to see P1-P7. P6 (multi-tenant isolation + lawful-basis severity bump) and P7 (`/audit` command + whole-codebase mode + shadow-controls check) shipped 2026-04-25 in response to hst-tracker's full code review on the same date.
+*No active P-numbers — see Backlog `[SHIPPED]` block (P1-P7) and `[DEFERRED]` (P8).*
+
+P6 (multi-tenant isolation + lawful-basis severity bump) and P7 (`/audit` command + whole-codebase mode + shadow-controls check) shipped 2026-04-25 in response to hst-tracker's full code review on the same date. P8 (App Store / store-policy gate) deferred pending a second example.
 
 Likely future candidates (not yet filed):
 - App Store / store-policy gate (`store-policy-reviewer` agent) — deferred at P7-time; one example (hst-tracker C12 medical disclaimer) wasn't enough evidence. Revisit if a second example surfaces.
@@ -154,11 +156,33 @@ gh repo view mmjclayton/ship-sop
 
 Memory files live at `~/.claude/projects/[project-hash]/memory/`.
 
-### Session start: run `/restart-sop`
+### Session start checklist
 
-### Session end: run `/update-sop`
+The `/restart-sop` slash command (installed user-scope by agent-sop) automates this. Manual fallback if the command is unavailable:
 
-Both commands are documented in agent-sop's installed slash commands at `~/.claude/commands/`.
+1. Read CLAUDE.md (this file).
+2. Read `MEMORY.md` + `project_resume_<agent-id>.md` from the local memory directory.
+3. Read `docs/agent-memory.md` plus the most recent files under `docs/agent-memory/decisions/` and `docs/agent-memory/gotchas/`.
+4. Run `git log --oneline -10`, cross-check memory against current file state.
+5. Read the specific Backlog.md item(s) for this session — locate the P-number with `grep -n "^### P<N>" Backlog.md` and read its 40-80 line range, not the whole file.
+
+If In-Flight Work in `docs/agent-memory.md` has a line for this agent or `project_resume_<agent-id>.md` has no What's Next, the previous session was interrupted — read the build plan Batch Log before starting new work.
+
+### Session end checklist
+
+The `/update-sop` slash command automates this. Manual fallback. **Never delete without a trace. Update in place, mark superseded, or archive.**
+
+1. Run tests — N/A here (no test runner; markdown + bash project). Manual dogfood is the verification path.
+2. `Backlog.md` — update status tags in place, append new items. Hard-block on P-number collisions with the default branch (Step 2a in `/update-sop`).
+3. Secondary trackers — N/A here (ship-sop doesn't generate audit-backlog or security-findings files).
+4. `docs/feature-map.md` — append shipped items.
+5. `docs/agent-memory.md` narrative + decisions/gotchas directories — write new decisions to `docs/agent-memory/decisions/YYYY-MM-DD_<agent-id>_<slug>.md`, gotchas to `docs/agent-memory/gotchas/`; update In-Flight/Completed lines in `agent-memory.md` by agent-id.
+6. `docs/build-plans/phase-N.md` — append to Batch Log.
+7. `project_resume_<agent-id>.md` — overwrite with current state (per-agent snapshot, lives in machine-local memory directory).
+8. Write session entry to `docs/recent-work/YYYY-MM-DD_<agent-id>_<slug>.md` and refresh `CLAUDE.md` rollup section via `bash scripts/refresh-rollup.sh`.
+9. Commit `docs/` changes with the work itself in a single commit.
+
+Both checklists are normative. The slash commands are the ergonomic surface; the lists above are the authority.
 
 ---
 
