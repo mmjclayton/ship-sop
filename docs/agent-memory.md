@@ -6,63 +6,77 @@ Shared context for all agents working on this project. Read at the start of ever
 
 ## Key Documents
 
-<!-- Do not duplicate the table from CLAUDE.md. Point here instead. -->
 See CLAUDE.md Key Documents & Dispatch table.
 
 ---
 
 ## Key Source Files for Current Work
 
-<!-- Updated at the start of each phase, not each session. List the files an agent needs to read to work on the current phase. -->
-
 | Area | File |
 |------|------|
-| [Area] | `[path/to/file]` |
+| Reviewer agents (the gates' prompts) | `.claude/agents/{compliance-reviewer,diagram-builder,release-notes-writer}.md` |
+| Slash commands | `.claude/commands/{ship,release,audit,ship-on,ship-off}.md` |
+| SessionStop hook (throttle + directive emission) | `scripts/auto-ship-hook.sh` |
+| Installer (with self-install detection) | `setup.sh` |
+| Default config + JSON schema | `docs/templates/ship-sop.{config,schema}.json` |
+| Public spec + pitch | `README.md`, `docs/ship-sop.md` |
 
 ---
 
 ## In-Flight Work
 
-<!-- Per-agent lines. Format: `- <agent-id> (YYYY-MM-DD): description`. Each agent manages their own line. When work completes, the agent moves their line to ## Completed Work. Empty is fine. -->
-
-*(none)*
+*(none — Phase 0 and Phase 1 complete; no active P-numbers in `[IN PROGRESS]` state)*
 
 ---
 
 ## Decisions Made
 
-<!-- Decisions live as one file per entry in `docs/agent-memory/decisions/`. Filename: `YYYY-MM-DD_<agent-id>_<slug>.md`. See `docs/sop/claude-agent-sop.md` Section 3 and `docs/guides/multi-agent-parallel-sessions.md` for the format and filename convention. -->
+See `docs/agent-memory/decisions/`. One file per decision. Index of what's there as of 2026-04-25:
 
-See `docs/agent-memory/decisions/`. One file per decision.
+- `separate-repo-not-extension` — why ship-sop is its own repo, not an agent-sop folder
+- `hook-writes-directive-not-agents` — why the SessionStop hook writes a directive file
+- `auto-mode-warns-manual-ship-halts` — different failure modes for auto vs. manual `/ship`
+- `dropped-intent-and-pm-reviewers` — why initial scope is four gates not six
+- `diagram-builder-narrow-vs-doc-updater` — staying narrow to avoid duplicating doc-updater
+- `release-stays-manual` — `/release` never auto-fires
+- `audit-mode-not-diff-bound` — compliance-reviewer takes a mode flag (diff vs audit)
 
 ---
 
 ## Gotchas and Lessons
 
-<!-- Gotchas live as one file per entry in `docs/agent-memory/gotchas/`. Same filename convention as decisions. Non-obvious things that burned time, data model invariants not obvious from the schema, named utility functions for cross-cutting concerns, framework-specific patterns that agents commonly get wrong. -->
+See `docs/agent-memory/gotchas/`. One file per gotcha. Index as of 2026-04-25:
 
-See `docs/agent-memory/gotchas/`. One file per gotcha.
+- `stop-hooks-cant-invoke-agents` — the architectural constraint that shaped auto-mode
+- `agent-registry-locked-at-session-start` — why same-session dogfood is inline-only
+- `git-reset-wipes-uncommitted-edits` — lesson from the docs-only-detection fix iteration
+- `throttle-stamps-need-clearing-to-retest` — `.ship/.last-*` interferes with iteration
 
 ---
 
-## [Project Name]'s Preferences
+## ship-sop's Preferences
 
-<!-- Agent behaviour preferences specific to this project. E.g. "terse responses", "Australian English", "no emojis in code". -->
-
-*(none yet)*
+- **Terse review writing.** compliance-reviewer and security-reviewer findings should follow the agent-sop code-reviewer "Finding Voice" style — exact line numbers, exact symbol names, concrete fixes. No hedging, no "I noticed that...", no restating what the diff already says.
+- **No `intent-reviewer` or `pm-reviewer` until evidence accumulates.** Per the dropped-agents decision. Don't propose adding them on speculation.
+- **Stay narrow on `diagram-builder`.** Mermaid + API catalog + Δ log only. Codemap and README work belongs to `doc-updater`. Resist scope creep.
+- **`/release` always manual.** No auto-publish via hooks. If that ever changes it must be explicit, not default.
+- **Audit mode does NOT auto-file Backlog entries.** Operator triages.
+- **No emojis in any agent file or slash command.** Plain markdown.
 
 ---
 
 ## Completed Work
 
-<!-- Entries moved from In-Flight Work when done. Format: `- YYYY-MM-DD <agent-id>: description — PR #N or commit hash`. Each line per agent per completion. -->
-
-*(none yet)*
+- 2026-04-25 `solo`: P1 — Initial scaffold (3 reviewer agents, 4 slash commands, hook, setup, config, README) — `bd05f40`
+- 2026-04-25 `solo`: P2 — Self-install dogfood + post-install fixes — `e82ccd5`
+- 2026-04-25 `solo`: P3 — End-to-end auto-mode dogfood + leftover-rename fix — `7db908e`, `31f984e`
+- 2026-04-25 `solo`: P4 — Docs-only detection in hook — `bc2e9d7`
+- 2026-04-25 `solo`: P5 — agent-sop install for retrospective record — `b0ea04c`
+- 2026-04-25 `solo`: P6 — Multi-tenant isolation scan + lawful-basis severity bump — `3b679e0`
+- 2026-04-25 `solo`: P7 — `/audit` command + whole-codebase mode + shadow-controls check — `82e06c1`
 
 ---
 
 ## Archived
 
-<!-- Historical narrative that no longer belongs in active sections. Superseded decisions and gotchas move to `docs/agent-memory/decisions/archive/` and `docs/agent-memory/gotchas/archive/` respectively — this section is only for narrative content that doesn't live in those directories. Never delete. -->
-
-*(none yet)*
+*(none yet — project is too young to have superseded narrative content)*

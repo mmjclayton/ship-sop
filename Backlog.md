@@ -166,6 +166,30 @@ Without `/audit`, ship-sop is effectively useless on existing codebases — it o
 
 ---
 
+### P8 — App Store / store-policy compliance gate (`store-policy-reviewer` agent)
+`[DEFERRED] [Feature]`
+
+A `store-policy-reviewer` agent that flags App Store Review Guidelines / Google Play Policy concerns: medical disclaimer absence (App Review Guideline 1.4.1), Sign in with Apple required when third-party login present, privacy nutrition manifest, age rating accuracy, missing in-app purchase / subscription disclosure for billing flows, etc.
+
+**Why deferred:** one example (hst-tracker C12 medical disclaimer) is not enough evidence to justify a new agent. Compliance regulations (GDPR, HIPAA, CCPA) are universal across most products; App Store / Play Store policies are mobile-specific and vary by app category. Building a generic store-policy reviewer requires more samples to know which checks generalise vs. which are app-specific noise.
+
+**Trigger condition:** revive when a *second* example surfaces — either:
+- A second project in flight that needs App Store review, OR
+- A user explicitly requests this gate, OR
+- A clear pattern emerges across reviewed projects (e.g., 3+ shipped products that hit the same store-policy gap)
+
+**What it would look like (if revived):**
+- New agent at `.claude/agents/store-policy-reviewer.md`
+- New entry in `ship-sop.config.json` agents block, `block_on: "never"` (advisory only — store policies change frequently and false positives are common)
+- Detection patterns: scan `app.json` / `Info.plist` / `AndroidManifest.xml` for missing privacy keys; grep for unhandled medical/financial/legal language without disclaimer; check for Sign in with Apple when other social login providers are present; verify privacy nutrition manifest matches actual data collection
+- Likely runs in a separate gate from the diff-bound four-gate pipeline, since most store-policy issues are standing gaps (audit-mode candidate)
+
+**Out of scope when revived:**
+- App-specific UX critique (that's `pm-reviewer`'s lane if/when it's built)
+- Marketing-claim review (over-promise, FDA disclaimer language for health apps) — separate scope
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*
