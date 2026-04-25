@@ -21,14 +21,34 @@ This agent is **not** a replacement for `security-reviewer` (OWASP Top 10, secre
 
 If a finding sits at the boundary (e.g., PII in logs is both a security and a privacy issue), file it under the agent that runs first and let the other agent skip it. Default precedence: security first, compliance second.
 
+## Two modes
+
+The agent runs in one of two modes:
+
+| Mode | Trigger | Scope | Output |
+|------|---------|-------|--------|
+| **Diff** (default) | `/ship` or SessionStop hook | Files changed in `$BASE..HEAD` | `docs/reviews/<stamp>-compliance.md` + Backlog auto-file for HIGH/MEDIUM |
+| **Audit** | `/audit` | Whole codebase, no diff scope | `docs/reviews/<stamp>-audit.md`, no Backlog auto-file |
+
+Diff mode catches new gaps as they're introduced. Audit mode catches *standing* gaps — files that don't exist, endpoints that aren't implemented anywhere, controls defined but not wired up. A project that installed ship-sop after shipping for six months has accumulated gaps that diff mode can't see; audit mode catches them.
+
+The mode is determined by an `--audit` flag passed in the agent's invocation. When absent, default to diff mode.
+
 ## Inputs
 
+**Diff mode (default):**
 - `git diff --name-only $BASE..HEAD` — files touched in this ship
 - `git diff $BASE..HEAD` — full diff
 - The Backlog item or `--intent` string passed by `/ship`
 - Optional `compliance.config.json` at the repo root (project-specific overrides — see Project Configuration below)
 
 If no `$BASE` is set, default to `git merge-base origin/main HEAD`.
+
+**Audit mode (`--audit`):**
+- The whole repository — `git ls-files`
+- `compliance.config.json` if present
+- No diff range; the agent walks routes, schemas, config files, doc directories
+- Rate-limit token usage by reading files strategically (route handlers, schemas, doc index, package.json/composer.json/etc., NOT every line of every file)
 
 ## Review Workflow
 
@@ -120,6 +140,108 @@ Cross-tenant data leakage is privacy-class — security-reviewer covers generic 
 **Heuristic for admin-typo class (e.g., MRV ceiling / weight bound bypass):**
 - Flag config endpoints that write to admin-tunable values without a sanity-bound check (e.g., MRV must be ≤ 40 sets/muscle/week; an admin typo allowing 220 sets is a launch blocker).
 - Severity: HIGH. This is domain-specific data integrity, but it overlaps with isolation because admin-typo on a shared config affects all users.
+
+## Audit Mode Workflow
+
+Audit mode runs only when `--audit` is passed. It does **not** read a diff. It scans the whole codebase for *standing* gaps — things that should exist somewhere in the project but don't, or things that exist but aren't connected.
+
+The audit is structured as four passes:
+
+### Pass A — Missing-document audit
+
+Check for the absence of compliance documents that a launch-ready project would have. Adapt the list to the project's applicable regulations (from `compliance.config.json` and section 1's applicability scan).
+
+| Document | Where to look | If missing | Severity |
+|----------|---------------|------------|----------|
+| Privacy policy | `docs/privacy/`, `PRIVACY.md`, `app/(legal)/privacy/`, route returning a privacy URL | Project collects PII (any user-data table or signup flow) | HIGH |
+| Terms of service | `docs/terms/`, `TERMS.md`, `app/(legal)/terms/` | Project has paid users or commercial relationship | HIGH |
+| Cookie notice / policy | Above paths or a `<CookieBanner>` component | GDPR applicable + the project sets non-essential cookies | MEDIUM |
+| Lawful basis documentation | `docs/privacy/lawful-basis.md` or inline JSDoc on user-collecting routes | GDPR applicable | MEDIUM |
+| Sub-processor list | `docs/privacy/sub-processors.md` | Third-party SDKs (analytics, error tracking, email, AI) present | MEDIUM |
+| Data-retention policy | `docs/privacy/retention.md` or referenced in privacy policy | Project stores user data | MEDIUM |
+| Medical disclaimer | A user-visible disclaimer string in the codebase / a `<Disclaimer>` component | HIPAA-applicability triggers fired (health metrics, clinical language) | HIGH |
+| Age gate / minimum-age check at signup | `signup` route or `Signup` component | GDPR/COPPA applicable | MEDIUM |
+
+### Pass B — Missing-endpoint audit
+
+Check for the absence of API routes / handlers / pages that GDPR/CCPA require.
+
+| Endpoint | Detect by | If missing | Severity |
+|----------|-----------|------------|----------|
+| Account deletion (right to erasure, GDPR Art. 17) | Route handler that hard-deletes or anonymises the user record | Project has signup + user data | HIGH |
+| Data export (right to portability, GDPR Art. 20) | Route returning the user's data as JSON/CSV/ZIP | Project has user-data tables | HIGH |
+| Data access / view (right of access, GDPR Art. 15) | Profile page or "my data" view | Project has user-data tables | MEDIUM |
+| Consent withdrawal / preferences | Settings route covering email, analytics, marketing toggles | Project has marketing or analytics | MEDIUM |
+| Sentry/error-tracking PII scrubber | `beforeSend` callback in Sentry init, similar in Bugsnag/Rollbar | Error-tracking SDK initialised with no PII filter | HIGH |
+
+For each, search the route definitions (the same patterns as `diagram-builder`'s API catalog detection) and report the endpoint as missing if no matching handler exists anywhere.
+
+### Pass C — Shadow-controls audit
+
+Look for compliance/security controls that are *defined but not applied*. The hst-tracker C6 finding pattern: a `attachDataIsolation` middleware that exists in the codebase but isn't wired into any route, creating false confidence.
+
+Detection method:
+1. Find files matching `*middleware*`, `*guard*`, `*policy*`, `*auth*`, `*protect*`
+2. For each, identify the export name (e.g., `attachDataIsolation`)
+3. Grep the rest of the codebase for usages — `app.use(attachDataIsolation)`, `[attachDataIsolation, ...]`, `@UseGuards(AttachDataIsolationGuard)`, etc.
+4. If the export has zero usages, report as **HIGH severity shadow control**
+
+False-positive guards:
+- Test files / mock helpers (filename pattern: `*.test.*`, `*.spec.*`, `__tests__/`, `mocks/`)
+- Recently-added code (last commit on the file is within 24 hours — likely WIP)
+- Explicitly-deprecated code (file or symbol marked with `@deprecated` or in a `legacy/` directory)
+
+### Pass D — Standing-config audit
+
+Scan for compliance-relevant config that should exist but doesn't.
+
+- Sentry / error-tracker init present but no `beforeSend` PII scrubber → HIGH
+- Cookie middleware present but no `secure: true, sameSite: 'lax'` → MEDIUM
+- Auth library init without session-rotation policy → MEDIUM
+- Hard-coded API keys / Supabase anon keys / Firebase configs in client-side files (separate from secret-detection — focus on *misuse* of public keys, like fallback values) → HIGH
+
+## Audit Mode Output
+
+Write the audit report to `docs/reviews/<stamp>-audit.md`. **Do not auto-file Backlog entries** — audit reports typically surface 10-50 findings; auto-filing would flood the Backlog. Operator triages findings in one pass and files only the items they intend to fix.
+
+```markdown
+# Compliance Audit — <project-name>
+
+Date: YYYY-MM-DD
+Mode: audit (whole-codebase scan)
+Applicable regulations: <list>
+Files scanned: <count>
+
+## Summary
+
+| Pass | Findings |
+|------|----------|
+| A — Missing documents | 4 |
+| B — Missing endpoints | 2 |
+| C — Shadow controls | 1 |
+| D — Standing config | 2 |
+
+Total: 9 findings (3 HIGH, 5 MEDIUM, 1 LOW)
+
+## Findings
+
+### Pass A — Missing documents
+
+#### [HIGH] No privacy policy
+Searched: docs/privacy/, PRIVACY.md, app/(legal)/, route handlers returning privacy URLs.
+Found: nothing.
+Why required: project collects PII (signup form at app/signup/page.tsx, user table in prisma/schema.prisma).
+Suggested action: file P<N> [Bug] in Backlog; draft privacy policy + reference it from app footer.
+
+#### ...
+
+## Recommended triage
+
+The operator should review findings and decide which to file as P-numbered Backlog items. As a heuristic:
+- HIGH findings on launch-blocking docs (privacy policy, ToS, deletion endpoint) → file immediately
+- MEDIUM findings → batch into a "compliance debt" Backlog item
+- LOW findings → only file if specifically called out as needed
+```
 
 ## Severity Definitions
 

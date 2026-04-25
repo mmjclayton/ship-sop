@@ -126,7 +126,7 @@ Install agent-sop into ship-sop with the base template. Backfill CLAUDE.md, Back
 ---
 
 ### P6 — Multi-tenant isolation section in compliance-reviewer + lawful-basis severity bump
-`[IN PROGRESS] [Feature]`
+`[SHIPPED - 2026-04-25] [Feature]`
 
 Surfaced by hst-tracker's full code review (2026-04-25). The review caught three IDORs (cross-tenant data leakage) that fell into a gap between security-reviewer (generic auth bypass only) and compliance-reviewer (PII-in-logs only). Plus, lawful-basis was graded LOW in the checklist but the review treats it as launch-blocking — calibration data says it should be MEDIUM.
 
@@ -146,7 +146,7 @@ Surfaced by hst-tracker's full code review (2026-04-25). The review caught three
 ---
 
 ### P7 — /audit command + whole-codebase mode in compliance-reviewer
-`[IN PROGRESS] [Feature]`
+`[SHIPPED - 2026-04-25] [Feature]`
 
 Surfaced by hst-tracker's full code review (2026-04-25). Three of the launch blockers (no privacy policy doc anywhere, no data-export endpoint anywhere, no lawful-basis doc) are *standing gaps* — the absence of files or routes that diff-bound compliance-reviewer can't detect because they predate the gate's installation.
 

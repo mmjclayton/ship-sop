@@ -25,6 +25,11 @@ Last updated: 2026-04-25
 | P3 | Leftover-rename fix in directive header | `scripts/auto-ship-hook.sh` | 2026-04-25 (`31f984e`) |
 | P4 | Docs-only detection in hook | `scripts/auto-ship-hook.sh` | 2026-04-25 (`bc2e9d7`) |
 | P5 | agent-sop install (retrospective record) | `CLAUDE.md`, `Backlog.md`, `docs/agent-memory*` | 2026-04-25 |
+| P6 | Multi-tenant isolation scan in compliance-reviewer | `.claude/agents/compliance-reviewer.md` (Section 7) | 2026-04-25 (`3b679e0`) |
+| P6 | Lawful-basis severity bump LOW → MEDIUM | `.claude/agents/compliance-reviewer.md` (GDPR rights scan) | 2026-04-25 (`3b679e0`) |
+| P7 | `/audit` slash command (whole-codebase compliance audit) | `.claude/commands/audit.md` | 2026-04-25 |
+| P7 | Audit-mode workflow in compliance-reviewer (Pass A-D) | `.claude/agents/compliance-reviewer.md` (Audit Mode Workflow) | 2026-04-25 |
+| P7 | Phase 1 build plan | `docs/build-plans/phase-1-audit-mode.md` | 2026-04-25 |
 
 ---
 

@@ -18,6 +18,7 @@ Always check `docs/build-plans/` at the start of any session to see what has shi
 
 Current phase files:
 - `docs/build-plans/phase-0-foundation.md` — Shipped 2026-04-25 (initial scaffold + dogfood)
+- `docs/build-plans/phase-1-audit-mode.md` — Shipped 2026-04-25 (audit mode + isolation checks)
 
 ---
 
@@ -28,10 +29,10 @@ Current phase files:
 | Read cross-session context | `docs/agent-memory.md` | Decisions, gotchas, invariants |
 | Check shipped features or roadmap | `docs/feature-map.md` | Shipped inventory |
 | Check or update work items | `Backlog.md` | Single source of truth |
-| Read phase architecture | `docs/build-plans/phase-0-foundation.md` | Batch log + locked decisions |
+| Read phase architecture | `docs/build-plans/phase-{0,1}-*.md` | Batch log + locked decisions |
 | Understand the spec | `docs/ship-sop.md` | Six gates, escape hatches, integration with agent-sop |
 | Modify a reviewer agent | `.claude/agents/<name>.md` | One file per agent — installed user-scope by setup.sh |
-| Modify a slash command | `.claude/commands/<name>.md` | `/ship`, `/release`, `/ship-on`, `/ship-off` |
+| Modify a slash command | `.claude/commands/<name>.md` | `/ship`, `/release`, `/audit`, `/ship-on`, `/ship-off` |
 | Modify the SessionStop hook | `scripts/auto-ship-hook.sh` | Bash script; throttle + directive emission |
 | Modify defaults | `docs/templates/ship-sop.config.json` | Per-agent toggles, throttle, release config |
 | Modify the installer | `setup.sh` | Detects self-install via SCRIPT_DIR == TARGET |
@@ -42,11 +43,13 @@ After shipping: update Backlog.md + docs/feature-map.md + docs/build-plans/phase
 
 ### Current Priority Items (as of 2026-04-25)
 
-**Done — no active priorities.** ship-sop is at "released, working, no immediate roadmap." Open the Backlog and look at the [SHIPPED] block to see what landed in P1-P5. New items will appear here when surfaced.
+**Done — no active priorities.** Open the Backlog and look at the [SHIPPED] block to see P1-P7. P6 (multi-tenant isolation + lawful-basis severity bump) and P7 (`/audit` command + whole-codebase mode + shadow-controls check) shipped 2026-04-25 in response to hst-tracker's full code review on the same date.
 
 Likely future candidates (not yet filed):
+- App Store / store-policy gate (`store-policy-reviewer` agent) — deferred at P7-time; one example (hst-tracker C12 medical disclaimer) wasn't enough evidence. Revisit if a second example surfaces.
 - Dogfood `/release` end-to-end on the next ship-sop change
-- CI workflow that runs the gates without a Claude session (currently auto-mode requires a Claude session)
+- Dogfood `/audit` against ship-sop or hst-tracker in a fresh session (agent-registry constraint blocks same-session dogfood)
+- CI workflow that runs the gates without a Claude session
 - `setup.sh --uninstall` for clean removal (the README documents the manual procedure)
 
 ---
@@ -166,6 +169,7 @@ Both commands are documented in agent-sop's installed slash commands at `~/.clau
 <!-- recent-work-rollup:start -->
 *Auto-generated from `docs/recent-work/`. Last refreshed: 2026-04-25.*
 
+- 2026-04-25 `solo`: P6-P7: Multi-tenant isolation scan + /audit command + whole-codebase mode
 - 2026-04-25 `solo`: P1-P5: Initial scaffold, dogfood, docs-only fix, agent-sop install
 <!-- recent-work-rollup:end -->
 
