@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-v2.1.101+-orange.svg)](https://code.claude.com/docs/en/changelog)
 
-Pre-merge quality pipeline for Claude Code sessions. Runs four gates — **tests, security, compliance, diagrams + API catalog** — against the diff between your branch and the default branch. Fires automatically on session-end via a hook, or manually via `/ship`.
+Pre-merge quality pipeline for Claude Code sessions. Runs language-agnostic gates — **tests, security, compliance, code quality, silent-failure detection, test-coverage analysis, diagrams + API catalog** — against the diff between your branch and the default branch. Fires automatically on session-end via a hook, or manually via `/ship`.
 
 ## Why
 
@@ -18,9 +18,14 @@ ship-sop runs these checks **at session-end automatically**, so the gate is clos
 | 1 | Tests | project's runner (`npm test` / `pytest` / `cargo test` / `go test`) | Yes — on failure |
 | 2 | Security | `@security-reviewer` (from agent-sop or your own install) | Yes — on CRITICAL |
 | 3 | Compliance | `@compliance-reviewer` — PII / GDPR / HIPAA-applicability | Yes — on CRITICAL |
-| 4 | Diagrams + API catalog + ARCHITECTURE Δ | `@diagram-builder` | Never — advisory |
+| 4 | Code quality | `@code-reviewer` — language-agnostic quality, error handling, dead code | Yes — on HIGH |
+| 5 | Silent failures | `@silent-failure-hunter` — empty catches, swallowed errors, dangerous fallbacks | Yes — on HIGH |
+| 6 | Test coverage | `@pr-test-analyzer` — behavioural coverage of changed code | Never — advisory |
+| 7 | Diagrams + API catalog + ARCHITECTURE Δ | `@diagram-builder` | Never — advisory |
 
 Plus a manual `/release` command that runs `@release-notes-writer` to generate CHANGELOG entries and a tagged GitHub Release. Releases are always deliberate.
+
+**Language-specific reviewers are not in the default set.** Add `typescript-reviewer`, `python-reviewer`, `go-reviewer`, etc. per project — see "Common extensions" below.
 
 ## Two modes
 
@@ -38,14 +43,36 @@ Both modes share the same agents, the same config, and produce the same artifact
 {
   "trigger": { "mode": "auto" },
   "agents": {
-    "security-reviewer":  { "enabled": true,  "block_on": "CRITICAL" },
-    "compliance-reviewer": { "enabled": true, "block_on": "CRITICAL", "auto_file_backlog": true },
-    "diagram-builder":    { "enabled": true,  "block_on": "never" }
+    "security-reviewer":     { "enabled": true, "block_on": "CRITICAL" },
+    "compliance-reviewer":   { "enabled": true, "block_on": "CRITICAL", "auto_file_backlog": true },
+    "code-reviewer":         { "enabled": true, "block_on": "HIGH" },
+    "silent-failure-hunter": { "enabled": true, "block_on": "HIGH" },
+    "pr-test-analyzer":      { "enabled": true, "block_on": "never", "auto_file_backlog": false },
+    "diagram-builder":       { "enabled": true, "block_on": "never" }
   }
 }
 ```
 
 Disable any gate by flipping `enabled: false`. Make any gate advisory by setting `block_on: "never"`. `/ship-on` and `/ship-off` flip the trigger mode without editing the file.
+
+### Common extensions
+
+Add language- and stack-specific gates as your project needs them. The schema permits arbitrary agent keys; the hook reads them dynamically.
+
+```json
+{
+  "agents": {
+    "typescript-reviewer": { "enabled": true, "block_on": "HIGH" },
+    "python-reviewer":     { "enabled": true, "block_on": "HIGH" },
+    "go-reviewer":         { "enabled": true, "block_on": "HIGH" },
+    "rust-reviewer":       { "enabled": true, "block_on": "HIGH" },
+    "database-reviewer":   { "enabled": true, "block_on": "HIGH" },
+    "performance-optimizer": { "enabled": true, "block_on": "never" }
+  }
+}
+```
+
+Pick the language reviewer that matches the project's stack — one is enough; ship-sop is opinionated against running every reviewer in the registry.
 
 ## Throttle defaults
 

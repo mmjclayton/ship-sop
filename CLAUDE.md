@@ -193,6 +193,7 @@ Both checklists are normative. The slash commands are the ergonomic surface; the
 <!-- recent-work-rollup:start -->
 *Auto-generated from `docs/recent-work/`. Last refreshed: 2026-04-25.*
 
+- 2026-04-25 `solo`: P9: Default reviewer set expansion (code-reviewer + silent-failure-hunter + pr-test-analyzer)
 - 2026-04-25 `solo`: P6-P7: Multi-tenant isolation scan + /audit command + whole-codebase mode
 - 2026-04-25 `solo`: P1-P5: Initial scaffold, dogfood, docs-only fix, agent-sop install
 <!-- recent-work-rollup:end -->

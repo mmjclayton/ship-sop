@@ -40,6 +40,7 @@ See `docs/agent-memory/decisions/`. One file per decision. Index of what's there
 - `diagram-builder-narrow-vs-doc-updater` — staying narrow to avoid duplicating doc-updater
 - `release-stays-manual` — `/release` never auto-fires
 - `audit-mode-not-diff-bound` — compliance-reviewer takes a mode flag (diff vs audit)
+- `default-reviewer-set-expansion` — language-agnostic defaults: code-reviewer + silent-failure-hunter + pr-test-analyzer; language reviewers stay per-project
 
 ---
 
@@ -74,6 +75,7 @@ See `docs/agent-memory/gotchas/`. One file per gotcha. Index as of 2026-04-25:
 - 2026-04-25 `solo`: P5 — agent-sop install for retrospective record — `b0ea04c`
 - 2026-04-25 `solo`: P6 — Multi-tenant isolation scan + lawful-basis severity bump — `3b679e0`
 - 2026-04-25 `solo`: P7 — `/audit` command + whole-codebase mode + shadow-controls check — `82e06c1`
+- 2026-04-25 `solo`: P9 — Default reviewer set expansion (code-reviewer + silent-failure-hunter + pr-test-analyzer)
 
 ---
 

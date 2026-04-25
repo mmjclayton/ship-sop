@@ -1,6 +1,6 @@
 # ship-sop — Feature Map & Roadmap
 
-Last updated: 2026-04-25
+Last updated: 2026-04-25 (P9)
 
 ---
 
@@ -30,6 +30,10 @@ Last updated: 2026-04-25
 | P7 | `/audit` slash command (whole-codebase compliance audit) | `.claude/commands/audit.md` | 2026-04-25 |
 | P7 | Audit-mode workflow in compliance-reviewer (Pass A-D) | `.claude/agents/compliance-reviewer.md` (Audit Mode Workflow) | 2026-04-25 |
 | P7 | Phase 1 build plan | `docs/build-plans/phase-1-audit-mode.md` | 2026-04-25 |
+| P9 | `code-reviewer` added to default reviewer set | `docs/templates/ship-sop.config.json` | 2026-04-25 |
+| P9 | `silent-failure-hunter` added to default reviewer set | `docs/templates/ship-sop.config.json` | 2026-04-25 |
+| P9 | `pr-test-analyzer` added to default reviewer set (advisory) | `docs/templates/ship-sop.config.json` | 2026-04-25 |
+| P9 | "Common extensions" section (per-project language reviewers) | `README.md` | 2026-04-25 |
 
 ---
 

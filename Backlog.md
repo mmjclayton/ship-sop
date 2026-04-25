@@ -190,6 +190,27 @@ A `store-policy-reviewer` agent that flags App Store Review Guidelines / Google 
 
 ---
 
+### P9 — Default reviewer set expansion (code-reviewer + silent-failure-hunter + pr-test-analyzer)
+`[SHIPPED - 2026-04-25] [Feature]`
+
+The Phase 0 default config (`security-reviewer`, `compliance-reviewer`, `diagram-builder`) covers vulnerabilities, privacy/compliance, and ship-time docs but leaves three signal gaps that any project benefits from: general code quality, silent-failure detection, and test-coverage analysis. All three reviewers are language-agnostic, so they're appropriate for the *default* template (every fresh install gets them) — language-specific reviewers (`typescript-reviewer`, `python-reviewer`, etc.) stay per-project.
+
+**Shipped contents:**
+- `code-reviewer` added to default config — `block_on: HIGH`. Catches function/file size, missing error handling, dead code, missing tests. CRITICAL-class is already covered by `security-reviewer`; HIGH is the right severity here.
+- `silent-failure-hunter` added — `block_on: HIGH`. Single-purpose: empty catches, `.catch(() => [])`, swallowed errors, lost stack traces. Different signal class from `code-reviewer`'s broader sweep.
+- `pr-test-analyzer` added — `block_on: never`, `auto_file_backlog: false`. Advisory test-coverage quality signal; runs cheaply and silently to avoid Backlog churn on small interim diffs.
+- README's "Common extensions" section documents the per-project pattern (language reviewers, database-reviewer, performance-optimizer).
+- Both `docs/templates/ship-sop.config.json` (template) and `ship-sop.config.json` (dogfood) updated.
+- `docs/ship-sop.md` gates table and example config updated to match.
+
+**Decision file:** `docs/agent-memory/decisions/2026-04-25_solo_default-reviewer-set-expansion.md`
+
+**Why HIGH for code-reviewer and silent-failure-hunter:** CRITICAL territory in the Claude Code agent ecosystem is mostly security-class (auth bypass, secret exposure, SQL injection) — `security-reviewer` owns that. Code-quality and silent-failure findings are typically HIGH-class (real bugs, but bounded blast radius). Setting `block_on: HIGH` makes both gates loud without forcing them to compete with `security-reviewer` for the CRITICAL bar.
+
+**Why advisory for pr-test-analyzer:** test-coverage gaps are legitimate (refactors, doc-only changes, interim WIP commits). Hard-blocking on coverage drift would create false-positive friction without catching real bugs. Running it `block_on: never` + `auto_file_backlog: false` keeps the signal in the readiness summary without polluting the Backlog.
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*

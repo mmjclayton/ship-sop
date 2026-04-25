@@ -1,19 +1,24 @@
 # ship-sop
 
-A pre-merge quality pipeline for Claude Code sessions. Four gates run against the diff between your current branch and the default branch — automatically on session-end, or manually via `/ship`.
+A pre-merge quality pipeline for Claude Code sessions. Language-agnostic gates run against the diff between your current branch and the default branch — automatically on session-end, or manually via `/ship`.
 
 ## What this is
 
-ship-sop runs four checks before you ship code, each producing a durable artifact:
+ship-sop runs the following checks before you ship code, each producing a durable artifact:
 
 | # | Gate | Owner | Hard block? |
 |---|------|-------|-------------|
 | 1 | Tests | (project's test runner — `npm test` / `pytest` / `cargo test` / `go test`) | Yes — on failure |
 | 2 | Security | `@security-reviewer` (from agent-sop or your own install) | Yes — on CRITICAL |
 | 3 | Compliance | `@compliance-reviewer` (this library) | Yes — on CRITICAL |
-| 4 | Diagrams + API catalog + ARCHITECTURE Δ | `@diagram-builder` (this library) | Never — advisory |
+| 4 | Code quality | `@code-reviewer` — language-agnostic quality, error handling, dead code | Yes — on HIGH |
+| 5 | Silent failures | `@silent-failure-hunter` — empty catches, swallowed errors, dangerous fallbacks | Yes — on HIGH |
+| 6 | Test coverage | `@pr-test-analyzer` — behavioural coverage of the changed code | Never — advisory |
+| 7 | Diagrams + API catalog + ARCHITECTURE Δ | `@diagram-builder` (this library) | Never — advisory |
 
 Plus a separate, always-manual `/release` command that runs `@release-notes-writer` to generate CHANGELOG entries and a tagged GitHub Release.
+
+**Language-specific reviewers (typescript-reviewer, python-reviewer, etc.) are not in the default set.** They're per-project additions; see the README's "Common extensions" section.
 
 ## What this is not
 
@@ -76,9 +81,12 @@ Both modes use the same agents, the same config, and produce the same artifacts.
     }
   },
   "agents": {
-    "security-reviewer": { "enabled": true, "block_on": "CRITICAL" },
-    "compliance-reviewer": { "enabled": true, "block_on": "CRITICAL", "auto_file_backlog": true },
-    "diagram-builder": { "enabled": true, "block_on": "never" }
+    "security-reviewer":     { "enabled": true, "block_on": "CRITICAL" },
+    "compliance-reviewer":   { "enabled": true, "block_on": "CRITICAL", "auto_file_backlog": true },
+    "code-reviewer":         { "enabled": true, "block_on": "HIGH" },
+    "silent-failure-hunter": { "enabled": true, "block_on": "HIGH" },
+    "pr-test-analyzer":      { "enabled": true, "block_on": "never", "auto_file_backlog": false },
+    "diagram-builder":       { "enabled": true, "block_on": "never" }
   },
   "release": {
     "auto_publish": false,

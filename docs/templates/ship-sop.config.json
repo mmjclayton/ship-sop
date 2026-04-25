@@ -19,6 +19,19 @@
       "block_on": "CRITICAL",
       "auto_file_backlog": true
     },
+    "code-reviewer": {
+      "enabled": true,
+      "block_on": "HIGH"
+    },
+    "silent-failure-hunter": {
+      "enabled": true,
+      "block_on": "HIGH"
+    },
+    "pr-test-analyzer": {
+      "enabled": true,
+      "block_on": "never",
+      "auto_file_backlog": false
+    },
     "diagram-builder": {
       "enabled": true,
       "block_on": "never"
