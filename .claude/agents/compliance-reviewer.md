@@ -66,7 +66,7 @@ For routes/handlers added or modified, check:
 - **Right to deletion** — is there a delete endpoint that hard-deletes or anonymises? If a new user-linked table is added without a delete path, flag MEDIUM.
 - **Right to rectification** — can the user edit their own data? Profile/account routes get a quick check.
 - **Consent** — for tracking, marketing, or third-party data sharing, is there a consent record? Flag MEDIUM if marketing/analytics added without consent gating.
-- **Lawful basis** — every PII-collecting form should have a documented basis (consent, contract, legitimate interest). Look for inline comments or `docs/privacy/lawful-basis.md`. If absent, LOW.
+- **Lawful basis** — every PII-collecting form should have a documented basis (consent, contract, legitimate interest). Look for inline comments or `docs/privacy/lawful-basis.md`. If absent on a project that collects PII, MEDIUM. (Calibrated up from LOW based on real-world launch-readiness reviews — auditors and App Store reviewers treat this as blocking.)
 - **Cross-border transfers** — new third-party SaaS dependency (analytics, email, AI) → flag MEDIUM with the question "is this provider GDPR-adequate or covered by SCCs?"
 
 ### 4. Data retention scan
@@ -97,6 +97,29 @@ For any new dependency, fetch URL, or SDK:
 - Sub-processor list — added to `docs/privacy/sub-processors.md` if such a list exists?
 
 Missing sub-processor entry on GDPR-applicable project → MEDIUM.
+
+### 7. Multi-tenant isolation scan
+
+Cross-tenant data leakage is privacy-class — security-reviewer covers generic auth bypass, this scan covers data-isolation specifically. Read every changed route handler / controller / mutation function and verify ownership filters are present.
+
+| Pattern | Severity | Detection |
+|---------|----------|-----------|
+| User-scoped read (`findMany`, `findFirst`, `select`, `where:`) without a user-id filter | HIGH | Look for queries on tables that have a `userId` / `user_id` / `owner_id` column where the `where` clause omits it |
+| User-scoped write (`update`, `delete`, `upsert`) without ownership verification | CRITICAL | Mutation accepts an ID from `req.params`, `req.body`, or path segment, and operates on a user-scoped resource without checking `where: { id, userId: session.user.id }` (or equivalent) |
+| Resource lookup before mutation that doesn't filter by user | CRITICAL | The classic IDOR shape: `const item = await prisma.x.findUnique({ where: { id } }); await prisma.x.update({ where: { id }, data });` — both calls need ownership scope |
+| Foreign-key writes that take parent IDs from request without verifying the parent belongs to the user | CRITICAL | Inserting a `WorkSet` with `microcycleId` from request body — the microcycle must belong to the requesting user, otherwise any user can write to any other user's microcycle |
+| Bulk operations (`updateMany`, `deleteMany`) without a user-id `where` | CRITICAL | Easy to miss because the operation succeeds with any matching rows |
+| Routes that explicitly proxy admin operations without role check | HIGH | Endpoint named like `/admin/*`, `/internal/*`, `/api/users/:id` that doesn't verify `session.user.role === 'admin'` |
+| Lookup helpers / repositories that abstract the query and hide the missing user-id filter | HIGH | Re-read repository methods called from changed handlers; the bug often lives in the helper, not the route |
+
+**False-positive guards:**
+- Skip routes that are explicitly public (auth-gated middleware visibly absent at a higher level — e.g., `/api/public/*`, `/api/health`)
+- Skip read-only routes returning aggregate counts that don't expose individual records (e.g., `prisma.workSet.count({ where: { microcycleId } })` with no row-level data leaving the response)
+- Skip ORM `include`/`select` clauses that filter on a parent that's already user-scoped (e.g., `prisma.user.findUnique({ where: { id: session.user.id }, include: { workouts: true } })` — workouts are already isolated by the parent filter)
+
+**Heuristic for admin-typo class (e.g., MRV ceiling / weight bound bypass):**
+- Flag config endpoints that write to admin-tunable values without a sanity-bound check (e.g., MRV must be ≤ 40 sets/muscle/week; an admin typo allowing 220 sets is a launch blocker).
+- Severity: HIGH. This is domain-specific data integrity, but it overlaps with isolation because admin-typo on a shared config affects all users.
 
 ## Severity Definitions
 

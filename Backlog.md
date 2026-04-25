@@ -125,6 +125,47 @@ Install agent-sop into ship-sop with the base template. Backfill CLAUDE.md, Back
 
 ---
 
+### P6 — Multi-tenant isolation section in compliance-reviewer + lawful-basis severity bump
+`[IN PROGRESS] [Feature]`
+
+Surfaced by hst-tracker's full code review (2026-04-25). The review caught three IDORs (cross-tenant data leakage) that fell into a gap between security-reviewer (generic auth bypass only) and compliance-reviewer (PII-in-logs only). Plus, lawful-basis was graded LOW in the checklist but the review treats it as launch-blocking — calibration data says it should be MEDIUM.
+
+**Acceptance criteria:**
+- compliance-reviewer has a "Multi-tenant isolation scan" section with concrete patterns:
+  - User-scoped routes that don't filter `findMany`/`findFirst`/`update`/`delete` by `session.user_id` or equivalent
+  - Mutations that take a resource ID from `req.params` or `req.body` without verifying ownership
+  - `prisma.<model>.update({ where: { id } })` without a user-scoped `where` clause
+- Severity calibrated: missing ownership checks on user-scoped writes → CRITICAL; missing on reads → HIGH
+- Lawful-basis check bumped from LOW to MEDIUM
+- Self-test: read the new section against a synthetic IDOR pattern and confirm it would flag
+
+**Out of scope:**
+- Whole-codebase isolation audit (covered by P7's audit mode)
+- Modifications to security-reviewer (not ship-sop's agent)
+
+---
+
+### P7 — /audit command + whole-codebase mode in compliance-reviewer
+`[IN PROGRESS] [Feature]`
+
+Surfaced by hst-tracker's full code review (2026-04-25). Three of the launch blockers (no privacy policy doc anywhere, no data-export endpoint anywhere, no lawful-basis doc) are *standing gaps* — the absence of files or routes that diff-bound compliance-reviewer can't detect because they predate the gate's installation.
+
+Without `/audit`, ship-sop is effectively useless on existing codebases — it only protects forward-going changes from new gaps, never catches accumulated debt.
+
+**Acceptance criteria:**
+- New `/audit` slash command that invokes compliance-reviewer in whole-codebase mode (not diff-bound)
+- compliance-reviewer's prompt has explicit "audit mode" instructions: scan the whole repo, not the diff; check for *absence* of expected files/routes; report standing gaps
+- Audit mode includes a shadow-controls check: middleware/guard/policy code defined but not wired into any route (the C6 finding from hst-tracker)
+- Output: `docs/reviews/<stamp>-audit.md` with sections for missing-documents, missing-endpoints, shadow-controls, standing-gaps
+- Audit report doesn't auto-file Backlog entries — operator triages findings in one pass (audit findings are typically large in number; auto-filing would flood the Backlog)
+- README and docs/ship-sop.md mention the new command and when to use it (launch-readiness milestones, monthly compliance reviews, post-acquisition due-diligence pass)
+
+**Out of scope:**
+- Audit mode for security-reviewer or diagram-builder (compliance is the canonical use case for whole-codebase audits)
+- App Store / store-policy compliance (separate scope; punt until a second example surfaces)
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*
