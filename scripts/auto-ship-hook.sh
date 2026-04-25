@@ -181,7 +181,7 @@ mkdir -p "$ROOT/docs/reviews"
 DIRECTIVE_FILE="$ROOT/.ship/.pending-auto-fire.md"
 
 {
-    echo "# Ship-pipeline auto-mode: pending review"
+    echo "# ship-sop auto-mode: pending review"
     echo ""
     echo "Triggered: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "Diff range: \`$BASE..HEAD\` ($DIFF_LINES lines)"
