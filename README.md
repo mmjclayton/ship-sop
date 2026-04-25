@@ -104,6 +104,8 @@ That installs:
 - `ship-sop.config.json` at the project root (with defaults)
 - An entry in `.claude/settings.json` wiring the SessionStop hook (with consent prompt)
 
+The default config also references three additional gates — `code-reviewer`, `silent-failure-hunter`, `pr-test-analyzer` — that ship-sop does not vendor. They come from agent-sop or your existing user-scope agent install at `~/.claude/agents/`. Same model `security-reviewer` uses.
+
 Pass `--no-hook` to skip the hook wiring (manual `/ship` only).
 
 Then in a Claude Code session in your project:
@@ -121,11 +123,16 @@ Every gate writes a durable artifact under `docs/reviews/`:
 
 ```
 docs/reviews/
-├── 20260425-153012-ship-report.md       # the readiness summary
+├── 20260425-153012-ship-report.md         # the readiness summary
 ├── 20260425-153012-security.md
 ├── 20260425-153012-compliance.md
+├── 20260425-153012-code-reviewer.md
+├── 20260425-153012-silent-failure-hunter.md
+├── 20260425-153012-pr-test-analyzer.md
 └── 20260425-153012-diagram-builder.md
 ```
+
+Each enabled gate writes its own artifact — the tree above shows the default 6-gate set.
 
 `diagram-builder` additionally produces:
 

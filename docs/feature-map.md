@@ -30,10 +30,11 @@ Last updated: 2026-04-25 (P9)
 | P7 | `/audit` slash command (whole-codebase compliance audit) | `.claude/commands/audit.md` | 2026-04-25 |
 | P7 | Audit-mode workflow in compliance-reviewer (Pass A-D) | `.claude/agents/compliance-reviewer.md` (Audit Mode Workflow) | 2026-04-25 |
 | P7 | Phase 1 build plan | `docs/build-plans/phase-1-audit-mode.md` | 2026-04-25 |
-| P9 | `code-reviewer` added to default reviewer set | `docs/templates/ship-sop.config.json` | 2026-04-25 |
-| P9 | `silent-failure-hunter` added to default reviewer set | `docs/templates/ship-sop.config.json` | 2026-04-25 |
-| P9 | `pr-test-analyzer` added to default reviewer set (advisory) | `docs/templates/ship-sop.config.json` | 2026-04-25 |
-| P9 | "Common extensions" section (per-project language reviewers) | `README.md` | 2026-04-25 |
+| P9 | `code-reviewer` added to default reviewer set | `docs/templates/ship-sop.config.json` (+ dogfood `ship-sop.config.json`) | 2026-04-25 |
+| P9 | `silent-failure-hunter` added to default reviewer set | `docs/templates/ship-sop.config.json` (+ dogfood `ship-sop.config.json`) | 2026-04-25 |
+| P9 | `pr-test-analyzer` added to default reviewer set (advisory) | `docs/templates/ship-sop.config.json` (+ dogfood `ship-sop.config.json`) | 2026-04-25 |
+| P9 | "Common extensions" section (language reviewers + stack-specific table) | `README.md` | 2026-04-25 |
+| P9 | Code-review artifact + 3 LOW findings addressed inline | `docs/reviews/2026-04-25_solo_P9.md` | 2026-04-25 |
 
 ---
 

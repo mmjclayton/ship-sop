@@ -112,6 +112,8 @@ This installs:
 - `ship-sop.config.json` at the project root (with defaults)
 - An entry in `.claude/settings.json` wiring the SessionStop hook (with consent prompt)
 
+The default config also references `security-reviewer`, `code-reviewer`, `silent-failure-hunter`, and `pr-test-analyzer`. ship-sop does not vendor them — they come from agent-sop or your existing user-scope agent install. The hook reads `.agents` dynamically and invokes whatever the registry exposes.
+
 `setup.sh --no-hook` skips the hook wiring — useful for projects where you only want manual `/ship` and `/release`.
 
 ## Outputs and artifacts
@@ -120,11 +122,16 @@ Every gate writes to `docs/reviews/<stamp>-<gate>.md` for the durable audit trai
 
 ```
 docs/reviews/
-├── 20260425-153012-ship-report.md       # the readiness summary
-├── 20260425-153012-security.md          # security-reviewer findings
-├── 20260425-153012-compliance.md        # compliance-reviewer findings
-└── 20260425-153012-diagram-builder.md   # diagram-builder summary
+├── 20260425-153012-ship-report.md             # the readiness summary
+├── 20260425-153012-security.md                # security-reviewer findings
+├── 20260425-153012-compliance.md              # compliance-reviewer findings
+├── 20260425-153012-code-reviewer.md           # code-reviewer findings
+├── 20260425-153012-silent-failure-hunter.md   # silent-failure-hunter findings
+├── 20260425-153012-pr-test-analyzer.md        # pr-test-analyzer findings (advisory)
+└── 20260425-153012-diagram-builder.md         # diagram-builder summary
 ```
+
+Each enabled gate writes its own artifact — the tree above shows the default 6-gate set.
 
 `diagram-builder` additionally writes its content to:
 
