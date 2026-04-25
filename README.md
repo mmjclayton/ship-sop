@@ -59,20 +59,25 @@ Disable any gate by flipping `enabled: false`. Make any gate advisory by setting
 
 Add language- and stack-specific gates as your project needs them. The schema permits arbitrary agent keys; the hook reads them dynamically.
 
+**Language reviewers** — pick the one that matches the project's stack. One is enough; ship-sop is opinionated against running every reviewer in the registry.
+
 ```json
 {
   "agents": {
     "typescript-reviewer": { "enabled": true, "block_on": "HIGH" },
     "python-reviewer":     { "enabled": true, "block_on": "HIGH" },
     "go-reviewer":         { "enabled": true, "block_on": "HIGH" },
-    "rust-reviewer":       { "enabled": true, "block_on": "HIGH" },
-    "database-reviewer":   { "enabled": true, "block_on": "HIGH" },
-    "performance-optimizer": { "enabled": true, "block_on": "never" }
+    "rust-reviewer":       { "enabled": true, "block_on": "HIGH" }
   }
 }
 ```
 
-Pick the language reviewer that matches the project's stack — one is enough; ship-sop is opinionated against running every reviewer in the registry.
+**Stack-specific gates** — opt in when the project's surface area justifies the cost.
+
+| Agent | Opt in when | Suggested `block_on` |
+|---|---|---|
+| `database-reviewer` | Project has SQL or migrations | `HIGH` |
+| `performance-optimizer` | Latency SLAs, mobile, real-time, or perf-sensitive | `never` (advisory) |
 
 ## Throttle defaults
 
