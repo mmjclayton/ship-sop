@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "Stop": [
+      { "command": "scripts/auto-ship-hook.sh" }
+    ]
+  }
+}

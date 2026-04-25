@@ -25,7 +25,7 @@ Plus a separate, always-manual `/release` command that runs `@release-notes-writ
 
 ### Auto mode (default after install)
 
-A SessionStop hook (`scripts/auto-ship-hook.sh`) reads `ship-sop.config.json`, applies throttle rules, and runs the configured gates against the session's accumulated diff.
+A SessionStop hook (`scripts/auto-ship-hook.sh`) reads `ship-sop.config.json`, applies throttle rules, and prepares a directive that runs the configured gates against the session's accumulated diff.
 
 When auto-mode finds a CRITICAL issue: it **does not halt your session**. Instead, it injects a strong warning into the next turn's context, with file:line references, plus writes the durable review artifact. You decide whether to fix immediately, defer, or override.
 
@@ -33,6 +33,22 @@ The throttle defaults skip the auto-fire when:
 - Diff is below 10 lines (exploratory poking)
 - Cooldown window (5 min) hasn't elapsed since last fire on the same diff state
 - Branch matches `^wip/`, `^spike/`, or `^exp/` — explicit "I'm exploring" signal
+
+#### How the hook actually executes
+
+This is a non-obvious detail worth understanding. Claude Code's SessionStop hooks run as plain shell scripts — they cannot themselves invoke `@agent` calls (that requires a model turn). ship-sop splits the work in two:
+
+1. **At session-stop:** the hook script runs throttle checks and writes a directive file at `.ship/.pending-auto-fire.md` listing which gates to run, the diff range, and the report destination. Stdout from the hook is piped into the *next turn's* context window.
+2. **On the next user turn:** the model sees the directive in context, reads `.ship/.pending-auto-fire.md`, and invokes the configured `@compliance-reviewer`, `@diagram-builder`, etc. against the captured diff range.
+
+Practical flow: you finish a session → hook fires silently → next time you start a turn in the same project, the model picks up the pending directive and runs the gates before responding to your prompt. Findings land in `docs/reviews/` and surface in the model's reply.
+
+This means:
+- **Auto-mode reviews are not instantaneous.** They run on the next turn, not at session-end.
+- **Findings appear inside the model's response**, not as a separate notification. Watch the reply for the auto-review summary.
+- **The directive file is the audit trail of what the hook scheduled.** Inspect `.ship/.pending-auto-fire.md` if the behaviour seems unexpected.
+
+If you want immediate review output, run `/ship` manually — that invokes the gates in the current turn.
 
 ### Manual mode
 

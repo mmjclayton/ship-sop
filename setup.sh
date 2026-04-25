@@ -72,6 +72,15 @@ TARGET="$(cd "$TARGET" 2>/dev/null && pwd)" || {
     exit 1
 }
 
+# Detect self-install (running setup on the source repo itself).
+# Use case: dogfooding ship-sop on its own repo. Project-side files like
+# scripts/auto-ship-hook.sh and docs/templates/ship-sop.schema.json already
+# exist as part of the source — we skip those copies to avoid noise.
+SELF_INSTALL=false
+if [ "$SCRIPT_DIR" = "$TARGET" ]; then
+    SELF_INSTALL=true
+fi
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 copy_if_missing() {
@@ -174,17 +183,25 @@ done
 # ── Install hook script and config (project-scope) ────────────────────────────
 
 echo ""
-echo "Installing hook script + config in $TARGET"
+if [ "$SELF_INSTALL" = true ]; then
+    echo "Self-install — project-side files already present in source repo"
+    mkdir -p "$TARGET/docs/reviews" "$TARGET/.ship"
+    # Skip copying scripts/auto-ship-hook.sh and docs/templates/ship-sop.schema.json
+    # since they live in the source repo. Still create the user-facing config
+    # at the project root (different from the template under docs/templates/).
+    copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json" || true
+else
+    echo "Installing hook script + config in $TARGET"
+    mkdir -p "$TARGET/scripts" "$TARGET/docs/reviews" "$TARGET/.ship"
 
-mkdir -p "$TARGET/scripts" "$TARGET/docs/reviews" "$TARGET/.ship"
+    if copy_if_missing "$SCRIPT_DIR/scripts/auto-ship-hook.sh" "$TARGET/scripts/auto-ship-hook.sh"; then
+        chmod +x "$TARGET/scripts/auto-ship-hook.sh"
+    fi
 
-if copy_if_missing "$SCRIPT_DIR/scripts/auto-ship-hook.sh" "$TARGET/scripts/auto-ship-hook.sh"; then
-    chmod +x "$TARGET/scripts/auto-ship-hook.sh"
+    # Default config — only created if missing
+    copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json" || true
+    copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.schema.json" "$TARGET/docs/templates/ship-sop.schema.json" || true
 fi
-
-# Default config — only created if missing
-copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json" || true
-copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.schema.json" "$TARGET/docs/templates/ship-sop.schema.json" || true
 
 # Gitignore additions for .ship/
 if [ -f "$TARGET/.gitignore" ]; then
@@ -250,20 +267,30 @@ fi
 echo ""
 echo "Done. Next steps:"
 echo ""
-echo "  1. Open ship-sop.config.json in $TARGET and confirm the defaults"
-echo "     (per-agent toggles, throttle, release branch)."
+echo "  1. Commit the install artifacts:"
+echo "     - ship-sop.config.json (project's per-agent toggles + throttle)"
+echo "     - .claude/settings.json (SessionStop hook wiring, if not already tracked)"
+echo "     - .gitignore (additions for .ship/)"
 echo ""
-echo "  2. Verify the install:"
+echo "     Suggested:"
+echo "       git add ship-sop.config.json .claude/settings.json .gitignore"
+echo "       git commit -m 'chore: install ship-sop'"
+echo ""
+echo "  2. Open ship-sop.config.json and confirm the defaults"
+echo "     (per-agent toggles, throttle, release branch). Edit before committing"
+echo "     if the defaults aren't what you want."
+echo ""
+echo "  3. Verify the install:"
 echo "     - ~/.claude/agents/{compliance-reviewer,diagram-builder,release-notes-writer}.md"
 echo "     - ~/.claude/commands/{ship,release,ship-on,ship-off}.md"
 echo "     - $TARGET/scripts/auto-ship-hook.sh (executable)"
 echo ""
-echo "  3. Try a dry run:"
+echo "  4. Try a dry run:"
 echo "     - Make a small commit, then in a Claude Code session in this project,"
 echo "       run /ship to see the manual pipeline."
 echo "     - End the session normally; auto-mode should fire if enabled."
 echo ""
-echo "  4. Toggle modes any time:"
+echo "  5. Toggle modes any time:"
 echo "     /ship-on     enable auto-mode"
 echo "     /ship-off    disable auto-mode (manual /ship still works)"
 echo ""
