@@ -1,0 +1,9 @@
+# P1-P5: Initial scaffold, dogfood, docs-only fix, agent-sop install
+
+**Date:** 2026-04-25
+**Agent:** solo
+**Commits:** `bd05f40`, `e82ccd5`, `7db908e`, `31f984e`, `bc2e9d7`, plus this commit (agent-sop install)
+
+Built ship-sop from scratch and dogfooded it on its own repo. P1 was the initial scaffold (3 reviewer agents — compliance-reviewer, diagram-builder, release-notes-writer; 4 slash commands — /ship, /release, /ship-on, /ship-off; SessionStop hook with throttle; setup.sh with consent-prompted hook wiring; config + schema templates; README + spec doc + MIT LICENSE). P2 surfaced and fixed three rough edges: self-install detection in setup.sh, "commit the install artifacts" reminder in next-steps output, and a docs/ship-sop.md subsection explaining the hook → directive → next-turn flow. P3 added the README Uninstall section as a real test diff, then manually fired the SessionStop hook end-to-end against the 38-line diff, ran all three gates inline as the next-turn model would, wrote per-gate review files + consolidated ship-auto.md report, and fixed a leftover "Ship-pipeline" rename string in the directive header. P4 fixed the hook's docs-only behaviour to match `/ship`'s — when every changed file is documentation, the hook now filters the agent list to advisory gates (block_on: "never") only, with a `Mode: docs-only` banner in the directive. P5 (this commit) installs agent-sop on ship-sop for retrospective record: backfilled CLAUDE.md, Backlog.md (P1-P5 as `[SHIPPED - 2026-04-25]`), feature-map.md, six decisions under docs/agent-memory/decisions/, four gotchas under docs/agent-memory/gotchas/, and this phase-0-foundation build plan with full Batch Log.
+
+ship-sop is now public at https://github.com/mmjclayton/ship-sop and using both itself (SessionStop hook wired) and agent-sop (file set adopted) for its own development.
