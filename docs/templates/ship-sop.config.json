@@ -1,0 +1,32 @@
+{
+  "$schema": "https://raw.githubusercontent.com/mmjclayton/ship-sop/main/docs/templates/ship-sop.schema.json",
+  "trigger": {
+    "mode": "auto",
+    "throttle": {
+      "min_diff_lines": 10,
+      "skip_docs_only": false,
+      "cooldown_seconds": 300,
+      "skip_branch_patterns": ["^wip/", "^spike/", "^exp/"]
+    }
+  },
+  "agents": {
+    "security-reviewer": {
+      "enabled": true,
+      "block_on": "CRITICAL"
+    },
+    "compliance-reviewer": {
+      "enabled": true,
+      "block_on": "CRITICAL",
+      "auto_file_backlog": true
+    },
+    "diagram-builder": {
+      "enabled": true,
+      "block_on": "never"
+    }
+  },
+  "release": {
+    "auto_publish": false,
+    "default_branch": "main",
+    "version_source": "package.json"
+  }
+}
