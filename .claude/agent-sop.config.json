@@ -1,0 +1,38 @@
+{
+  "local_path": "/Users/matt_clayton/Projects/agent-sop",
+  "github": "mmjclayton/agent-sop",
+  "update_reminder": "weekly",
+  "last_update_check": "2026-04-26",
+  "multi_agent": "auto",
+  "agent_id_override": null,
+  "baseline_shas": {
+    "docs/sop/claude-agent-sop.md": "dc5eef6355a3d921f1ff824c601cbb68b52ea0bce98c95bd3e60ad5b62f5f53d",
+    "docs/sop/security.md": "db410afbe6b0f28718b74153d70e978c0f86855633f4df0deebb2ec0db23c808",
+    "docs/sop/sandboxing.md": "d7af8dd64b7441af5eaf588f10d5514d70f6b08badd55e90c374e2b7faa1f9ae",
+    "docs/sop/harness-configuration.md": "4056648600aa9687b818d8784758bdf1d9709e5959d3a472a2941d006d641f22",
+    "docs/sop/compliance-checklist.md": "b334d55b35a32c1f9d63323ac61c0e6e939a6c264555987ca037af6028fe00d6",
+    "docs/guides/optional-patterns.md": "b916bf679de2a712b315864055777a07c224405ecdd4da079a0af49273906682",
+    "docs/guides/multi-agent-context-routing.md": "f2c333b2434186674ce542217a656d5f42379d3456a7920f9bd3f6f9e97898d4",
+    "docs/guides/multi-agent-parallel-sessions.md": "ab6e4f04f676bf33c278e79abcaab206750c640e377264c43108d44069f1d06c",
+    "docs/guides/managed-agents-integration.md": "74f51bf4da3b8677232915d961abebe8c0ce9aa739d057832bd146bfcd5a3b5c",
+    "docs/guides/sop-hill-climbing.md": "e3db7c7c2da7bef627bb5700448b8fdab388f5b5ae462852541fedfa64fa1940",
+    "docs/guides/sop-common-mistakes.md": "4539005c142be46ae193a1daad2077d35f3741e0b1d56134906b5590ca60f1f7",
+    "scripts/migrate-to-multi-agent.py": "172eb38febad03f6fc482ce26666d63f90bedb6c2a68dbb47489c2ef530d4c2f",
+    "scripts/refresh-rollup.sh": "19ff4b98b4e3d1250be5620f41662c413fb01844fe5de710e564c36b1c937e49",
+    "scripts/validate-state-transitions.sh": "1ff10bf46a244a3536fc53264b67bc8d5c87cc114494c98072b0a08d08088098",
+    "docs/templates/review-template.md": "b6c2480fa75bd7c14122ddfe3b2aa705ebe3cfb7a4ee2cb4598e15c6c3979d60",
+    ".claude/commands/restart-sop.md": "dc78afea78242fbc6295fef3a36579e8b2223997047504423f0f7a3d7ca02057",
+    ".claude/commands/update-sop.md": "d4b826c352c9736d54fc4a73c08f9b44ab754b9b6a191f57b2bac7f47ce4c7df",
+    ".claude/commands/update-agent-sop.md": "5c37f951257e792779e1e316507338ea897d3d01e52426b3f5aa97da6502666b",
+    ".claude/commands/migrate-to-multi-agent.md": "6927a40527764ecbdffa9d0020c4cff20c387facd7bbb67eb8f239f500980793",
+    ".claude/agents/sop-checker.md": "4f432e48e99524ebe521686d7a8761653a3edfdc3cd2fb37bfa908c3a74d6442",
+    ".claude/agents/code-reviewer.md": "b337aaf3ae1e58e300eebb35382d78b24d2ef450ad20fa4d78dfc4d69c2472c4",
+    ".claude/agents/security-reviewer.md": "b881e3f89333f9ff776d06db4f94dedb5e7fa1745164334377655805e8c9d26d",
+    ".claude/agents/planner.md": "538e0107c16a33ddc8969833ba22707347eb252707acc2563eef69c369d21f5d",
+    ".claude/agents/e2e-runner.md": "42f9b262afb8b912a529206efd196ae7e0dc38920854cdbd246022a945c3bf0e"
+  },
+  "notes": {
+    "_first_sync_2026-04-26": "First-run bootstrap of ship-sop's project-scope agent-sop config. Previously ship-sop fell back to the user-global config at ~/.claude/agent-sop.config.json, which was hst-tracker-tuned (custom security.md baseline + project-specific notes). Created this project-scope config so ship-sop and hst-tracker drift independently. Inventory comparison: 14 of 15 project-scope pristine replicas were already in sync with upstream; harness-configuration.md was at the recognised prior pristine SHA (9d33fa0c) and applied cleanly to upstream (40566486). All 9 user-scope baselines matched the consumer (user has been syncing user-scope files manually between /update-agent-sop runs).",
+    "docs/sop/security.md": "ship-sop runs the upstream pristine (db410af...). Unlike hst-tracker, ship-sop has no project-specific security customisation."
+  }
+}
