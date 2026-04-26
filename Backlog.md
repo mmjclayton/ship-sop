@@ -211,6 +211,39 @@ The Phase 0 default config (`security-reviewer`, `compliance-reviewer`, `diagram
 
 ---
 
+### P10 — `setup.sh --uninstall` for clean removal
+`[SHIPPED - 2026-04-26] [Feature]`
+
+`setup.sh` could install ship-sop but couldn't reverse it. The README documented the manual `rm` procedure across three scopes, but it was easy to leave fragments behind — particularly the `.gitignore` block, the SessionStop hook entry in `.claude/settings.json`, and the `audit.md` command (which the manual list didn't include after P7).
+
+Lowers the barrier to trying ship-sop on a project: you can install with confidence that one command reverses every install step.
+
+**Shipped contents:**
+- `setup.sh` parses `--uninstall`, `--keep-config`, `--keep-artifacts`. Existing `--force` flag is reused for "remove locally-modified files".
+- New `uninstall_mode()` function: removes user-scope agents and commands, project-scope hook script, schema template, config file, `.ship/` directory; updates `.gitignore` (removes the two-line block) and `.claude/settings.json` (removes the Stop hook entry via jq).
+- Hash-based safety: by default, user-scope agents and commands whose content differs from source are skipped with a "locally modified" notice. `--force` removes them regardless. Mirrors the existing install-time behaviour where modifications are respected unless `--force` is passed.
+- Self-install detection (`SCRIPT_DIR == TARGET`) skips project-side file removal — same logic the install path uses.
+- `docs/reviews/`, `docs/agent-memory/`, `docs/diagrams/`, `docs/api/`, `docs/ARCHITECTURE.md` are never auto-removed (audit trail / generated docs the operator may want to keep).
+- Install Next-Steps text and README Uninstall section both updated. README now leads with `--uninstall` as the canonical path; manual `rm` procedure preserved as a fallback.
+- Drive-by fix: install Next-Steps and manual-uninstall list both included `audit.md` (the P7 command) which they'd been missing.
+
+**Acceptance criteria met:**
+- Running `./setup.sh /path --uninstall` removes every file `./setup.sh /path` adds, by default
+- Locally-modified user-scope agents are skipped without `--force`
+- `--keep-config` preserves `ship-sop.config.json` for reinstall
+- `--keep-artifacts` preserves `.ship/`
+- Self-install (`SCRIPT_DIR == TARGET`) skips project-side removal
+- Manual dogfood: install + uninstall against a throwaway directory leaves zero ship-sop files behind, plus `.gitignore` and `.claude/settings.json` are restored to their pre-install state
+- README documents the new flag set; manual fallback retained
+
+**Why this earned a P-number now:** it was a "Likely-soon" candidate in `feature-map.md` for adoption ergonomics. Building it before ship-sop has many adopters keeps the install/uninstall round-trip clean from the first user.
+
+**Out of scope:**
+- A dry-run mode (`--uninstall --dry-run`). Could be added if false-positive removal becomes a real concern; not built speculatively.
+- Logging the removed-file list to `docs/reviews/`. Uninstall is a teardown event, not a review event.
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*

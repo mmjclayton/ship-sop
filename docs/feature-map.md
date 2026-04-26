@@ -1,6 +1,6 @@
 # ship-sop — Feature Map & Roadmap
 
-Last updated: 2026-04-25 (P9)
+Last updated: 2026-04-26 (P10)
 
 ---
 
@@ -35,6 +35,9 @@ Last updated: 2026-04-25 (P9)
 | P9 | `pr-test-analyzer` added to default reviewer set (advisory) | `docs/templates/ship-sop.config.json` (+ dogfood `ship-sop.config.json`) | 2026-04-25 |
 | P9 | "Common extensions" section (language reviewers + stack-specific table) | `README.md` | 2026-04-25 |
 | P9 | Code-review artifact + 3 LOW findings addressed inline | `docs/reviews/2026-04-25_solo_P9.md` | 2026-04-25 |
+| P10 | `setup.sh --uninstall` (with `--keep-config`, `--keep-artifacts`, hash-based modification check) | `setup.sh` | 2026-04-26 |
+| P10 | README Uninstall section rewritten — `--uninstall` is canonical, manual `rm` fallback retained | `README.md` | 2026-04-26 |
+| P10 | Drive-by fix: install Next-Steps + manual-uninstall lists now include `audit.md` | `setup.sh`, `README.md` | 2026-04-26 |
 
 ---
 
@@ -48,7 +51,6 @@ ship-sop is at "released, working, no immediate roadmap." Items below are likely
 |-----------|-------|
 | `/release` end-to-end dogfood | Cut a real GitHub Release on ship-sop using the agent. Validates `release-notes-writer` against actual Backlog + commits. |
 | CI workflow for the gates | Run security + compliance + diagrams without a Claude Code session. Useful for PRs from contributors who don't run Claude. |
-| `setup.sh --uninstall` | The README documents manual uninstall. An automated path would be friendlier. |
 | Composition test with agent-sop | Verify that with both installed, `compliance-reviewer` auto-files Backlog entries with proper P-numbers (documented, not tested). |
 
 ### Not on the table

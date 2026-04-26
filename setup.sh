@@ -4,19 +4,28 @@
 #
 # Installs ship-sop into a target project:
 #   - Three reference agents into ~/.claude/agents/
-#   - Four slash commands into ~/.claude/commands/
+#   - Five slash commands into ~/.claude/commands/
 #   - scripts/auto-ship-hook.sh into the project
 #   - ship-sop.config.json at the project root (with defaults)
 #   - An entry in .claude/settings.json wiring the SessionStop hook (with consent)
 #
+# Or removes the same install footprint when --uninstall is passed.
+#
 # Usage:
 #   ./setup.sh /path/to/your/project [--no-hook] [--force]
+#   ./setup.sh /path/to/your/project --uninstall [--force] [--keep-config] [--keep-artifacts]
 #
-# Options:
-#   --no-hook   Skip the SessionStop hook wiring (manual /ship and /release only)
-#   --force     Overwrite existing files
+# Install options:
+#   --no-hook         Skip the SessionStop hook wiring (manual /ship and /release only)
+#   --force           Overwrite existing files (install) / remove locally-modified files (uninstall)
+#
+# Uninstall options:
+#   --uninstall       Reverse the install — remove agents, commands, hook script, config, gitignore entry, settings.json hook
+#   --keep-config     Keep ship-sop.config.json (project-scope; useful to preserve per-project tuning across re-installs)
+#   --keep-artifacts  Keep .ship/ runtime artifacts directory (cooldown stamps, pending directives)
 #
 # Existing files are skipped (not overwritten) unless --force is passed.
+# docs/reviews/ is never auto-removed — it's audit trail.
 
 set -euo pipefail
 
@@ -26,16 +35,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 NO_HOOK=false
 FORCE=false
+UNINSTALL=false
+KEEP_CONFIG=false
+KEEP_ARTIFACTS=false
 TARGET=""
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 
 usage() {
-    echo "Usage: $(basename "$0") /path/to/project [--no-hook] [--force]"
+    echo "Usage:"
+    echo "  $(basename "$0") /path/to/project [--no-hook] [--force]"
+    echo "  $(basename "$0") /path/to/project --uninstall [--force] [--keep-config] [--keep-artifacts]"
     echo ""
-    echo "Options:"
-    echo "  --no-hook   Skip the SessionStop hook wiring (manual /ship only)"
-    echo "  --force     Overwrite existing files"
+    echo "Install options:"
+    echo "  --no-hook         Skip the SessionStop hook wiring (manual /ship only)"
+    echo "  --force           Overwrite existing files (install) / remove locally-modified files (uninstall)"
+    echo ""
+    echo "Uninstall options:"
+    echo "  --uninstall       Reverse the install"
+    echo "  --keep-config     Preserve ship-sop.config.json"
+    echo "  --keep-artifacts  Preserve .ship/ runtime artifacts directory"
     echo ""
     echo "Run this from the ship-sop repo directory."
     exit 1
@@ -43,9 +62,12 @@ usage() {
 
 for arg in "$@"; do
     case "$arg" in
-        --no-hook) NO_HOOK=true ;;
-        --force)   FORCE=true ;;
-        --help|-h) usage ;;
+        --no-hook)        NO_HOOK=true ;;
+        --force)          FORCE=true ;;
+        --uninstall)      UNINSTALL=true ;;
+        --keep-config)    KEEP_CONFIG=true ;;
+        --keep-artifacts) KEEP_ARTIFACTS=true ;;
+        --help|-h)        usage ;;
         -*)
             echo "Unknown option: $arg"
             usage
@@ -112,7 +134,199 @@ prompt_yn() {
     [[ "$response" =~ ^[Yy]$ ]]
 }
 
+# ── Hash helpers (uninstall integrity check) ──────────────────────────────────
+
+file_hash() {
+    if [ ! -f "$1" ]; then
+        echo ""
+        return
+    fi
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    elif command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    else
+        echo ""
+    fi
+}
+
+# Remove $dest only if its content matches $src (i.e., unmodified since install).
+# When $FORCE is true, removes regardless. When the file is missing, prints a
+# "skip (not installed)" notice. When the file is locally modified, prints a
+# "skip (locally modified, use --force)" notice and leaves it untouched.
+remove_if_unmodified() {
+    local src="$1"
+    local dest="$2"
+    local label="${3:-$(basename "$dest")}"
+
+    if [ ! -f "$dest" ]; then
+        echo "  skip   $label (not installed)"
+        return 0
+    fi
+
+    if [ "$FORCE" = true ]; then
+        rm -f "$dest"
+        echo "  remove $label (--force)"
+        return 0
+    fi
+
+    local src_hash dest_hash
+    src_hash="$(file_hash "$src")"
+    dest_hash="$(file_hash "$dest")"
+
+    if [ -z "$src_hash" ] || [ -z "$dest_hash" ]; then
+        echo "  skip   $label (cannot verify integrity, use --force to remove)"
+        return 0
+    fi
+
+    if [ "$src_hash" = "$dest_hash" ]; then
+        rm -f "$dest"
+        echo "  remove $label"
+    else
+        echo "  skip   $label (locally modified, use --force to remove)"
+    fi
+}
+
+# ── Uninstall mode ────────────────────────────────────────────────────────────
+
+uninstall_mode() {
+    local target="$1"
+
+    echo ""
+    echo "ship-sop uninstall"
+    echo "==================="
+    echo ""
+    echo "Target: $target"
+    if [ "$FORCE" = true ]; then
+        echo "Mode: --force (remove all installed files, including locally-modified ones)"
+    else
+        echo "Mode: safe (locally-modified files are kept; pass --force to remove anyway)"
+    fi
+    echo ""
+
+    local user_claude_dir="$HOME/.claude"
+
+    # User-scope agents
+    echo "Removing agents from $user_claude_dir/agents/"
+    for src in "$SCRIPT_DIR"/.claude/agents/*.md; do
+        [ -f "$src" ] || continue
+        remove_if_unmodified "$src" "$user_claude_dir/agents/$(basename "$src")"
+    done
+
+    # User-scope commands
+    echo ""
+    echo "Removing commands from $user_claude_dir/commands/"
+    for src in "$SCRIPT_DIR"/.claude/commands/*.md; do
+        [ -f "$src" ] || continue
+        remove_if_unmodified "$src" "$user_claude_dir/commands/$(basename "$src")"
+    done
+
+    # Project-scope files
+    if [ "$SELF_INSTALL" = true ]; then
+        echo ""
+        echo "Self-install detected — skipping project-side file removal (those files are sources)"
+    else
+        echo ""
+        echo "Removing project files from $target"
+
+        remove_if_unmodified \
+            "$SCRIPT_DIR/scripts/auto-ship-hook.sh" \
+            "$target/scripts/auto-ship-hook.sh"
+
+        remove_if_unmodified \
+            "$SCRIPT_DIR/docs/templates/ship-sop.schema.json" \
+            "$target/docs/templates/ship-sop.schema.json"
+
+        if [ "$KEEP_CONFIG" = true ]; then
+            echo "  keep   ship-sop.config.json (--keep-config)"
+        else
+            remove_if_unmodified \
+                "$SCRIPT_DIR/docs/templates/ship-sop.config.json" \
+                "$target/ship-sop.config.json"
+        fi
+    fi
+
+    # SessionStop hook entry in .claude/settings.json
+    echo ""
+    local settings="$target/.claude/settings.json"
+    if [ -f "$settings" ]; then
+        if command -v jq >/dev/null 2>&1; then
+            if jq -e '.hooks.Stop[]? | select(.command == "scripts/auto-ship-hook.sh")' "$settings" >/dev/null 2>&1; then
+                local tmp
+                tmp="$(mktemp)"
+                jq 'del(.hooks.Stop[]? | select(.command == "scripts/auto-ship-hook.sh"))' "$settings" > "$tmp" && mv "$tmp" "$settings"
+                echo "  update .claude/settings.json (removed SessionStop hook entry)"
+            else
+                echo "  skip   .claude/settings.json (hook entry not present)"
+            fi
+        else
+            echo "  warn   jq not installed; manually remove the entry where .hooks.Stop[].command == 'scripts/auto-ship-hook.sh' from $settings"
+        fi
+    else
+        echo "  skip   .claude/settings.json (file does not exist)"
+    fi
+
+    # .gitignore block
+    if [ -f "$target/.gitignore" ] && grep -q "^# ship-sop runtime artifacts$" "$target/.gitignore"; then
+        local tmp
+        tmp="$(mktemp)"
+        awk '
+            /^# ship-sop runtime artifacts$/ { skip = 2; next }
+            skip > 0                         { skip--; next }
+            { print }
+        ' "$target/.gitignore" > "$tmp" && mv "$tmp" "$target/.gitignore"
+        echo "  update .gitignore (removed .ship/ block)"
+    elif [ -f "$target/.gitignore" ]; then
+        echo "  skip   .gitignore (no ship-sop entries)"
+    fi
+
+    # .ship/ runtime artifacts
+    if [ "$KEEP_ARTIFACTS" = true ]; then
+        echo "  keep   .ship/ (--keep-artifacts)"
+    elif [ "$SELF_INSTALL" = false ] && [ -d "$target/.ship" ]; then
+        rm -rf "$target/.ship"
+        echo "  remove .ship/ runtime artifacts"
+    fi
+
+    # Clean up install directories if they're now empty. rmdir refuses to
+    # remove non-empty dirs, so this is safe — pre-existing user content stays.
+    if [ "$SELF_INSTALL" = false ]; then
+        rmdir "$target/scripts" 2>/dev/null && echo "  remove scripts/ (was empty)" || true
+        rmdir "$target/docs/templates" 2>/dev/null && echo "  remove docs/templates/ (was empty)" || true
+    fi
+
+    # Summary
+    echo ""
+    echo "Done. ship-sop is uninstalled."
+    echo ""
+    echo "Files NOT touched (manage these manually):"
+    echo "  - docs/reviews/         (audit trail; remove only if you're certain)"
+    echo "  - docs/agent-memory/    (any decisions/gotchas captured by agents)"
+    echo "  - .gitignore            (only the ship-sop block was removed; other entries kept)"
+    if [ "$KEEP_CONFIG" = true ]; then
+        echo "  - ship-sop.config.json  (kept via --keep-config)"
+    fi
+    if [ "$KEEP_ARTIFACTS" = true ]; then
+        echo "  - .ship/                (kept via --keep-artifacts)"
+    fi
+    echo ""
+    echo "If you reinstall later, your tuning in ship-sop.config.json is preserved when --keep-config was used."
+    echo ""
+}
+
 # ── Pre-flight ────────────────────────────────────────────────────────────────
+
+# Dispatch to uninstall mode before the install-flavoured pre-flight runs.
+# Uninstall has its own header and a much smaller dependency surface (only jq).
+if [ "$UNINSTALL" = true ]; then
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "Warning: jq not installed. The .claude/settings.json hook entry won't be removed automatically."
+        echo "         Install via: brew install jq  (macOS) | apt install jq  (Debian/Ubuntu)"
+        echo ""
+    fi
+    uninstall_mode "$TARGET"
+    exit 0
+fi
 
 echo ""
 echo "ship-sop setup"
@@ -282,7 +496,7 @@ echo "     if the defaults aren't what you want."
 echo ""
 echo "  3. Verify the install:"
 echo "     - ~/.claude/agents/{compliance-reviewer,diagram-builder,release-notes-writer}.md"
-echo "     - ~/.claude/commands/{ship,release,ship-on,ship-off}.md"
+echo "     - ~/.claude/commands/{ship,release,ship-on,ship-off,audit}.md"
 echo "     - $TARGET/scripts/auto-ship-hook.sh (executable)"
 echo ""
 echo "  4. Try a dry run:"
@@ -293,4 +507,8 @@ echo ""
 echo "  5. Toggle modes any time:"
 echo "     /ship-on     enable auto-mode"
 echo "     /ship-off    disable auto-mode (manual /ship still works)"
+echo ""
+echo "  6. To remove ship-sop later:"
+echo "     ./setup.sh $TARGET --uninstall"
+echo "     (add --keep-config to preserve your tuning, --force to remove locally-modified files)"
 echo ""
