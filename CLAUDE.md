@@ -141,6 +141,8 @@ gh repo view mmjclayton/ship-sop
 4. Update `Backlog.md` and `docs/feature-map.md` when work ships.
 5. Commit docs/ changes in the same commit as the work that prompted them.
 6. ship-sop's auto-mode hook is wired on this repo. Expect a directive at `.ship/.pending-auto-fire.md` after sessions that produced a >10-line diff.
+7. **Ship via PR, not direct push.** `main` is branch-protected. Cut a branch (`git switch -c <topic>`), commit, push (`git push -u origin <topic>`), open PR via `gh pr create`. Merging via PR is the only way to update `origin/main`.
+8. **Hands-off agent-sop pristine replicas.** Per `.claude/agent-sop.config.json` SHA-tracking, `docs/sop/*`, `docs/guides/*`, `scripts/{refresh-rollup,validate-state-transitions,migrate-to-multi-agent}.{sh,py}`, and `docs/templates/review-template.md` are synced from upstream agent-sop. Edits belong in the agent-sop repo, then re-synced via `/update-agent-sop`. See `docs/README.md`.
 
 ---
 

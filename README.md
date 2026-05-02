@@ -269,6 +269,17 @@ awk '/^# ship-sop runtime artifacts$/ { skip=2; next } skip>0 { skip--; next } {
 
 </details>
 
+## Contributing
+
+Changes ship via pull request to `main` — direct pushes to `main` are blocked. The flow:
+
+1. Branch from `main` (`git switch -c <topic>`).
+2. Make changes following ship-sop's own SOP — every shipped change updates `Backlog.md`, `docs/feature-map.md`, the relevant phase plan in `docs/build-plans/`, and a `docs/recent-work/` entry. See `CLAUDE.md` for the full session-end checklist.
+3. Push the branch (`git push -u origin <topic>`) and open a PR via `gh pr create`.
+4. Merge once green.
+
+ship-sop dogfoods itself: open a PR with a >10-line diff and the SessionStop hook will queue an auto-mode review for the next turn. Manual `/ship` is also available before pushing.
+
 ## License
 
 MIT. Copyright (c) 2026 Matt Clayton.
