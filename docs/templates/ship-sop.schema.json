@@ -89,6 +89,18 @@
           "description": "File to read the current version from. Supports package.json, pyproject.toml, Cargo.toml, version.txt"
         }
       }
+    },
+    "artifacts": {
+      "type": "object",
+      "description": "Optional housekeeping for files written under docs/reviews/.",
+      "properties": {
+        "retain_ship_artifact_days": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "If > 0, prune ship-sop gate artifacts (YYYYMMDD-HHMMSS-*.md) older than this many days at hook fire time. Agent-sop /update-sop reviews (YYYY-MM-DD_<agent-id>_P<n>.md) are never touched. Default 0 disables retention."
+        }
+      }
     }
   }
 }

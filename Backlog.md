@@ -244,6 +244,51 @@ Lowers the barrier to trying ship-sop on a project: you can install with confide
 
 ---
 
+### P11 — Phase 2: Hardening pass (diagnostics, schema warn, retention, drift, declutter)
+`[SHIPPED - 2026-05-02] [Iteration]`
+
+Whole-repo review pass after a re-read against ship-sop's stated purpose surfaced four MED-severity user-facing issues plus a cluster of LOW drift items. Implemented as four batches in one session; one P-number because the changes share a single review/plan cycle.
+
+The trigger was an explicit ask for an objective review against the repo's purpose. Earlier exploration drafts inflated several findings (claimed perf wins, proposed a 25-file `docs/internal/` archive). The plan was revised after verifying agent-sop composition: `docs/{recent-work,reviews,build-plans,agent-memory,sop,guides}/` are normative in upstream agent-sop and SHA-tracked here; moving them would break every consumer. Final scope is constrained to ship-sop's own surface.
+
+**Shipped contents (Batch 1 — usefulness hardening):**
+- `SHIP_SOP_DEBUG=1` env var: when set, every silent-exit path in `scripts/auto-ship-hook.sh` prints a one-line `[ship-sop] skip: <reason>` to stderr. Default behaviour stays silent. 13 silent-exit paths covered.
+- Config schema sanity check: warn-only stderr advisory on unknown keys at top-level / `.trigger.throttle` / `.agents.<name>` / `.release` / `.artifacts` — catches typos like `enabld: true` that would silently disable a gate.
+- Optional review-artifact retention: new `artifacts.retain_ship_artifact_days` field (default `0` = disabled). Prunes ship-sop's `YYYYMMDD-HHMMSS-*.md` artifacts older than the threshold. **Critical safety property:** the precise digit-count glob does not match agent-sop's `YYYY-MM-DD_<agent-id>_P<n>.md` permanent reviews. Verified empirically — a loose glob like `[0-9]*-[0-9]*-*.md` would also match agent-sop's format and was rejected.
+
+**Shipped contents (Batch 2 — drift + slim):**
+- CLAUDE.md drift: rollup refreshed via `bash scripts/refresh-rollup.sh` (now includes P10); the stale "Likely future candidates" list (which still listed `--uninstall` as a future) replaced with a Backlog pointer.
+- `docs/ship-sop.md` folded into README: unique content (the "How auto-mode actually executes" IPC explainer + extended Compliance scope) now lives in README. The original file is replaced with a one-paragraph redirect stub so historical references in Backlog/feature-map/reviews/recent-work continue to resolve.
+- README uninstall slim: manual-fallback bash block wrapped in `<details>` so it doesn't dominate the Uninstall section.
+- Hook edge fixes: `sha256sum` fallback alongside `shasum` (mirrors `refresh-rollup.sh`); docs-only regex tightened from `^docs/|\.(md|mdx)$|^README` to a precise pattern that doesn't false-positive on `docs/img.png` or `READMENOT.md`; `git diff` cached once and reused for line count + hash (saves ~50-100ms on a typical diff).
+
+**Shipped contents (Batch 3 — orientation):**
+- `docs/README.md` (new): one-page orientation explaining what each subdirectory is, distinguishing ship-sop's own surface from agent-sop pristine replicas from SOP-generated history. **Originally a 25-file archive move; cancelled after re-reading agent-sop's hardcoded paths.** Single-file alternative gives readers context without breaking integrations.
+
+**Shipped contents (Batch 4 — setup robustness + small README fixes):**
+- `setup.sh prompt_yn()`: added `read -t 30` timeout. Non-interactive shells (CI runners, scripted installs) now fall through to the supplied default after 30s instead of hanging.
+- README quick-start: command count corrected from "Four" to "Five" (the `/audit` command shipped in P7 was missing); `/audit` listed in the example command block with a launch-readiness gloss.
+- README troubleshooting: new section documenting `SHIP_SOP_DEBUG`, the schema-warn behaviour, and `artifacts.retain_ship_artifact_days`.
+- Schema URL verified: `https://raw.githubusercontent.com/mmjclayton/ship-sop/main/docs/templates/ship-sop.schema.json` returns 200; `mmjclayton/ship-sop` is the correct GitHub path. No change needed.
+
+**Acceptance criteria met:**
+- `SHIP_SOP_DEBUG=1 bash scripts/auto-ship-hook.sh` prints stderr diagnostics on every skip path; smoke-tested.
+- Drop a typo into a config — schema warning printed to stderr; smoke-tested with `enabld: true` and `oops_typo: 99`.
+- Retention safety: created `19991231-235959-old-ship.md`, `1999-12-31_solo_P0-old-agent.md`, `2026-01-15_chen_P5-other-agent.md`, `20260115-120000-test.md` under `docs/reviews/`. After prune with `retain_ship_artifact_days: 1`, only the two `YYYYMMDD-HHMMSS-*.md` files were removed; both `YYYY-MM-DD_*.md` files preserved.
+- `bash -n` clean on `auto-ship-hook.sh` and `setup.sh` after every edit.
+- `/update-agent-sop` SHA-tracked files untouched.
+
+**Why this earned a P-number:** the diagnostic mode and config-typo warning are real UX issues that bite users in production (silent failure modes mean "I configured something and it's not working" with no recourse). Retention prevents `docs/reviews/` from growing unboundedly across years of dogfooding. CLAUDE.md drift caused real navigation friction (P10 was invisible in the rollup despite being shipped six days prior).
+
+**Out of scope (called out explicitly):**
+- 25-file `docs/internal/` declutter — would break every agent-sop consumer.
+- Editing `docs/sop/*`, `docs/guides/*`, the agent-sop scripts, or `docs/templates/review-template.md` — pristine replicas; changes belong upstream.
+- New gates / agents.
+- CI workflow.
+- `--dry-run` for `/ship`.
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*

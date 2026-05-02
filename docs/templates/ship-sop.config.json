@@ -41,5 +41,8 @@
     "auto_publish": false,
     "default_branch": "main",
     "version_source": "package.json"
+  },
+  "artifacts": {
+    "retain_ship_artifact_days": 0
   }
 }

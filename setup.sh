@@ -129,7 +129,13 @@ prompt_yn() {
     else
         printf "%s [y/N] " "$prompt"
     fi
-    read -r response
+    # 30s timeout protects non-interactive shells (CI runners, scripted installs).
+    # Falls through to the supplied default rather than hanging.
+    if ! read -t 30 -r response 2>/dev/null; then
+        echo ""
+        echo "  (no input within 30s — using default '$default')"
+        response="$default"
+    fi
     response="${response:-$default}"
     [[ "$response" =~ ^[Yy]$ ]]
 }
