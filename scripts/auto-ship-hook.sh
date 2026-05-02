@@ -28,11 +28,23 @@
 
 set -euo pipefail
 
+# ── Diagnostics ───────────────────────────────────────────────────────────────
+#
+# Set SHIP_SOP_DEBUG=1 to print one-line stderr diagnostics for every silent
+# exit path. Default behaviour stays silent so production hook output is not
+# polluted; this is a troubleshooting toggle for "why didn't auto-mode fire?"
+
+skip_log() {
+    if [ "${SHIP_SOP_DEBUG:-0}" = "1" ]; then
+        echo "[ship-sop] skip: $*" >&2
+    fi
+}
+
 # ── Locate project root ───────────────────────────────────────────────────────
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
 if [ -z "$ROOT" ]; then
-    # Not a git repo — exit silently
+    skip_log "not a git repo"
     exit 0
 fi
 cd "$ROOT"
@@ -45,16 +57,61 @@ if [ -f "$ROOT/ship-sop.config.json" ]; then
 elif [ -f "$HOME/.claude/ship-sop.config.json" ]; then
     CONFIG="$HOME/.claude/ship-sop.config.json"
 else
-    # No config — auto-mode disabled by default
+    skip_log "no config (auto-mode disabled by default)"
     exit 0
 fi
 
 # ── jq is required for config parsing ─────────────────────────────────────────
 
 if ! command -v jq >/dev/null 2>&1; then
-    echo "[ship-sop] jq not installed — auto-mode requires jq. Install via brew/apt and re-run."
+    echo "[ship-sop] jq not installed — auto-mode requires jq. Install via brew/apt and re-run." >&2
     exit 0
 fi
+
+# ── Schema sanity check (warn on unknown keys) ────────────────────────────────
+#
+# Catch typos like `enabld: true` that would silently treat a gate as disabled.
+# Warn-only — never block. Whitelist of known top-level / throttle / per-agent
+# keys; anything else gets a single stderr advisory line.
+
+KNOWN_TOP_LEVEL='trigger agents release artifacts $schema'
+KNOWN_TRIGGER='mode throttle'
+KNOWN_THROTTLE='min_diff_lines skip_docs_only cooldown_seconds skip_branch_patterns'
+KNOWN_AGENT='enabled block_on auto_file_backlog'
+KNOWN_RELEASE='auto_publish default_branch version_source'
+KNOWN_ARTIFACTS='retain_ship_artifact_days'
+
+warn_unknown_keys() {
+    local context="$1" actual_keys="$2" known_keys="$3"
+    local k
+    for k in $actual_keys; do
+        case " $known_keys " in
+            *" $k "*) ;;
+            *) echo "[ship-sop] config warning: unknown key '$k' in $context" >&2 ;;
+        esac
+    done
+}
+
+ACTUAL_TOP=$(jq -r 'keys[]' "$CONFIG" 2>/dev/null || true)
+warn_unknown_keys "top-level" "$ACTUAL_TOP" "$KNOWN_TOP_LEVEL"
+
+ACTUAL_TRIGGER=$(jq -r '.trigger | keys[]?' "$CONFIG" 2>/dev/null || true)
+warn_unknown_keys ".trigger" "$ACTUAL_TRIGGER" "$KNOWN_TRIGGER"
+
+ACTUAL_THROTTLE=$(jq -r '.trigger.throttle | keys[]?' "$CONFIG" 2>/dev/null || true)
+warn_unknown_keys ".trigger.throttle" "$ACTUAL_THROTTLE" "$KNOWN_THROTTLE"
+
+ACTUAL_RELEASE=$(jq -r '.release | keys[]?' "$CONFIG" 2>/dev/null || true)
+warn_unknown_keys ".release" "$ACTUAL_RELEASE" "$KNOWN_RELEASE"
+
+ACTUAL_ARTIFACTS=$(jq -r '.artifacts | keys[]?' "$CONFIG" 2>/dev/null || true)
+warn_unknown_keys ".artifacts" "$ACTUAL_ARTIFACTS" "$KNOWN_ARTIFACTS"
+
+while IFS= read -r agent_name; do
+    [ -z "$agent_name" ] && continue
+    actual_agent_keys=$(jq -r --arg a "$agent_name" '.agents[$a] | keys[]?' "$CONFIG" 2>/dev/null || true)
+    warn_unknown_keys ".agents.$agent_name" "$actual_agent_keys" "$KNOWN_AGENT"
+done < <(jq -r '.agents | keys[]?' "$CONFIG" 2>/dev/null || true)
 
 # ── Read trigger mode ─────────────────────────────────────────────────────────
 
@@ -64,11 +121,11 @@ case "$MODE" in
     auto)
         ;;
     manual|off)
-        # Auto-mode not active — exit silently
+        skip_log "trigger.mode=$MODE (not auto)"
         exit 0
         ;;
     *)
-        echo "[ship-sop] unknown trigger.mode: $MODE — expected auto|manual|off"
+        echo "[ship-sop] unknown trigger.mode: $MODE — expected auto|manual|off" >&2
         exit 0
         ;;
 esac
@@ -81,7 +138,7 @@ if [ -n "$SKIP_PATTERNS" ] && [ -n "$CURRENT_BRANCH" ]; then
     while IFS= read -r pattern; do
         [ -z "$pattern" ] && continue
         if echo "$CURRENT_BRANCH" | grep -qE "$pattern"; then
-            # Branch matches a skip pattern (e.g., wip/, spike/) — exit silently
+            skip_log "branch '$CURRENT_BRANCH' matches skip pattern '$pattern'"
             exit 0
         fi
     done <<< "$SKIP_PATTERNS"
@@ -100,7 +157,7 @@ if [ -z "$DEFAULT_BRANCH" ]; then
 fi
 
 if [ -z "$DEFAULT_BRANCH" ]; then
-    # Can't resolve default branch — exit silently
+    skip_log "cannot resolve default branch (no origin/HEAD; no origin/{main,master,develop})"
     exit 0
 fi
 
@@ -108,17 +165,20 @@ BASE=$(git merge-base "origin/$DEFAULT_BRANCH" HEAD 2>/dev/null || echo "")
 HEAD_SHA=$(git rev-parse HEAD)
 
 if [ -z "$BASE" ] || [ "$BASE" = "$HEAD_SHA" ]; then
-    # No diff — exit silently
+    skip_log "no diff vs origin/$DEFAULT_BRANCH"
     exit 0
 fi
+
+# Cache the diff once — reused for line count and hash below to avoid double work.
+DIFF_OUT=$(git diff "$BASE..HEAD")
 
 # ── Throttle: minimum diff size ───────────────────────────────────────────────
 
 MIN_LINES=$(jq -r '.trigger.throttle.min_diff_lines // 10' "$CONFIG")
-DIFF_LINES=$(git diff "$BASE..HEAD" | wc -l | tr -d '[:space:]')
+DIFF_LINES=$(printf '%s\n' "$DIFF_OUT" | wc -l | tr -d '[:space:]')
 
 if [ "$DIFF_LINES" -lt "$MIN_LINES" ]; then
-    # Diff below threshold — exit silently
+    skip_log "diff $DIFF_LINES lines < threshold $MIN_LINES"
     exit 0
 fi
 
@@ -128,6 +188,7 @@ SKIP_DOCS_ONLY=$(jq -r '.trigger.throttle.skip_docs_only // false' "$CONFIG")
 if [ "$SKIP_DOCS_ONLY" = "true" ]; then
     NON_DOCS=$(git diff --name-only "$BASE..HEAD" | grep -vE '\.(md|mdx)$|^docs/' | wc -l | tr -d '[:space:]')
     if [ "$NON_DOCS" -eq 0 ]; then
+        skip_log "skip_docs_only=true and diff is docs-only"
         exit 0
     fi
 fi
@@ -143,16 +204,28 @@ if [ -f "$STAMP_FILE" ]; then
     NOW=$(date +%s)
     ELAPSED=$((NOW - LAST_STAMP))
     if [ "$ELAPSED" -lt "$COOLDOWN" ]; then
+        skip_log "cooldown elapsed=${ELAPSED}s < ${COOLDOWN}s"
         exit 0
     fi
 fi
 
-# Same-diff guard: if HEAD hasn't moved since last fire, skip
+# Same-diff guard: if HEAD hasn't moved since last fire, skip.
+# Use shasum (BSD/macOS) with sha256sum (GNU/Linux) fallback for portability.
+diff_sha256() {
+    if command -v shasum >/dev/null 2>&1; then
+        printf '%s\n' "$DIFF_OUT" | shasum -a 256 | awk '{print $1}'
+    elif command -v sha256sum >/dev/null 2>&1; then
+        printf '%s\n' "$DIFF_OUT" | sha256sum | awk '{print $1}'
+    else
+        echo ""
+    fi
+}
 DIFF_HASH_FILE="$ROOT/.ship/.last-diff-hash"
-CURRENT_HASH=$(git diff "$BASE..HEAD" | shasum -a 256 | awk '{print $1}')
-if [ -f "$DIFF_HASH_FILE" ]; then
+CURRENT_HASH=$(diff_sha256)
+if [ -n "$CURRENT_HASH" ] && [ -f "$DIFF_HASH_FILE" ]; then
     LAST_HASH=$(cat "$DIFF_HASH_FILE" 2>/dev/null || echo "")
     if [ "$CURRENT_HASH" = "$LAST_HASH" ]; then
+        skip_log "diff unchanged since last fire (hash match)"
         exit 0
     fi
 fi
@@ -168,7 +241,9 @@ fi
 DOCS_ONLY=true
 while IFS= read -r f; do
     [ -z "$f" ] && continue
-    if ! echo "$f" | grep -qE '^docs/|\.(md|mdx)$|^README'; then
+    # Match: docs/*.md|*.mdx, top-level *.md|*.mdx, or README / README.md exactly.
+    # Avoids false positives like docs/img.png and READMENOT.md.
+    if ! echo "$f" | grep -qE '^docs/.*\.(md|mdx)$|^[^/]+\.(md|mdx)$|^README(\.md)?$'; then
         DOCS_ONLY=false
         break
     fi
@@ -185,8 +260,26 @@ else
 fi
 
 if [ -z "$ENABLED_AGENTS" ]; then
-    # No agents to run — exit silently
+    skip_log "no agents enabled (or all hard-blocking on docs-only diff)"
     exit 0
+fi
+
+# ── Optional retention prune (ship-sop artifacts only) ────────────────────────
+#
+# Pre-fire cleanup of stale ship-sop gate artifacts under docs/reviews/.
+# Scoped strictly to ship-sop's filename pattern (YYYYMMDD-HHMMSS-*.md) so we
+# never touch agent-sop's permanent /update-sop reviews (YYYY-MM-DD_*.md).
+# Off by default; opt in via `artifacts.retain_ship_artifact_days` in config.
+
+RETAIN_DAYS=$(jq -r '.artifacts.retain_ship_artifact_days // 0' "$CONFIG")
+if [ "$RETAIN_DAYS" -gt 0 ] 2>/dev/null && [ -d "$ROOT/docs/reviews" ]; then
+    # Strictly match ship-sop's `date +%Y%m%d-%H%M%S` stamp format:
+    # 8 digits, hyphen, 6 digits, hyphen, anything, .md
+    # This avoids matching agent-sop's YYYY-MM-DD_<agent-id>_P<n>.md (which
+    # has hyphens *inside* the date prefix and underscores between segments).
+    find "$ROOT/docs/reviews" -maxdepth 1 -type f \
+        -name '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]-*.md' \
+        -mtime +"$RETAIN_DAYS" -delete 2>/dev/null || true
 fi
 
 # ── Emit the directive for Claude Code to execute ────────────────────────────

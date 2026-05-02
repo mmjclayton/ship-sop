@@ -19,7 +19,7 @@ See CLAUDE.md Key Documents & Dispatch table.
 | SessionStop hook (throttle + directive emission) | `scripts/auto-ship-hook.sh` |
 | Installer (with self-install detection) | `setup.sh` |
 | Default config + JSON schema | `docs/templates/ship-sop.{config,schema}.json` |
-| Public spec + pitch | `README.md`, `docs/ship-sop.md` |
+| Public spec + pitch | `README.md` (canonical post-P11; `docs/ship-sop.md` is now a redirect stub) |
 
 ---
 

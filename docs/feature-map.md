@@ -38,6 +38,16 @@ Last updated: 2026-04-26 (P10)
 | P10 | `setup.sh --uninstall` (with `--keep-config`, `--keep-artifacts`, hash-based modification check) | `setup.sh` | 2026-04-26 |
 | P10 | README Uninstall section rewritten — `--uninstall` is canonical, manual `rm` fallback retained | `README.md` | 2026-04-26 |
 | P10 | Drive-by fix: install Next-Steps + manual-uninstall lists now include `audit.md` | `setup.sh`, `README.md` | 2026-04-26 |
+| P11 | `SHIP_SOP_DEBUG=1` env var: stderr diagnostics on every silent-exit path in the SessionStop hook | `scripts/auto-ship-hook.sh` | 2026-05-02 |
+| P11 | Config schema sanity check: warn on unknown keys at hook load (catches `enabld`-style typos) | `scripts/auto-ship-hook.sh` | 2026-05-02 |
+| P11 | Opt-in artifact retention: `artifacts.retain_ship_artifact_days` (precise digit-count glob preserves agent-sop's `YYYY-MM-DD_*.md` reviews) | `scripts/auto-ship-hook.sh`, `docs/templates/ship-sop.{config,schema}.json` | 2026-05-02 |
+| P11 | Hook edge fixes: `sha256sum` fallback, tightened docs-only regex, cached `git diff` | `scripts/auto-ship-hook.sh` | 2026-05-02 |
+| P11 | CLAUDE.md drift fixed: rollup refreshed (now includes P10), stale "future candidates" list removed | `CLAUDE.md` | 2026-05-02 |
+| P11 | `docs/ship-sop.md` folded into README; original file replaced with redirect stub | `README.md`, `docs/ship-sop.md` | 2026-05-02 |
+| P11 | README uninstall fallback wrapped in `<details>`; `/audit` added to quick start; new troubleshooting section | `README.md` | 2026-05-02 |
+| P11 | `setup.sh prompt_yn()` non-interactive timeout (`read -t 30` with default fallthrough) | `setup.sh` | 2026-05-02 |
+| P11 | `docs/README.md` orientation note (ship-sop surface vs agent-sop pristine replicas vs SOP-generated history) | `docs/README.md` | 2026-05-02 |
+| P11 | P10 retroactive `docs/recent-work/` entry filed; rollup re-runs cleanly | `docs/recent-work/2026-04-26_solo_p10-uninstall.md` | 2026-05-02 |
 
 ---
 
