@@ -27,6 +27,16 @@ Plus a manual `/release` command that runs `@release-notes-writer` to generate C
 
 **Language-specific reviewers are not in the default set.** Add `typescript-reviewer`, `python-reviewer`, `go-reviewer`, etc. per project — see "Common extensions" below.
 
+### Relationship to agent-sop's Step 1b reviewer gate
+
+agent-sop's `docs/sop/claude-agent-sop.md` § 6 Step 1b runs `@code-reviewer` *per session* on Feature/Refactor items above the configured threshold (or always-on when `review_loc_threshold: 0`). ship-sop's Gate 4 runs `@code-reviewer` *per session-stop* on every diff that touches code paths, throttled by `ship-sop.config.json`.
+
+Both fire `@code-reviewer`. The difference is the trigger:
+- **Step 1b (agent-sop)** — single per-session check at session-end, partitioned by Backlog item type and diff size. Substance-asserted via `scripts/validate-state-transitions.sh --assert-review`.
+- **Gate 4 (ship-sop)** — per-stop check that runs every time a SessionStop hook fires, regardless of whether the session is mid-feature or wrapping up. Blocks on HIGH.
+
+Projects running both get two independent reviewer turns on overlapping diff ranges. That's intentional — Step 1b enforces the session-end checklist; Gate 4 enforces the pre-merge bar. Findings overlap meaningfully because both gates produce concrete file:line anchors against largely the same code, so a reader can cross-reference the two artifacts; the overlap is not measured and the gates run at different times (per-session vs per-stop) so the diffs are not guaranteed identical.
+
 ## Two modes
 
 **Auto** (default after install) — a SessionStop hook reads `ship-sop.config.json`, applies throttle rules, runs the configured gates against the session's diff. Findings inject a strong warning into the next turn's context but never halt the session — auto-mode prioritises non-disruption.
