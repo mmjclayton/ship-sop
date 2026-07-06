@@ -289,6 +289,44 @@ The trigger was an explicit ask for an objective review against the repo's purpo
 
 ---
 
+### P12 — Background-subagent semantics for gate execution
+`[OPEN] [Bug]`
+
+Claude Code 2.1.198 (1 July 2026) made subagents run in the background by default. ship-sop's gates fire via `@agent` invocations — auto-mode on the next user turn (from the `.ship/.pending-auto-fire.md` directive), manual mode inside `/ship`. Two documented behaviours now silently break:
+
+1. **Auto-mode:** README states "Findings land in `docs/reviews/` and surface in the model's reply." With background subagents, the model can finish its reply before the gate agents complete — findings land late or surface in a later turn, and the "watch the reply for the auto-review summary" guidance misleads.
+2. **Manual `/ship`:** "halts on hard-block failures" assumes the invoking turn waits for gate results. The command must explicitly collect every gate agent's result before evaluating `block_on` thresholds and reporting.
+
+**Acceptance criteria:**
+- `/ship` command doc requires collecting all gate-agent results before threshold evaluation and the readiness report — no reply until every enabled gate returns
+- README "How auto-mode actually executes" section notes background-by-default and that findings may surface a turn later than the directive pickup
+- Companion note: agent-sop P62 shipped the upstream `/update-sop` Step 0 pre-check (collect/terminate before session-end); ship-sop's SessionStop hook captures the diff at stop — outstanding subagent work at stop is invisible to the captured diff range and gets gated on the following stop instead
+
+**Source:** Claude Code changelog 2.1.198 (verified); agent-sop 2026-07-06 digest review; agent-sop P62.
+
+---
+
+### P13 — Directive file `.ship/.pending-auto-fire.md` as an injection surface
+`[OPEN] [Iteration]`
+
+The auto-mode IPC pattern (hook writes a directive file; next-turn model reads it and invokes agents against the stated diff range) makes the directive file persistent agent state that the model acts on — exactly the persistence-vector class Anthropic's containment post (25 May 2026) flags, and the same class agent-sop P61 now covers for CLAUDE.md/Backlog/agent-memory. A poisoned directive (crafted commit, compromised dependency script, or any process with repo write access) could redirect the next turn's gate invocations or embed instructions the model treats as operator intent.
+
+Constrain what the model trusts from the directive:
+
+1. **Schema-bound consumption.** The next-turn reader treats the directive as data, not instructions: only the documented fields (gates list, diff range, report destination) are honoured; any prose outside the schema is ignored and flagged to the user.
+2. **Provenance check.** `auto-ship-hook.sh` writes a content hash (same `shasum`/`sha256sum` fallback pattern the hook already uses) alongside the directive; the reader verifies it before acting. Mismatch = stale or tampered directive — report, do not execute.
+3. **README note** in the "How auto-mode actually executes" section naming the directive as the audit trail *and* an input to treat with rule-1 scepticism (agent-sop `security.md`).
+
+**Acceptance criteria:**
+- Directive schema documented (fields the reader may honour; everything else ignored)
+- Hash write + verify implemented in `auto-ship-hook.sh` and the reader-side instructions; `SHIP_SOP_DEBUG=1` prints the verification result
+- Tampered-directive dogfood: hand-edit `.ship/.pending-auto-fire.md` after the hook writes it, confirm the next turn reports rather than executes
+- README updated; no change to gate behaviour on clean directives
+
+**Source:** anthropic.com/engineering/how-we-contain-claude; agent-sop P61 (2026-07-06); ship-sop composition review 2026-07-06.
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*
