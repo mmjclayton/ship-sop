@@ -25,6 +25,8 @@ How this works:
 - project_resume.md: overwrite each session — this is a snapshot, not a log. Historical context belongs in build-plan batch logs.
 - Memory files: mark stale files `Status: Superseded - YYYY-MM-DD`. Never delete the file.
 
+*Before:* user says "we don't need P12 any more" → agent deletes the P12 entry and the `feature-map.md` row. *After:* flip P12 to `[WON'T]` in place, append a one-line `Reason:`. `feature-map.md` row stays.
+
 Git history is the backstop for in-repo files, but documents must remain human-readable records without requiring a git dig.
 
 **Rule 2 — One source of truth per information type.**
@@ -78,16 +80,11 @@ How to stay under: trim before adding. Every new instruction must identify what 
 
 When a request has multiple valid interpretations — ambiguous scope, target, or output — list the interpretations, name the one you'd default to, and ask. Do not pick silently. Exception: trivial reversible choices (variable naming in a one-liner) — pick and note the choice rather than stalling.
 
+*Before:* "tighten the validator" → agent silently picks (stricter regex / additional check / refactor) and ships. *After:* "Three reads — stricter regex, additional check, refactor. Defaulting to additional check (recent failures pointed at missed case X). OK?"
+
 **Override hierarchy:** `CLAUDE.md` can override any project-specific convention defined in this SOP (tag taxonomy, file paths, stack-specific rules). It cannot override the six non-negotiable rules above. They apply to every project regardless of what CLAUDE.md says.
 
-**Multi-agent parallel sessions:** Multiple agents on the same project work in separate git worktrees on separate branches. Tracking-file conflicts are prevented by structural choices — no human-in-the-loop co-ordination required:
-- **Per-entry directories:** Recent Work, Decisions, and Gotchas live as one file per entry with agent-id in the filename. Two agents writing on the same date produce distinct filenames. The CLAUDE.md `## Recent Work (rollup)` section is derived from `docs/recent-work/` via `/update-sop` Step 8b; regeneration is idempotent so merges converge.
-- **Per-agent resume snapshots:** `project_resume_<agent-id>.md` keyed by agent-id. No cross-agent clobber.
-- **Commit-range partitioning:** secondary-tracker reconciliation, drift guard, and hard-block checks use `git merge-base <default> HEAD..HEAD` so sibling agents' finding IDs never contaminate this agent's scope.
-- **P-number collision detection:** `/update-sop` Step 2a hard-blocks when two agents independently pick the same P-number; resolved via the `renumber_p` helper.
-- **Code files:** worktrees typically give each agent a mutually exclusive file set. When code conflicts do arise, the agent merging second reads both versions and produces a correct merge; flag non-trivial cases in a new `docs/agent-memory/gotchas/` entry.
-
-See `docs/guides/multi-agent-parallel-sessions.md` for the full mechanics, agent-id resolution, `renumber_p` helper, and dogfood protocol.
+**Multi-agent parallel sessions:** When more than one agent works the same repo (separate worktrees, separate branches), tracking-file conflicts are prevented by structural choices — no human-in-the-loop co-ordination required. See `docs/sop/multi-agent.md` for the entry point, decision tree, and Common Mistakes; `docs/guides/multi-agent-parallel-sessions.md` for the full concurrency mechanics (agent-id resolution, per-entry directories, commit-range partitioning, P-number collision detection, `renumber_p` helper, dogfood protocol).
 
 ---
 
@@ -308,7 +305,7 @@ docs/recent-work/
 
 **Template variants:** Two CLAUDE.md templates exist in `docs/templates/`: `claude-md-template-base.md` for any project type (markdown, scripts, docs), and `claude-md-template-code.md` for full-stack code projects (adds Auth, Database, Design System, and code-specific build rules). Always start from the base template and add the code sections only if needed.
 
-**CLAUDE.md size limit:** Keep the per-session sections of CLAUDE.md under 200 lines / 2,000 tokens for non-code projects, or **300 lines / 3,000 tokens for code projects that include a Common Mistakes section** (benchmark data shows the extra ~100 lines for Common Mistakes pays for itself in fewer wrong turns and prevented production bugs). Per-session sections are everything an agent reads every session: Agent SOP, Build Plans, Key Documents, Priority Items, Backlog Management, Key Commands, Common Mistakes, Rules for Automated Builds, Session & Memory Hygiene, Dispatch Quick Reference, and Recent Work. Project-specific reference sections (Auth, Database, Design System, and similar) may extend beyond the target — these are consulted on demand, not read every session, so their context cost is incurred only when relevant. If per-session sections are growing beyond the limit, move detail into `docs/agent-memory.md`, build plans, or source-file comments.
+**CLAUDE.md size limit:** Keep the per-session sections of CLAUDE.md under 200 lines / 2,000 tokens for non-code projects, or **300 lines / 3,000 tokens for code projects that include a Common Mistakes section** (benchmark data shows the extra ~100 lines for Common Mistakes pays for itself in fewer wrong turns and prevented production bugs). Per-session sections are everything an agent reads every session: Agent SOP, Build Plans, Key Documents, Priority Items, Backlog Management, Key Commands, Common Mistakes, Rules for Automated Builds, Session & Memory Hygiene, Dispatch Quick Reference, and Recent Work. Project-specific reference sections (Auth, Database, Design System, and similar) may extend beyond the target — these are consulted on demand, not read every session, so their context cost is incurred only when relevant. If per-session sections are growing beyond the limit, move detail into `docs/agent-memory.md`, build plans, or source-file comments. Token equivalences here are 4.x-tokenizer figures — Claude Sonnet 5's tokenizer (default from July 2026) produces approximately 30% more tokens for the same text, so treat the line limits as authoritative and the token figures as tokenizer-relative (see Section 15.5).
 
 **Token overhead:** Every file read by an agent costs approximately 1.7x its raw token count (loading and processing overhead). This is why the size limit matters and why the Dispatch Quick Reference enforces a minimum rather than a maximum. Keep referenced files lean and targeted. Line-range hints (e.g. "CSS tokens - client/src/index.css lines 1-80") reduce overhead significantly for large files.
 
@@ -406,8 +403,17 @@ Skip agent-memory.md, build plans, and MEMORY.md/project_resume.md. The lightwei
 **Run `/update-sop` at the end of every session.** This slash command (installed via `.claude/commands/update-sop.md`) automates the full checklist below. If the command is not available, execute the steps manually. Never-delete-without-a-trace applies to every step.
 
 ```
-1. Run tests (code projects) — fix failures before proceeding
-   Step 1b: Reviewer-turn gate. For any [Feature] or [Refactor] shipping this session with diff over threshold (default 50 LOC / 3 files, configurable in agent-sop.config.json), invoke code-reviewer (or security-reviewer for auth/crypto/payment diffs) and require a substantive review artifact at docs/reviews/YYYY-MM-DD_<agent-id>_P<n>.md. Hard-block if missing or fails substance assertion. No human sign-off — agent-to-agent review, validator-enforced.
+1. Run tests (code projects) — fix failures before proceeding. Continuing with a red suite requires all three: the failure filed as a [Bug] this session, named in the resume snapshot's Blockers, and nothing tagged [Feature]/[Refactor] shipping. Otherwise the suite is the gate (P70 — the exit is declared, never self-judged)
+   Step 1b: Reviewer-turn gate. For any [Feature] or [Refactor] shipping this session that meets ANY trigger below, invoke code-reviewer (or security-reviewer for auth/crypto/payment diffs) and require a substantive review artifact at docs/reviews/YYYY-MM-DD_<agent-id>_P<n>.md. Wait for the reviewer to return and confirm the artifact exists before asserting substance — subagents are background-by-default (Claude Code 2.1.198+), so a not-yet-written artifact would otherwise fail the gate exactly as a never-run review does. Hard-block if missing or fails substance assertion. No human sign-off — agent-to-agent review, validator-enforced.
+   Triggers (any one is sufficient):
+     a. Diff size over threshold (default 50 LOC / 3 files, configurable in agent-sop.config.json via `review_loc_threshold` and `review_files_threshold`). Set `review_loc_threshold: 0` for always-on-code mode — every Feature/Refactor with non-skipped paths fires the gate regardless of size. Projects with one observed missed-bug under default threshold should adopt 0 for their next quarter then re-evaluate.
+     b. SOP self-modification — any edit to files that the SOP itself executes or instructs (SOP docs, reference agent definitions, slash commands, validators that gate other steps). Examples in agent-sop's own layout: `docs/sop/**`, `docs/guides/sop-*.md`, `.claude/agents/**`, `.claude/commands/**`, `scripts/validate-*.sh`. Projects without one of these paths simply have nothing matching — the trigger doesn't fire. SOP changes are load-bearing regardless of LOC because the agent itself executes them.
+     c. Project-declared trigger — any path or pattern listed in `agent-sop.config.json#review_triggers[]` (e.g. project-specific schema files, auth middleware). Optional per project.
+   Skip list (gate does not fire when diff is entirely within one of these):
+     - Docs-only commits (no `.js` / `.jsx` / `.ts` / `.tsx` / `.py` / `.go` / `.rs` / `.sql` / migration files touched). Note: SOP self-modification (trigger b) overrides this — docs/sop/** changes still fire the gate.
+     - Test-only commits where the underlying code is unchanged (touches only `*_test.*`, `*.test.*`, `*.spec.*`, `__tests__/`).
+     - Dependency bumps (Dependabot / Renovate / pure lockfile updates).
+   Declaring a skip: when the gate does not fire for a [Feature]/[Refactor], the Batch Log line for that item must say so with the token `review skipped (P<n>): <docs-only|test-only|dep-bump|below-threshold>`. The declaration names its own P-number and the reason comes from that enumerated set; free text is not accepted, and a skip declared for one P-number never exempts another. `scripts/validate-state-transitions.sh` and compliance check S7 both read this token, so a declared skip passes both and an undeclared one blocks both (P66).
 2. Backlog.md — update status tags in place, append new items (Step 2a: P-number collision check against default branch, hard-block if collision)
 3. Secondary trackers — reconcile any project-specific finding lists (audit-backlog-*.md, security-findings.md, compliance-*.md). Commit range partitioned via `git merge-base <default> HEAD..HEAD`. Hard block: if any ID in this session's commits is still [OPEN] in a tracker, reconcile before step 8. Step 3c: state-transition validator hard-blocks illegal tag transitions and [SHIPPED] without Batch Log reference. Step 3d: drift detection hard-blocks over-threshold sessions whose commit messages don't reference any P-number declared in `project_resume_<agent-id>.md` — escape hatch is a `## Scope Change` block in the resume file.
 4. docs/feature-map.md — append shipped items
@@ -418,7 +424,11 @@ Skip agent-memory.md, build plans, and MEMORY.md/project_resume.md. The lightwei
 9. Commit docs/ changes with the work
 ```
 
-**Context compaction threshold:** When context reaches approximately 60% capacity, wrap up the current batch and run `/update-sop` (or complete the session end checklist manually) before continuing. Do not push to 95% — compaction at that point causes context loss and unreliable behaviour in the remainder of the session. Treat 60% as the session boundary signal, not a warning to ignore.
+**Why the reviewer-turn substance assertion exists (Step 1b rationale).** Anthropic's 30 April 2026 personal-guidance research measured a 9% baseline rate at which even a frontier model trained against sycophancy validates the user, rising to 25-38% in emotionally-loaded domains. Code review carries an analogous emotional load: the implementer just shipped this work, the reviewer is a peer agent in the same session, and the path of least resistance is to nod through. Step 1b therefore enforces *substance*, not just *presence* — the validator (`scripts/validate-state-transitions.sh --assert-review`) blocks reviews that have a Findings section with no concrete anchor, or a `No issues — <words>` line that names nothing specific. A review without at least one file path with line number (e.g. `foo.ts:42`) or a backticked symbol or path (e.g. `` `processOrder` ``, `` `scripts/foo.sh` ``) is treated as sycophantic and rejected. Cite or fail.
+
+**Why the skip list and zero-threshold mode exist (Step 1b triggers).** Empirical: hst-tracker 2026-05-28 composer-fix PR (220 LOC, no schema, no auth) — the reviewer caught two HIGH-severity bugs (cross-layer display-name divergence; non-atomic `upsert` race under true parallelism) that local tests passed cleanly. The PR was already above the default 50 LOC threshold, so the upstream gate fired correctly; the lesson is that LOC alone underweights load-bearing-but-small changes. Three mitigations land together: (1) the skip list lets projects safely lower the threshold without paying reviewer cost on docs-only or test-only commits; (2) `review_loc_threshold: 0` is the always-on-code mode for projects that have observed a missed bug; (3) SOP self-modification fires unconditionally — process docs that the agent itself executes are a known correctness hazard and warrant a review artifact regardless of diff size.
+
+**Context compaction threshold:** When context reaches approximately 60% capacity, wrap up the current batch and run `/update-sop` (or complete the session end checklist manually) before continuing. Do not push to 95% — compaction at that point causes context loss and unreliable behaviour in the remainder of the session. Treat 60% as the session boundary signal, not a warning to ignore. The threshold is proportional, so it self-adjusts across tokenizer generations — Sonnet 5 sessions reach it sooner for the same file reads (see Section 15.5).
 
 ---
 
@@ -448,7 +458,7 @@ Skip agent-memory.md, build plans, and MEMORY.md/project_resume.md. The lightwei
 - `[OPEN]` - not started
 - `[IN PROGRESS]` - active work
 - `[BLOCKED]` - waiting on an external action (someone else must do X first)
-- `[DEFERRED]` - intentionally postponed with no external blocker (chosen to do later). Distinct from `[BLOCKED]`: blocked means cannot proceed, deferred means chose not to proceed yet. Use `[DEFERRED]` instead of leaving stale `[OPEN]` items that were consciously pushed back.
+- `[DEFERRED]` - intentionally postponed with no external blocker (chosen to do later). Distinct from `[BLOCKED]`: blocked means cannot proceed, deferred means chose not to proceed yet. Use `[DEFERRED]` instead of leaving stale `[OPEN]` items that were consciously pushed back. **Every `[DEFERRED]` item must state the condition that brings it back** — a reopen trigger, on its own line: `**Reopens when:** <observable condition>`. "No trigger identified" is a legal value and is the useful one: it marks the item as a `[WON'T]` candidate at the next review instead of letting it sit indefinitely. Rationale: this SOP's Rule 1 makes a project good at *admitting* postponed work and structurally prone to *accumulating* it. Admitted debt that is never scheduled is never paid (P71).
 - `[SHIPPED - YYYY-MM-DD]` - merged to main and deployed
 - `[VERIFIED - YYYY-MM-DD]` - confirmed correct in the live environment. For code projects: tested in production. For documentation projects: reviewed by the project owner and confirmed accurate and complete. For other project types: define what verified means in CLAUDE.md.
 - `[WON'T]` - decision not to build. Required format: `[WON'T] [Type] — Reason: [one-line explanation or superseding P-number]`
@@ -684,11 +694,28 @@ When running A/B benchmarks or any agent testing against a real codebase:
 
 **Managed Agents API safety:** when benchmarks run via the Managed Agents API instead of local Claude Code, see `docs/guides/managed-agents-integration.md` (Benchmark safety section) for permission-policy and isolation rules.
 
+### 15.5 Backend Assumptions
+
+This SOP, its compliance scoring, and the reviewer-substance gates (Section 6 Step 1b, P44 / P45) were authored and benchmarked against Anthropic-hosted Claude (Opus and Sonnet, 4.x family). Gateway routing via `ANTHROPIC_BASE_URL` to non-Anthropic backends (DeepSeek, OpenRouter, Bedrock, Vertex relays, local models) is a first-class scenario as of the 1 May 2026 Claude Code changelog, but is not the authoring substrate for this document.
+
+Treat backend-substituted sessions as **advisory mode** for the gates that depend on instruction-following quality:
+- Reviewer-substance assertion (`scripts/validate-state-transitions.sh --assert-review`) may pass structurally complete but contentless reviews more often.
+- Reviewer voice rules (`code-reviewer.md` Finding Voice) depend on the model honouring drop-list / keep-list discipline.
+- Drift detection (Step 3d) depends on the model declaring the right P-numbers up front.
+
+The SOP's structural checks (file presence, tag format, transition graph, P-number collision) are model-agnostic and unaffected.
+
+`/restart-sop` Step 0e prints a soft advisory when `ANTHROPIC_BASE_URL` is set to a non-Anthropic value. The advisory does not block; it informs the operator that compliance scores and reviewer findings should be read with extra scepticism in that session.
+
+**Tokenizer generations (within Anthropic-hosted models).** Claude Sonnet 5 (launched 30 June 2026, default for Free and Pro plans from 1 July 2026) uses a new tokenizer that produces approximately 30% more tokens for the same text than the 4.x family this document's figures were measured on. Token counts published in this SOP and the benchmark docs are not directly comparable across tokenizer generations. Line caps are the enforceable unit; expect session-start token costs to run ~30% higher on Sonnet 5 for identical file reads. Use `/usage` (per-category attribution, Claude Code 2.1.174+) to re-measure on the model actually in use rather than trusting published estimates.
+
+This section makes no claim about token-budget arithmetic on swapped backends — tokeniser and context-window behaviour vary by provider and have not been measured against this SOP.
+
 ---
 
-## 16. Multi-Agent Context Routing
+## 16. Multi-Agent
 
-Applies only when multiple agents work in parallel on the same project. See `docs/guides/multi-agent-context-routing.md` for the context-tier table, routing rules, conflict avoidance, and Managed Agents API mapping.
+Applies when more than one agent works the same project — either in parallel sessions across worktrees, or as coordinator + specialist sub-agents within one session. See `docs/sop/multi-agent.md` for the canonical entry point, decision tree, optimisation rules, and Common Mistakes. Deep mechanics live in `docs/guides/multi-agent-parallel-sessions.md` (concurrency, agent-id, P-number collision) and `docs/guides/multi-agent-context-routing.md` (context tiers, coordinator + specialist).
 
 ---
 
