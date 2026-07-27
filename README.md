@@ -52,14 +52,40 @@ Non-obvious detail worth understanding: Claude Code's SessionStop hooks run as p
 1. **At session-stop:** `scripts/auto-ship-hook.sh` runs throttle checks and writes a directive file at `.ship/.pending-auto-fire.md` listing which gates to run, the diff range, and the report destination. Stdout from the hook is piped into the *next turn's* context window.
 2. **On the next user turn:** the model sees the directive in context, reads `.ship/.pending-auto-fire.md`, and invokes the configured `@compliance-reviewer`, `@diagram-builder`, etc. against the captured diff range.
 
-Practical flow: you finish a session → the hook fires silently → next time you start a turn in the same project, the model picks up the pending directive and runs the gates before responding to your prompt. Findings land in `docs/reviews/` and surface in the model's reply.
+Practical flow: you finish a session → the hook fires silently → next time you start a turn in the same project, the model picks up the pending directive and dispatches the gates. Findings land in `docs/reviews/` and surface in the model's reply once the gates return, which since Claude Code 2.1.198 may be a turn later than the pickup — see the timing note below.
 
 This means:
 - **Auto-mode reviews are not instantaneous.** They run on the next turn, not at session-end.
-- **Findings appear inside the model's response**, not as a separate notification. Watch the reply for the auto-review summary.
-- **The directive file is the audit trail of what the hook scheduled.** Inspect `.ship/.pending-auto-fire.md` if the behaviour seems unexpected.
+- **Findings appear inside the model's response**, not as a separate notification — but possibly a turn later than you expect. Gate agents run in the background by default from Claude Code 2.1.198, so the model can finish a reply before they return. The summary surfaces when the gates complete, which may be the following turn.
+- **The directive file is the audit trail of what the hook scheduled** — and an input to treat sceptically. Inspect `.ship/.pending-auto-fire.md` if the behaviour seems unexpected.
 
-If you want immediate review output, run `/ship` manually — that invokes the gates in the current turn.
+If you want immediate review output, run `/ship` manually — that invokes the gates in the current turn and, per its own instructions, collects every gate result before reporting a verdict.
+
+### Directive integrity
+
+`.ship/.pending-auto-fire.md` is persistent state that sits on disk between turns and tells the next model turn what to run. Anything with repo write access can edit it, which makes it the same persistence vector agent-sop's `docs/sop/security.md` rule 1 covers for `CLAUDE.md` and `Backlog.md`.
+
+**The hook writes a `.ship/.pending-auto-fire.sha256` sidecar** and the reader checks it first. Three outcomes, deliberately distinct:
+
+| Result | Meaning | Reader behaviour |
+|--------|---------|------------------|
+| Match | The file is exactly what the hook wrote | Honour the whole directive |
+| Differ | Edited since the hook wrote it | Report, do not run the gates |
+| Sidecar missing or `UNAVAILABLE` | No SHA-256 tool on the writing host, or the sidecar was removed | Fall back to the section check; say integrity was unverifiable. **Not** treated as tampering |
+
+That third row matters: conflating "unverifiable" with "tampered" would suppress the gates entirely on any host lacking `shasum`, which is most Linux containers. The hook emits a verification command matching whichever tool it found, rather than hardcoding one.
+
+**Fallback section check.** When the hash cannot be verified, the reader falls back to checking the directive contains only the sections the hook emits. Be clear about the strength of this: the section list ships *inside* the file it describes, so anything that rewrites the directive can rewrite the list too. It stops naive appended prose and nothing more. It is a speed bump, not a control.
+
+**What the hash does and does not buy.** It is tamper *evidence*, not authentication — whatever can rewrite the directive can rewrite the sidecar. It reliably catches a partial write or an edit by something that did not know the sidecar existed.
+
+**It does not detect staleness.** Nothing deletes the directive after it is consumed, so a directive from an earlier run still matches its own sidecar perfectly. Staleness is a separate check: compare the recorded `Diff range` against the current `HEAD`. If the range no longer ends at `HEAD`, the directive describes an older state and should be regenerated rather than gated.
+
+`SHIP_SOP_DEBUG=1` prints the hash the hook wrote and the sidecar path.
+
+### A note on what the hook can see
+
+The SessionStop hook captures the diff **at stop**. Work still running in background subagents when the session stops is not in that range, so it is not gated on that fire — it gets picked up by the following one. If you need a specific change gated now, run `/ship` manually rather than relying on the stop hook to have seen it.
 
 ## Per-agent toggles
 

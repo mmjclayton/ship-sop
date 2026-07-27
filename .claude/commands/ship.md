@@ -50,9 +50,30 @@ fi
 
 The config controls per-agent toggles. A gate whose agent is disabled in config is skipped with a notice. `--skip` overrides on a per-run basis.
 
+## Collect every gate result before evaluating thresholds
+
+**Read this before running the gates below.**
+
+**Subagents run in the background by default from Claude Code 2.1.198.** An `@agent` invocation hands control back before that agent has finished, so the agent-backed gates below do not complete in the order they are written, and none of them are done when the last one is dispatched.
+
+This splits the gates into two kinds:
+
+- **Gate 1 (tests)** runs a shell command. It is genuinely synchronous and its `exit 1` halts inline, as written.
+- **Gates 2, 3 and 4** invoke agents. Their `BLOCK` / `WARNING` / `APPROVE` verdicts are **recorded when the agent returns, not acted on at the point of invocation.** Do not halt between them, and do not treat a gate as passed because dispatching it produced no error.
+
+Before evaluating any `block_on` threshold, before writing the readiness report, and before replying:
+
+1. Collect the result of **every** gate agent invoked this run. If the harness lists running tasks, confirm none are still pending.
+2. Confirm each gate's artifact exists under `docs/reviews/`. A missing artifact from a still-running agent is not a failed gate — wait for it.
+3. Only then compare findings against `block_on` and compute the verdict.
+
+Getting this wrong fails in the direction that matters: a verdict computed while agents are outstanding reports `READY TO SHIP` on gates that had not run. That is worse than a false block, because it is indistinguishable from a genuine pass. If a gate cannot be collected, report it as `INCOMPLETE` and never as a pass.
+
+This is the same defect class as agent-sop's P62 and P67 — the first fixed a session-end checklist that assumed synchronous subagents, the second an assertion that fired before the agent it was waiting on had written its file.
+
 ## Pipeline gates
 
-Run gates in order. Hard-blocking gates that fail halt the pipeline; advisory gates always continue.
+Dispatch gates in order. Gate 1 halts inline on failure. The agent-backed gates record verdicts that are evaluated together once all have returned — see "Collect every gate result before evaluating thresholds" above.
 
 ### Gate 1 — Tests (hard block)
 
@@ -90,10 +111,10 @@ Invoke `@security-reviewer` (from agent-sop, or the user's own install) on the d
 
 If `security-reviewer` is unavailable, surface a notice and continue with Gate 3. ship-sop doesn't bundle a security reviewer — it composes with agent-sop's or any other.
 
-Verdict consumed:
-- `APPROVE` — proceed
-- `WARNING` — proceed, surface findings
-- `BLOCK` — halt (CRITICAL findings)
+Verdict recorded (not acted on here — see "Collect every gate result" above):
+- `APPROVE` — no blocking findings
+- `WARNING` — findings to surface
+- `BLOCK` — CRITICAL findings; halts the pipeline at threshold evaluation, after all gates are collected
 
 ### Gate 3 — Compliance (hard block on CRITICAL)
 
@@ -101,10 +122,10 @@ Invoke `@compliance-reviewer` on the diff.
 
 The agent writes to `docs/reviews/<stamp>-compliance.md` and auto-files HIGH/MEDIUM as `[OPEN][Bug][needs-triage]` Backlog entries (if `Backlog.md` exists).
 
-Verdict consumed:
-- `APPROVE` — proceed
-- `WARNING` — proceed, surface findings
-- `BLOCK` — halt (CRITICAL findings)
+Verdict recorded (not acted on here — see "Collect every gate result" above):
+- `APPROVE` — no blocking findings
+- `WARNING` — findings to surface
+- `BLOCK` — CRITICAL findings; halts the pipeline at threshold evaluation, after all gates are collected
 
 ### Gate 4 — Diagrams + API catalog + Δ log (advisory; never blocks)
 

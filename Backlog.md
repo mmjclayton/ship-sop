@@ -290,7 +290,7 @@ The trigger was an explicit ask for an objective review against the repo's purpo
 ---
 
 ### P12 — Background-subagent semantics for gate execution
-`[OPEN] [Bug]`
+`[SHIPPED - 2026-07-27] [Bug]`
 
 Claude Code 2.1.198 (1 July 2026) made subagents run in the background by default. ship-sop's gates fire via `@agent` invocations — auto-mode on the next user turn (from the `.ship/.pending-auto-fire.md` directive), manual mode inside `/ship`. Two documented behaviours now silently break:
 
@@ -307,7 +307,7 @@ Claude Code 2.1.198 (1 July 2026) made subagents run in the background by defaul
 ---
 
 ### P13 — Directive file `.ship/.pending-auto-fire.md` as an injection surface
-`[OPEN] [Iteration]`
+`[SHIPPED - 2026-07-27] [Iteration]`
 
 The auto-mode IPC pattern (hook writes a directive file; next-turn model reads it and invokes agents against the stated diff range) makes the directive file persistent agent state that the model acts on — exactly the persistence-vector class Anthropic's containment post (25 May 2026) flags, and the same class agent-sop P61 now covers for CLAUDE.md/Backlog/agent-memory. A poisoned directive (crafted commit, compromised dependency script, or any process with repo write access) could redirect the next turn's gate invocations or embed instructions the model treats as operator intent.
 
@@ -324,6 +324,19 @@ Constrain what the model trusts from the directive:
 - README updated; no change to gate behaviour on clean directives
 
 **Source:** anthropic.com/engineering/how-we-contain-claude; agent-sop P61 (2026-07-06); ship-sop composition review 2026-07-06.
+
+**Reviewer turn returned 5 HIGH — all defects in this session's own work, all fixed before ship** (`docs/reviews/2026-07-27_solo_P12-P13.md`):
+
+1. **The directive tripped its own tripwire.** P13's schema table listed five honoured fields but omitted the hook's own `## Auto-mode rules` block, which matches three of the stated tamper indicators (writes to `Backlog.md`, says don't halt, contains the P12 instruction). A compliant reader would have refused every directive the hook produces — P13 as first written was net-negative. Restructured: the hash is now the primary gate, and the fallback section check enumerates every section the hook emits, verified by regression.
+2. **`README.md:55` still carried the exact sentence P12 was filed against** ("runs the gates before responding to your prompt"). The bullet three lines below had been caveated and the paragraph had not.
+3. **The collect-before-evaluate instruction was stranded** after gates that already halt inline. Moved ahead of `## Pipeline gates`; Gates 2/3 now record verdicts rather than acting on them, and Gate 1 is called out as genuinely synchronous.
+4. **The emitted verification command hardcoded `shasum`**, defeating the `sha256sum` fallback beside it. On a Linux host the hook wrote a correct sidecar then handed the reader a command exiting 127 — which the reader was told to read as tampering. Silent gate suppression on most containers. Both paths now tested.
+5. **The staleness claim was false.** Nothing deletes the directive, so a stale one still matches its own sidecar. Claim removed; staleness is now a separate documented check comparing `Diff range` against `HEAD`.
+
+Also from the review: the `UNAVAILABLE` sentinel is now a documented third state ("unverifiable", explicitly not "tampered") rather than a hash-shaped string; `CLAUDE.md:42/:94/:143` gained sidecar references, since verification had lived only in ephemeral hook stdout.
+
+**Known, not fixed:** `setup.sh:145` has a third hash helper (`file_hash`) alongside `diff_sha256` and `file_sha256`. Consolidation is a separate `[Refactor]`, not folded into a `[Bug]` diff.
+
 
 ---
 
