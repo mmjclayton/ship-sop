@@ -3,7 +3,7 @@ description: Enable ship-sop auto-mode. Sets trigger.mode to "auto" in ship-sop.
 ship_sop_version: "2026-04-25"
 ---
 
-Flip ship-sop auto-mode on. With auto-mode enabled, the SessionStop hook runs the configured gates (security, compliance, doc-builder by default) after each Claude Code session, against the diff vs. the default branch.
+Flip ship-sop auto-mode on. With auto-mode enabled, the SessionStop hook runs the configured gates after each Claude Code session, against the diff vs. the default branch. The default set is six: `security-reviewer`, `compliance-reviewer`, `code-reviewer`, `silent-failure-hunter`, `pr-test-analyzer`, `diagram-builder`. Read the actual list from `ship-sop.config.json` rather than repeating it from here.
 
 ## Workflow
 
@@ -12,16 +12,14 @@ Flip ship-sop auto-mode on. With auto-mode enabled, the SessionStop hook runs th
    - User-global (`~/.claude/ship-sop.config.json`) — fallback if no project-level config exists.
 2. If neither exists, prompt the operator: "No ship-sop.config.json found. Create at <project> | <user-global>?" Use the project-level template at `~/Projects/ship-sop/docs/templates/ship-sop.config.json` (or pull from the installed location).
 3. Set `.trigger.mode = "auto"`.
-4. Verify the SessionStop hook is wired in `.claude/settings.json`. If absent, surface the install command:
+4. Verify the SessionStop hook is wired in `.claude/settings.json`. Read-only check — this command never writes to that file:
 
 ```bash
-# Project-level hook (recommended)
-mkdir -p .claude
-jq '.hooks.Stop = [{"command": "scripts/auto-ship-hook.sh"}] // .hooks.Stop' .claude/settings.json > .claude/settings.json.tmp
-mv .claude/settings.json.tmp .claude/settings.json
+jq -e '[.hooks.Stop[]?.hooks[]?.command] | index("scripts/auto-ship-hook.sh")' .claude/settings.json >/dev/null 2>&1 \
+  && echo "hook: wired" || echo "hook: needs-install"
 ```
 
-Or instruct the operator to re-run `setup.sh` from the ship-sop repo.
+If it reports `needs-install`, tell the operator to run `setup.sh /path/to/project` from the ship-sop repo. Do not offer a hand-rolled `jq` edit: `setup.sh` merges idempotently, migrates pre-P14 flat entries, preserves other hooks in the same array, and asserts the result is parseable. A one-liner does none of that — the version that used to live here replaced `.hooks.Stop` wholesale (destroying any other Stop hook) and wrote a 0-byte `settings.json` when the file was absent.
 
 5. Confirm in chat:
 

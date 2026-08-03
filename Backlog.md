@@ -367,13 +367,34 @@ This is the root cause of the pipeline being invoked by hand: the automation was
 ---
 
 ### P15 — Installer damage: `.gitignore` over-delete, symlink self-delete, `/ship-on` hook clobber
-`[OPEN] [Bug] [ok-for-automation]`
+`[SHIPPED - 2026-08-03] [Bug]`
 
 Three independent installer defects, all reproduced. (a) The uninstall `.gitignore` awk sets `skip = 2` after `next` has already consumed the marker line, so it eats one user line past the ship-sop block while printing "other entries kept" — a `.env.local` sitting after `.ship/` becomes un-ignored. (b) `setup.sh:32` and `:92` use logical `pwd`, so a symlinked invocation defeats the self-install check and `--uninstall` deletes ship-sop's own source. (c) `ship-on.md:20` replaces `.hooks.Stop` wholesale and writes a 0-byte `settings.json` when the file is absent, while `:44` claims it does not modify settings.json.
 
 Also adds the repo's first CI: shellcheck on `setup.sh` and `scripts/*.sh`, `jq empty` on both configs.
 
 **Acceptance criteria:** `skip = 1` in `setup.sh` and the `README.md` copy; `pwd -P` plus an `-ef` guard in `remove_if_unmodified`; `/ship-on` snippet deleted in favour of `setup.sh`; sentinel-line regression check; CI workflow green.
+
+**Verified:** (a) install → append sentinel immediately after the block → uninstall → sentinel survives, ship-sop block gone, pre-existing entries intact. (b) A/B through a real symlinked clone: the pre-P15 installer deleted `scripts/auto-ship-hook.sh`, the schema template and the config; the fixed one reports "Self-install detected" and everything survives. (c) Reproduced both `/ship-on` snippet defects before removing it — wholesale `.hooks.Stop` replacement destroyed a co-located user hook, and a missing `settings.json` produced a 0-byte file. CI: shellcheck `-S warning` and `bash -n` clean on both ship-sop scripts, five JSON files valid, workflow YAML parses.
+
+Also fixed while in the file: `/ship-on` line 6 still advertised the three-gate set and the pre-rename `doc-builder`.
+
+---
+
+### P24 — `--uninstall` on one project silently disarms ship-sop in every other project
+`[OPEN] [Bug]`
+
+Discovered during P15 regression testing, by being bitten by it. `remove_user_scope_files()` deletes `~/.claude/agents/{compliance-reviewer,diagram-builder,release-notes-writer}.md` and `~/.claude/commands/{ship,release,ship-on,ship-off,audit}.md` whenever `--uninstall` runs against *any* target. Those paths are global. Uninstalling ship-sop from a project you no longer want gated therefore removes the agents and commands every other installed project depends on, with no warning and no reference counting. The remaining projects keep their config, their hook and their `ship-sop.config.json`, so auto-mode still fires — and every gate then resolves to a missing agent.
+
+That last part is what makes it more than an inconvenience: it converts a clean uninstall in project A into silent gate loss in projects B and C. Under the P17 rule this must surface as MISSING, but P17 does not exist yet and the hook does not check agent presence today.
+
+**Acceptance criteria:**
+- Uninstall detects other installed projects before removing user-scope files, and either skips them or requires explicit confirmation naming the projects that would lose their gates
+- A `--user-scope-only` / `--project-only` split so "stop gating this project" and "remove ship-sop from this machine" are separate operations
+- Reinstall is the documented recovery, and the uninstall summary says so
+- Consider an install manifest at `~/.claude/.ship-sop-installs` as the reference-count source; ties into the P23 manifest work
+
+**Source:** P15 session, 2026-08-03. Recovery used was `./setup.sh <project>` answering `n` to the hook prompt, which restored all eight user-scope files without touching the wiring.
 
 ---
 

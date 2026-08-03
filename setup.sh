@@ -29,7 +29,11 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# pwd -P, not pwd. A logical path keeps the symlink in it, so invoking a
+# symlinked clone (~/ship-sop -> ~/Projects/ship-sop) made the self-install
+# check below compare two different strings for the same directory, and
+# --uninstall then deleted ship-sop's own source (P15).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 # ── Hook entry shape (P14) ────────────────────────────────────────────────────
 #
@@ -104,7 +108,7 @@ if [ -z "$TARGET" ]; then
     usage
 fi
 
-TARGET="$(cd "$TARGET" 2>/dev/null && pwd)" || {
+TARGET="$(cd "$TARGET" 2>/dev/null && pwd -P)" || {
     echo "Error: directory does not exist: $TARGET"
     exit 1
 }
@@ -182,6 +186,15 @@ remove_if_unmodified() {
 
     if [ ! -f "$dest" ]; then
         echo "  skip   $label (not installed)"
+        return 0
+    fi
+
+    # Never delete the file we install *from*. -ef compares device+inode, so it
+    # holds even when the two paths differ textually (symlinked clone, bind
+    # mount, ../ in the argument). Checked before --force, because --force is
+    # about overriding local modifications, not about deleting the source (P15).
+    if [ "$src" -ef "$dest" ]; then
+        echo "  skip   $label (source and target are the same file)"
         return 0
     fi
 
@@ -301,8 +314,11 @@ uninstall_mode() {
     if [ -f "$target/.gitignore" ] && grep -q "^# ship-sop runtime artifacts$" "$target/.gitignore"; then
         local tmp
         tmp="$(mktemp)"
+        # The block is two lines: the marker and ".ship/". `next` already
+        # consumes the marker, so only ONE further line may be skipped.
+        # skip = 2 ate the first user line after the block (P15).
         awk '
-            /^# ship-sop runtime artifacts$/ { skip = 2; next }
+            /^# ship-sop runtime artifacts$/ { skip = 1; next }
             skip > 0                         { skip--; next }
             { print }
         ' "$target/.gitignore" > "$tmp" && mv "$tmp" "$target/.gitignore"
