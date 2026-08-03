@@ -6,12 +6,20 @@
 # configured pipeline gates against the session's accumulated diff. Fires on
 # the Claude Code SessionStop event.
 #
-# Wiring: setup.sh adds an entry to .claude/settings.json:
+# Wiring: setup.sh adds an entry to .claude/settings.json. The command MUST be
+# nested inside a "hooks" array with an explicit "type" — Claude Code silently
+# discards a flat { "command": ... } entry, so the hook never runs and nothing
+# reports an error. That was P14; do not hand-wire the flat form.
 #
 #   {
 #     "hooks": {
 #       "Stop": [
-#         { "command": "scripts/auto-ship-hook.sh" }
+#         {
+#           "matcher": "*",
+#           "hooks": [
+#             { "type": "command", "command": "scripts/auto-ship-hook.sh" }
+#           ]
+#         }
 #       ]
 #     }
 #   }
