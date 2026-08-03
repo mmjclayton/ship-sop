@@ -31,6 +31,21 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# ── Hook entry shape (P14) ────────────────────────────────────────────────────
+#
+# Claude Code discards a hook entry that does not nest its command. Install and
+# uninstall must agree on the selector or one of them silently no-ops, so both
+# read these three constants rather than inlining their own jq.
+
+# Matches the nested shape the harness actually executes.
+HOOK_NESTED_PROBE='[.hooks.Stop[]?.hooks[]?.command] | index("scripts/auto-ship-hook.sh")'
+
+# Matches the pre-P14 flat shape, which parses but never runs. Retained so
+# existing installs can be migrated and uninstalled rather than orphaned.
+HOOK_LEGACY_PROBE='.hooks.Stop[]? | select((.command? // "") == "scripts/auto-ship-hook.sh")'
+
+HOOK_ENTRY_EXAMPLE='{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"scripts/auto-ship-hook.sh"}]}]}}'
+
 # ── Defaults ──────────────────────────────────────────────────────────────────
 
 NO_HOOK=false
@@ -257,10 +272,20 @@ uninstall_mode() {
     local settings="$target/.claude/settings.json"
     if [ -f "$settings" ]; then
         if command -v jq >/dev/null 2>&1; then
-            if jq -e '.hooks.Stop[]? | select(.command == "scripts/auto-ship-hook.sh")' "$settings" >/dev/null 2>&1; then
+            if jq -e "$HOOK_NESTED_PROBE" "$settings" >/dev/null 2>&1 \
+               || jq -e "$HOOK_LEGACY_PROBE" "$settings" >/dev/null 2>&1; then
                 local tmp
                 tmp="$(mktemp)"
-                jq 'del(.hooks.Stop[]? | select(.command == "scripts/auto-ship-hook.sh"))' "$settings" > "$tmp" && mv "$tmp" "$settings"
+                # Drop legacy flat entries, strip our command out of nested
+                # entries, then drop any nested entry left with no commands.
+                # Other people's hooks in the same array are preserved (P14).
+                jq '.hooks.Stop = [ .hooks.Stop[]?
+                      | select((.command? // "") != "scripts/auto-ship-hook.sh")
+                      | if has("hooks")
+                        then .hooks = [ .hooks[] | select((.command? // "") != "scripts/auto-ship-hook.sh") ]
+                        else . end
+                      | select((.hooks? // null) == null or (.hooks | length) > 0) ]' \
+                   "$settings" > "$tmp" && mv "$tmp" "$settings"
                 echo "  update .claude/settings.json (removed SessionStop hook entry)"
             else
                 echo "  skip   .claude/settings.json (hook entry not present)"
@@ -451,12 +476,22 @@ else
         SETTINGS="$TARGET/.claude/settings.json"
         mkdir -p "$TARGET/.claude"
 
+        # Claude Code requires each hook entry to nest its command:
+        #   {"matcher": "*", "hooks": [{"type": "command", "command": "..."}]}
+        # A flat {"command": "..."} entry parses as JSON but is discarded by the
+        # harness, so the hook never runs and nothing reports an error. Every
+        # write and every selector below must use the nested shape (P14).
         if [ ! -f "$SETTINGS" ]; then
             cat > "$SETTINGS" <<'EOF'
 {
   "hooks": {
     "Stop": [
-      { "command": "scripts/auto-ship-hook.sh" }
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "scripts/auto-ship-hook.sh" }
+        ]
+      }
     ]
   }
 }
@@ -465,16 +500,39 @@ EOF
         else
             if command -v jq >/dev/null 2>&1; then
                 # Idempotent merge: add the hook entry only if not already present
-                if jq -e '.hooks.Stop[]? | select(.command == "scripts/auto-ship-hook.sh")' "$SETTINGS" >/dev/null 2>&1; then
+                if jq -e "$HOOK_NESTED_PROBE" "$SETTINGS" >/dev/null 2>&1; then
                     echo "  skip   .claude/settings.json (hook already wired)"
+                elif jq -e "$HOOK_LEGACY_PROBE" "$SETTINGS" >/dev/null 2>&1; then
+                    # Pre-P14 install: rewrite the dead flat entry in place rather
+                    # than appending a second one.
+                    tmp="$(mktemp)"
+                    jq '.hooks.Stop = [ .hooks.Stop[]
+                          | if (.command? // "") == "scripts/auto-ship-hook.sh"
+                            then {"matcher": "*", "hooks": [{"type": "command", "command": "scripts/auto-ship-hook.sh"}]}
+                            else . end ]' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
+                    echo "  update .claude/settings.json (migrated legacy flat hook entry to nested shape)"
                 else
                     tmp="$(mktemp)"
-                    jq '.hooks //= {} | .hooks.Stop //= [] | .hooks.Stop += [{"command": "scripts/auto-ship-hook.sh"}]' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
+                    jq '.hooks //= {} | .hooks.Stop //= [] | .hooks.Stop += [{"matcher": "*", "hooks": [{"type": "command", "command": "scripts/auto-ship-hook.sh"}]}]' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
                     echo "  update .claude/settings.json (added SessionStop hook)"
                 fi
             else
                 echo "  warn   jq not installed; please add the following to .claude/settings.json manually:"
-                echo "         {\"hooks\":{\"Stop\":[{\"command\":\"scripts/auto-ship-hook.sh\"}]}}"
+                echo "         $HOOK_ENTRY_EXAMPLE"
+            fi
+        fi
+
+        # Post-install assertion. A silently-unwired hook is the failure this
+        # whole batch exists to remove, so fail loudly rather than report success.
+        if command -v jq >/dev/null 2>&1 && [ -f "$SETTINGS" ]; then
+            if jq -e "$HOOK_NESTED_PROBE" "$SETTINGS" >/dev/null 2>&1; then
+                echo "  verify SessionStop hook entry is parseable by Claude Code"
+            else
+                echo "" >&2
+                echo "  ERROR  .claude/settings.json has no SessionStop hook entry Claude Code can parse." >&2
+                echo "         Auto-mode would silently never fire. Expected shape:" >&2
+                echo "         $HOOK_ENTRY_EXAMPLE" >&2
+                exit 1
             fi
         fi
     else

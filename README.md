@@ -296,8 +296,15 @@ rm scripts/auto-ship-hook.sh
 rm -f docs/templates/ship-sop.schema.json
 rm -rf .ship/
 
-# Remove the SessionStop hook entry, keeping any other hooks intact
-jq 'del(.hooks.Stop[]? | select(.command == "scripts/auto-ship-hook.sh"))' .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
+# Remove the SessionStop hook entry, keeping any other hooks intact.
+# Handles both the current nested shape and pre-P14 flat entries.
+jq '.hooks.Stop = [ .hooks.Stop[]?
+      | select((.command? // "") != "scripts/auto-ship-hook.sh")
+      | if has("hooks")
+        then .hooks = [ .hooks[] | select((.command? // "") != "scripts/auto-ship-hook.sh") ]
+        else . end
+      | select((.hooks? // null) == null or (.hooks | length) > 0) ]' \
+   .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 
 # Remove the .gitignore block
 awk '/^# ship-sop runtime artifacts$/ { skip=2; next } skip>0 { skip--; next } { print }' .gitignore > .gitignore.tmp && mv .gitignore.tmp .gitignore

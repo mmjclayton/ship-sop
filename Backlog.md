@@ -340,6 +340,111 @@ Also from the review: the `UNAVAILABLE` sentinel is now a documented third state
 
 ---
 
+## Phase 3 — Automation and correctness
+
+Filed 2026-08-03 from the full-project review (`docs/reviews/2026-08-03_solo_full-project-review.md`): 7 reviewer dimensions, adversarially verified, 48 surviving findings. Plan and batch detail in `docs/build-plans/phase-3-automation-and-correctness.md`.
+
+### P14 — SessionStop hook entry is written in a shape Claude Code discards
+`[SHIPPED - 2026-08-03] [Bug]`
+
+`setup.sh` wrote `{"hooks":{"Stop":[{"command":"scripts/auto-ship-hook.sh"}]}}`. Claude Code requires each entry to nest its command: `{"matcher":"*","hooks":[{"type":"command","command":"..."}]}`. The flat form parses as JSON and is then discarded by the harness, so the hook never ran and nothing reported an error. Auto-mode has therefore never fired in any project since P1 — confirmed by `.ship/.last-auto-fire` frozen at install time in both live installs, and by the contrast with correctly-shaped hooks sitting in the same `Stop` array in `hst-tracker/.claude/settings.json`.
+
+This is the root cause of the pipeline being invoked by hand: the automation was never wired.
+
+**Acceptance criteria:**
+- Nested shape emitted at all four write sites (fresh-file heredoc, jq merge, jq-missing warning, this repo's own `.claude/settings.json`)
+- The three selectors that assumed the flat shape updated, or install/uninstall silently no-op: idempotency probe, uninstall probe, uninstall delete
+- Selectors live in one place (`HOOK_NESTED_PROBE`, `HOOK_LEGACY_PROBE`, `HOOK_ENTRY_EXAMPLE`) so install and uninstall cannot drift apart again
+- Pre-P14 flat entries migrated in place, not duplicated
+- Uninstall removes both shapes and leaves other hooks in the same array intact
+- Post-install assertion hard-fails if the entry is not reachable via the nested probe
+- README manual-fallback removal command updated to match
+
+**Verified:** fresh install, re-run idempotency, legacy migration alongside a user hook, uninstall of both shapes, assertion rejects the flat shape and accepts the nested one.
+
+**Source:** `docs/reviews/2026-08-03_solo_full-project-review.md` P1-1.
+
+---
+
+### P15 — Installer damage: `.gitignore` over-delete, symlink self-delete, `/ship-on` hook clobber
+`[OPEN] [Bug] [ok-for-automation]`
+
+Three independent installer defects, all reproduced. (a) The uninstall `.gitignore` awk sets `skip = 2` after `next` has already consumed the marker line, so it eats one user line past the ship-sop block while printing "other entries kept" — a `.env.local` sitting after `.ship/` becomes un-ignored. (b) `setup.sh:32` and `:92` use logical `pwd`, so a symlinked invocation defeats the self-install check and `--uninstall` deletes ship-sop's own source. (c) `ship-on.md:20` replaces `.hooks.Stop` wholesale and writes a 0-byte `settings.json` when the file is absent, while `:44` claims it does not modify settings.json.
+
+Also adds the repo's first CI: shellcheck on `setup.sh` and `scripts/*.sh`, `jq empty` on both configs.
+
+**Acceptance criteria:** `skip = 1` in `setup.sh` and the `README.md` copy; `pwd -P` plus an `-ef` guard in `remove_if_unmodified`; `/ship-on` snippet deleted in favour of `setup.sh`; sentinel-line regression check; CI workflow green.
+
+---
+
+### P16 — Close the automation loop: SessionStart pickup so no command is typed
+`[OPEN] [Feature]`
+
+Depends on P14. The Stop hook writes a directive; nothing deterministically picks it up. Add a SessionStart hook that verifies the sidecar and freshness and injects the directive pointer into the opening context, so gates dispatch with nothing typed. `/restart-sop` becomes a backstop sharing one idempotent pickup routine keyed on a consumed marker, so a session that starts and is then given `/restart-sop` cannot dispatch twice.
+
+The `/restart-sop` step ships in the **agent-sop repo** guarded on `ship-sop.config.json` existing, and arrives here via `/update-agent-sop` — a downstream edit to a pristine replica would be reverted by the next sync (`CLAUDE.md` rule 8).
+
+**Acceptance criteria:** directive deleted on consumption and stale pairs cleared at the top of every hook run; `--no-session-start` opt-out; end a session, start a new one, gates dispatch untyped; `/restart-sop` in that session does not re-dispatch.
+
+---
+
+### P17 — `/ship` dispatches 4 of the 7 gates it advertises
+`[OPEN] [Bug]`
+
+`ship.md` hardcodes Gate 1 tests, Gate 2 security, Gate 3 compliance, Gate 4 diagrams. `code-reviewer`, `silent-failure-hunter` and `pr-test-analyzer` appear zero times in the file; two are configured `block_on: HIGH`. `ship.md:8` claims "the gates and outputs are identical" to auto-mode, which reads them from config. So the path documented as stricter is the weaker one. Flagged by the P9 reviewer on 2026-04-25 and never filed.
+
+Includes the gate-completion contract: `block_on` is quoted at `:64`/`:68` but hardcoded to CRITICAL at `:108`/`:117`/`:119`/`:128`; `<stamp>` is referenced six times and generated nowhere; four of six gate agents are read-only so they cannot write the artifact `:67` uses as its completion test; two emit no severity enum at all.
+
+**Acceptance criteria:** config-driven dispatch reusing the hook's enumeration; per-agent `block_on` honoured; one `<stamp>` per run; `Gates dispatched: N of M enabled` header; agent-presence check; orchestrator persists read-only agents' replies; severity normalised with INCOMPLETE fallback; **a gate that did not run reports MISSING, never a pass.**
+
+---
+
+### P18 — Hook state machine: staleness check cannot fail, throttle records the wrong event
+`[OPEN] [Bug]`
+
+The directive writes `Diff range: <base>..HEAD` with `HEAD` as a literal string, then instructs the reader to check "if the range no longer ends at `HEAD`" — it always does, so the staleness check is a tautology. `HEAD_SHA` is computed at `:165` and discarded. A stale directive from 27 July is in `.ship/` now, naming a deleted branch, hash still matching. Separately the diff-hash is stamped at emission (`:411`) rather than gate completion, so an interrupted turn leaves that commit permanently ungated and silently skipped next run.
+
+Plus three silent-exit traps under `set -euo pipefail`: a no-match `grep -v` at `:189` kills the script; malformed config dies at `:118` with a raw jq error after seven schema probes swallowed it; a future timestamp in `.last-auto-fire` disables auto-mode for 250 years with no output.
+
+**Blocks default-on automation** — auto-dispatch on a tautological staleness check would gate the wrong range.
+
+---
+
+### P19 — Coverage holes: a gate reports success without looking
+`[OPEN] [Bug]`
+
+(a) No detected test runner means Gate 1 prints a notice and passes, so an agent scaffolding a service with zero tests gets READY TO SHIP. (b) The docs-only regex matches any top-level `.md`, so `CLAUDE.md` and `Backlog.md` — the highest-value files for steering the next agent — route around every blocking gate, the same persistence vector P13 hardened the directive against. (c) Missing sidecar is treated as "not tampering" although the hook writes one unconditionally, while a hash mismatch skips the gates, making `printf '\n' >>` a permanent off-switch. (d) Nothing anywhere declares diff content untrusted, so a diff asserting prior sign-off is read as operator intent. (e) `ship.md:195` runs `git add -A` straight after gates instructed to find hardcoded secrets, with no redaction rule in any agent.
+
+---
+
+### P20 — Deterministic gates in the hook, and a push/PR gate that can actually refuse
+`[OPEN] [Feature]`
+
+Every gate today is model judgement. shellcheck, `jq empty` and a staged-secret scan need no model: run them inside the hook where they are instant, free, and cannot be reasoned past. Then add a `PreToolUse` hook on `git push` / `gh pr create` that refuses when no gate run covers `HEAD` — coverage is a deterministic fact a hook can check, unlike "are there findings". `SHIP_SOP_SKIP_GATE=1` overrides and is recorded in the report so bypasses are greppable. This is what turns ship-sop from a reporter into a gate.
+
+---
+
+### P21 — Fixture harness and CI for the hook
+`[OPEN] [Feature]`
+
+ship-sop enforces test gates on others and has none. `CLAUDE.md:78` claims a CI candidate is "filed in `Backlog.md` if needed" — no such item existed and there is no `.github/`. agent-sop's `docs/benchmark/drift-fixtures/run-tests.sh` pattern ports directly. Cases: below-min-diff, cooldown, same-hash, docs-only, agent-instruction-file, no-agents, malformed config, future timestamp, stale directive, happy path. Assert on the directive body, not just the exit code.
+
+---
+
+### P22 — Command and agent defects
+`[OPEN] [Bug]`
+
+`/audit`'s documented `--scope`/`--regulation`/`--no-shadow-controls` flags are inert against a bare invocation, and `--scope` is prescribed as the fix for the timeout most likely to hit. `/release` says "halt" without defining confirmation or ending the turn, then tags/pushes/publishes unguarded, and `--no-publish` commits `chore(release):` before the flag is checked. `compliance-reviewer` scores health data CRITICAL at `:78` and MEDIUM at `:104` while saying twice it does not enforce HIPAA. Backlog auto-file has no dedup and no cross-branch P-number reservation. `diagram-builder`'s hand-edit guard tests for a marker its own templates never write. `release-notes-writer` can publish an abandoned branch's feature. Split if it grows.
+
+---
+
+### P23 — Replica drift, tracker backfill, and naming inconsistency
+`[OPEN] [Refactor]`
+
+Six of 28 SHA-tracked agent-sop replicas are stale; `validate-state-transitions.sh` is 602 lines here against 783 upstream and runs a pre-fix copy of a silent-failure bug in `resolve_before()`. `.claude/agent-sop.config.json` has `update_reminder: "weekly"` and nothing reads it — add a warn-only drift check. Replicating a 600-line executable without upstream's fixtures is the worst option; decide vendor-with-fixtures or invoke via `.local_path`. Backfill P12/P13 into `docs/feature-map.md` (still "Last updated: 2026-04-26 (P10)") and the Phase 2 Batch Log. Artifact naming disagrees three ways between the hook, `ship.md` and README. README understates the install footprint by three items and misdescribes `--force` scope. Root config missing the `artifacts` block its own template has, which also makes `--uninstall` refuse to remove it as "locally modified".
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*

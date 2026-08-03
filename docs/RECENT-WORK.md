@@ -9,6 +9,7 @@ Moved out of `CLAUDE.md` on 2026-08-03 so it stops consuming context every sessi
 <!-- recent-work-rollup:start -->
 *Auto-generated from `docs/recent-work/`. Last refreshed: 2026-08-03.*
 
+- 2026-08-03 `solo`: 2026-08-03 — Full project review, Phase 3 plan, and P14 hook wiring
 - 2026-07-27 `solo`: P12 + P13 — background-gate semantics and directive integrity
 - 2026-05-02 `solo`: P11: Phase 2 hardening pass (diagnostics, schema warn, retention, drift, declutter)
 - 2026-04-26 `solo`: P10: setup.sh --uninstall + manual-fallback rewrite
