@@ -1,6 +1,6 @@
 # ship-sop — Feature Map & Roadmap
 
-Last updated: 2026-08-03 (P14)
+Last updated: 2026-08-03 (P15)
 
 ---
 
@@ -52,6 +52,10 @@ Last updated: 2026-08-03 (P14)
 | P14 | Shared hook selectors (`HOOK_NESTED_PROBE`, `HOOK_LEGACY_PROBE`, `HOOK_ENTRY_EXAMPLE`) so install and uninstall cannot drift apart | `setup.sh` | 2026-08-03 |
 | P14 | In-place migration of pre-P14 flat hook entries; uninstall removes both shapes and preserves other hooks | `setup.sh`, `README.md` | 2026-08-03 |
 | P14 | Post-install assertion hard-fails on an unparseable hook entry instead of reporting success | `setup.sh` | 2026-08-03 |
+| P15 | Uninstall no longer eats the first user `.gitignore` line after the ship-sop block | `setup.sh`, `README.md` | 2026-08-03 |
+| P15 | `pwd -P` + `-ef` source guard: a symlinked clone can no longer delete ship-sop's own files | `setup.sh` | 2026-08-03 |
+| P15 | `/ship-on` hook check is read-only; the destructive wiring snippet removed | `.claude/commands/ship-on.md` | 2026-08-03 |
+| P15 | First CI: shellcheck + `bash -n` + JSON validation + P14 nested-shape regression guard | `.github/workflows/ci.yml` | 2026-08-03 |
 
 > P12 and P13 are absent from this table — tracker drift filed as P23, not backfilled here to keep this batch's diff to its own item.
 

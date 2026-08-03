@@ -189,6 +189,10 @@ Locks in 3.5 and 3.6, and closes the self-exemption.
 
 - **2026-08-03: Batch 3.1 shipped (P14).** SessionStop hook entry rewritten to the nested `{"matcher","hooks":[{"type","command"}]}` shape at all four write sites, plus this repo's own `.claude/settings.json`. The three flat-shape selectors replaced with three shared constants (`HOOK_NESTED_PROBE`, `HOOK_LEGACY_PROBE`, `HOOK_ENTRY_EXAMPLE`) so install and uninstall read the same definition. Pre-P14 flat entries migrate in place rather than gaining a duplicate; uninstall removes both shapes, strips only our command from a nested entry, drops entries left empty, and leaves other hooks in the same array untouched. Post-install assertion exits non-zero when the entry is not reachable via the nested probe. README manual-fallback jq updated to match. Verified against five cases on throwaway repos: fresh install, re-run idempotency, legacy migration alongside a user hook, uninstall of each shape, and the assertion rejecting the flat shape while accepting the nested one. `hst-tracker` repair deliberately deferred to after Batch 3.5 — see the note in Batch 3.1 above.
 
+- **2026-08-03: Batch 3.2 shipped (P15).** Three installer defects, each reproduced before being fixed. `.gitignore` uninstall awk `skip = 2` → `skip = 1`, in `setup.sh` and the copy-pasted `README.md` fallback: `next` already consumes the marker and the block is two lines, so the old value ate the first user line after it. `pwd` → `pwd -P` at both resolution sites plus an `-ef` source guard in `remove_if_unmodified` placed *before* the `--force` branch. Proven by A/B through a real symlinked clone: the pre-P15 installer deleted `scripts/auto-ship-hook.sh`, the schema template and the config; the fixed one reports "Self-install detected" and everything survives. `/ship-on`'s wiring snippet deleted in favour of a read-only probe — it replaced `.hooks.Stop` wholesale (reproduced: a co-located user hook destroyed) and wrote a 0-byte `settings.json` when the file was absent, while the same file claimed it never modified settings.json; its stale three-gate `doc-builder` list corrected at the same time. First CI: shellcheck `-S warning` and `bash -n` blocking on ship-sop's own two scripts, advisory on the four agent-sop replicas since their fixes belong upstream, JSON validation across five files, and a P14 regression guard that fails if the wired hook entry is flat or missing.
+
+  **Found by being bitten:** running `--uninstall` in a test removed the user-scope agents and commands globally, because user-scope removal is not scoped to the target project. Restored with a plain reinstall answering `n` to the hook prompt. Filed as P24 — uninstalling from one project silently disarms every other installed project, and since the remaining projects keep their hook and config, auto-mode keeps firing into missing agents. Test procedure now isolates `HOME`.
+
 ---
 
 ## Backlog mapping
@@ -205,6 +209,7 @@ Locks in 3.5 and 3.6, and closes the self-exemption.
 | 3.8 | P21 | `[Feature]` | |
 | 3.9 | P22 | `[Bug]` | Splittable if it grows |
 | 3.10 | P23 | `[Refactor]` | |
+| — | P24 | `[Bug]` | Found during 3.2. Uninstall disarms other projects. Slot into 3.9 or take standalone |
 
 ---
 

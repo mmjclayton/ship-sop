@@ -307,7 +307,7 @@ jq '.hooks.Stop = [ .hooks.Stop[]?
    .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 
 # Remove the .gitignore block
-awk '/^# ship-sop runtime artifacts$/ { skip=2; next } skip>0 { skip--; next } { print }' .gitignore > .gitignore.tmp && mv .gitignore.tmp .gitignore
+awk '/^# ship-sop runtime artifacts$/ { skip=1; next } skip>0 { skip--; next } { print }' .gitignore > .gitignore.tmp && mv .gitignore.tmp .gitignore
 ```
 
 </details>

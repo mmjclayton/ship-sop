@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint shell and config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      # ship-sop's own bash. Blocking.
+      - name: shellcheck (ship-sop scripts)
+        run: shellcheck -S warning setup.sh scripts/auto-ship-hook.sh
+
+      - name: bash -n (ship-sop scripts)
+        run: |
+          bash -n setup.sh
+          bash -n scripts/auto-ship-hook.sh
+
+      # agent-sop pristine replicas. Advisory only — fixes belong upstream in
+      # the agent-sop repo and are re-synced via /update-agent-sop, so a finding
+      # here must not block a ship-sop PR (CLAUDE.md rule 8).
+      - name: shellcheck (agent-sop replicas, advisory)
+        continue-on-error: true
+        run: |
+          shellcheck -S warning \
+            scripts/refresh-rollup.sh \
+            scripts/refresh-in-flight.sh \
+            scripts/validate-state-transitions.sh
+
+      - name: Validate JSON
+        run: |
+          for f in ship-sop.config.json \
+                   docs/templates/ship-sop.config.json \
+                   docs/templates/ship-sop.schema.json \
+                   .claude/settings.json \
+                   .claude/agent-sop.config.json; do
+            jq empty "$f" || { echo "::error file=$f::invalid JSON"; exit 1; }
+          done
+
+      # The P14 regression. A hook entry Claude Code silently discards is the
+      # failure mode that left auto-mode dead from P1 to P14, and it is
+      # invisible without an explicit assertion.
+      - name: Assert the wired hook entry uses the nested shape
+        run: |
+          if ! jq -e '[.hooks.Stop[]?.hooks[]?.command] | index("scripts/auto-ship-hook.sh")' \
+               .claude/settings.json >/dev/null; then
+            echo "::error file=.claude/settings.json::SessionStop hook is not in the nested shape Claude Code executes"
+            exit 1
+          fi
+          if jq -e '.hooks.Stop[]? | select((.command? // "") == "scripts/auto-ship-hook.sh")' \
+               .claude/settings.json >/dev/null 2>&1; then
+            echo "::error file=.claude/settings.json::a pre-P14 flat hook entry is present; it will never fire"
+            exit 1
+          fi
