@@ -1,6 +1,6 @@
 # ship-sop — Feature Map & Roadmap
 
-Last updated: 2026-04-26 (P10)
+Last updated: 2026-08-03 (P14)
 
 ---
 
@@ -48,6 +48,12 @@ Last updated: 2026-04-26 (P10)
 | P11 | `setup.sh prompt_yn()` non-interactive timeout (`read -t 30` with default fallthrough) | `setup.sh` | 2026-05-02 |
 | P11 | `docs/README.md` orientation note (ship-sop surface vs agent-sop pristine replicas vs SOP-generated history) | `docs/README.md` | 2026-05-02 |
 | P11 | P10 retroactive `docs/recent-work/` entry filed; rollup re-runs cleanly | `docs/recent-work/2026-04-26_solo_p10-uninstall.md` | 2026-05-02 |
+| P14 | SessionStop hook wired in the nested shape Claude Code actually executes — auto-mode fires for the first time since P1 | `setup.sh`, `.claude/settings.json` | 2026-08-03 |
+| P14 | Shared hook selectors (`HOOK_NESTED_PROBE`, `HOOK_LEGACY_PROBE`, `HOOK_ENTRY_EXAMPLE`) so install and uninstall cannot drift apart | `setup.sh` | 2026-08-03 |
+| P14 | In-place migration of pre-P14 flat hook entries; uninstall removes both shapes and preserves other hooks | `setup.sh`, `README.md` | 2026-08-03 |
+| P14 | Post-install assertion hard-fails on an unparseable hook entry instead of reporting success | `setup.sh` | 2026-08-03 |
+
+> P12 and P13 are absent from this table — tracker drift filed as P23, not backfilled here to keep this batch's diff to its own item.
 
 ---
 
