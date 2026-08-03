@@ -298,13 +298,20 @@ rm -rf .ship/
 
 # Remove the SessionStop hook entry, keeping any other hooks intact.
 # Handles both the current nested shape and pre-P14 flat entries.
-jq '.hooks.Stop = [ .hooks.Stop[]?
-      | select((.command? // "") != "scripts/auto-ship-hook.sh")
-      | if has("hooks")
-        then .hooks = [ .hooks[] | select((.command? // "") != "scripts/auto-ship-hook.sh") ]
-        else . end
-      | select((.hooks? // null) == null or (.hooks | length) > 0) ]' \
-   .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
+# The guard matters: without it, a missing settings.json leaves a stray .tmp
+# behind, and a settings.json with no ship-sop entry gains an empty
+# .hooks.Stop it never had.
+if [ -f .claude/settings.json ] && jq -e \
+     '([.hooks.Stop[]?.hooks[]?.command] + [.hooks.Stop[]?.command]) | index("scripts/auto-ship-hook.sh")' \
+     .claude/settings.json >/dev/null 2>&1; then
+  jq '.hooks.Stop = [ .hooks.Stop[]?
+        | select((.command? // "") != "scripts/auto-ship-hook.sh")
+        | if (has("hooks") and ([.hooks[]?.command] | index("scripts/auto-ship-hook.sh")))
+          then (.hooks |= map(select((.command? // "") != "scripts/auto-ship-hook.sh")))
+             | select((.hooks | length) > 0)
+          else . end ]' \
+     .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
+fi
 
 # Remove the .gitignore block
 awk '/^# ship-sop runtime artifacts$/ { skip=1; next } skip>0 { skip--; next } { print }' .gitignore > .gitignore.tmp && mv .gitignore.tmp .gitignore

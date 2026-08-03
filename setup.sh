@@ -290,14 +290,16 @@ uninstall_mode() {
                 local tmp
                 tmp="$(mktemp)"
                 # Drop legacy flat entries, strip our command out of nested
-                # entries, then drop any nested entry left with no commands.
+                # entries, then drop a nested entry only when OUR removal is
+                # what emptied it. An entry that already had "hooks": [] is
+                # left alone — it is inert, but it is not ours to delete (P15).
                 # Other people's hooks in the same array are preserved (P14).
                 jq '.hooks.Stop = [ .hooks.Stop[]?
                       | select((.command? // "") != "scripts/auto-ship-hook.sh")
-                      | if has("hooks")
-                        then .hooks = [ .hooks[] | select((.command? // "") != "scripts/auto-ship-hook.sh") ]
-                        else . end
-                      | select((.hooks? // null) == null or (.hooks | length) > 0) ]' \
+                      | if (has("hooks") and ([.hooks[]?.command] | index("scripts/auto-ship-hook.sh")))
+                        then (.hooks |= map(select((.command? // "") != "scripts/auto-ship-hook.sh")))
+                           | select((.hooks | length) > 0)
+                        else . end ]' \
                    "$settings" > "$tmp" && mv "$tmp" "$settings"
                 echo "  update .claude/settings.json (removed SessionStop hook entry)"
             else

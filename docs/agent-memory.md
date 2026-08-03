@@ -25,13 +25,23 @@ See CLAUDE.md Key Documents & Dispatch table.
 
 ## In-Flight Work
 
-*(none — Phase 0 and Phase 1 complete; no active P-numbers in `[IN PROGRESS]` state)*
+<!-- in-flight:start -->
+*Auto-generated from `docs/agent-memory/in-flight/`. Last refreshed: 2026-08-03.*
+
+- solo (2026-08-03): Phase 3 batches 3.3-3.10 (P16-P24) planned, not started. Next: P16 SessionStart pickup. Plan: docs/build-plans/phase-3-automation-and-correctness.md
+- solo (2026-08-03): P14 acceptance still unobserved — confirm .ship/.last-auto-fire advances past 1785111491 at the next session boundary.
+<!-- in-flight:end -->
 
 ---
 
 ## Decisions Made
 
-See `docs/agent-memory/decisions/`. One file per decision. Index of what's there as of 2026-04-25:
+See `docs/agent-memory/decisions/`. One file per decision. Index of what's there as of 2026-08-03:
+
+- `sessionstart-hook-is-the-automation-path` — SessionStart hook is primary, `/restart-sop` is an idempotent backstop; the step ships upstream in agent-sop
+- `dead-gate-beats-confidently-wrong-gate` — why hst-tracker's install stays dead until Batch 3.5
+
+Earlier (2026-04-25):
 
 - `separate-repo-not-extension` — why ship-sop is its own repo, not an agent-sop folder
 - `hook-writes-directive-not-agents` — why the SessionStop hook writes a directive file
@@ -46,7 +56,12 @@ See `docs/agent-memory/decisions/`. One file per decision. Index of what's there
 
 ## Gotchas and Lessons
 
-See `docs/agent-memory/gotchas/`. One file per gotcha. Index as of 2026-04-25:
+See `docs/agent-memory/gotchas/`. One file per gotcha. Index as of 2026-08-03:
+
+- `flat-hook-entry-is-discarded-without-an-error` — a presence check is not a wiring check; assert the nested shape
+- `uninstall-removes-user-scope-files-globally` — `--uninstall` is machine-level; isolate `HOME` when testing it
+
+Earlier (2026-04-25):
 
 - `stop-hooks-cant-invoke-agents` — the architectural constraint that shaped auto-mode
 - `agent-registry-locked-at-session-start` — why same-session dogfood is inline-only
@@ -76,6 +91,8 @@ See `docs/agent-memory/gotchas/`. One file per gotcha. Index as of 2026-04-25:
 - 2026-04-25 `solo`: P6 — Multi-tenant isolation scan + lawful-basis severity bump — `3b679e0`
 - 2026-04-25 `solo`: P7 — `/audit` command + whole-codebase mode + shadow-controls check — `82e06c1`
 - 2026-04-25 `solo`: P9 — Default reviewer set expansion (code-reviewer + silent-failure-hunter + pr-test-analyzer)
+- 2026-08-03 `solo`: P14 — SessionStop hook wired in the nested shape Claude Code executes; auto-mode had never fired since P1 — `02d6fba` (PR #5)
+- 2026-08-03 `solo`: P15 — Installer damage (`.gitignore` over-delete, symlink self-delete, `/ship-on` clobber) + first CI — `55632a7` (PR #6)
 
 ---
 

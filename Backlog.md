@@ -379,6 +379,8 @@ Also adds the repo's first CI: shellcheck on `setup.sh` and `scripts/*.sh`, `jq 
 
 Also fixed while in the file: `/ship-on` line 6 still advertised the three-gate set and the pre-rename `doc-builder`.
 
+**Reviewer turn:** `docs/reviews/2026-08-03_solo_P14-P15.md` — APPROVE (0 CRITICAL / 0 HIGH / 1 MEDIUM / 2 LOW), covering P14 and P15 together. Fired by Step 1b trigger (b) on the `.claude/commands/**` change, not by tag. All three findings fixed in-session: the hook script's header comment still documented the dead flat shape (the exact reference an operator would hand-wire from); the uninstall jq dropped a pre-existing `"hooks": []` entry that was not ours; the README fallback lacked the existence guard `setup.sh` has. Round-trip verified — a settings.json with a user hook plus an empty-hooks entry survives install → uninstall byte-equivalent.
+
 ---
 
 ### P24 — `--uninstall` on one project silently disarms ship-sop in every other project
