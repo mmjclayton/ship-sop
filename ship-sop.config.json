@@ -4,9 +4,13 @@
     "mode": "auto",
     "throttle": {
       "min_diff_lines": 10,
-      "skip_docs_only": false,
+      "skip_docs_only": true,
       "cooldown_seconds": 300,
-      "skip_branch_patterns": ["^wip/", "^spike/", "^exp/"]
+      "skip_branch_patterns": [
+        "^wip/",
+        "^spike/",
+        "^exp/"
+      ]
     }
   },
   "agents": {
