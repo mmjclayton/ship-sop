@@ -7,6 +7,7 @@ Flip ship-sop auto-mode on. With auto-mode enabled, the agent-sop Stop hook (`so
 
 ## Workflow
 
+0. Check the project type: `bash ~/.claude/scripts/hooks/agent-sop/sop-project-type.sh`. If it prints `non-code`, stop: "ship-sop's automatic gate fires only on code projects; auto-mode would be inert here. Declare `**Project type:** code` in CLAUDE.md first if this repository's scripts should be reviewed." Do not write the config.
 1. Locate `ship-sop.config.json`:
    - Project-level (`./ship-sop.config.json`) — preferred.
    - User-global (`~/.claude/ship-sop.config.json`) — fallback if no project-level config exists.

@@ -13,6 +13,19 @@ This command is the **manual entrypoint** to the same pipeline that runs automat
 - `--base <ref>` — override the diff base (default: `git merge-base origin/main HEAD`).
 - `--preview-release` — also run `release-notes-writer` to preview what release notes would look like with this ship included. Off by default.
 
+## Project type gate
+
+ship-sop reviews code. Its automatic trigger (agent-sop's Stop hook and push gate) fires only on code projects and only on code lines; this manual entrypoint applies the same rule so a prose repository never gets six reviewer agents pointed at its documents.
+
+```bash
+TYPE=$(bash ~/.claude/scripts/hooks/agent-sop/sop-project-type.sh 2>/dev/null || echo unknown)
+echo "project type: $TYPE"
+```
+
+- `code` — continue.
+- `non-code` — stop with one line: "ship-sop gates review code; this is a non-code project by the shared rule. Nothing to run." To opt a manifest-less repository in, add `**Project type:** code` to its CLAUDE.md.
+- `unknown` (script not installed) — apply the rule by hand: an explicit `**Project type:**` line in CLAUDE.md wins; otherwise a code project has an `## Auth` / `## Database` / `## Design System` heading, a reference to `claude-md-template-code.md`, a test command under `## Key Commands`, or a manifest (`package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`, `Gemfile`) at the root.
+
 ## Resolve diff range
 
 ```bash

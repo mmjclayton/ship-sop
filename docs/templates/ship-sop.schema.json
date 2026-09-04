@@ -26,8 +26,8 @@
             },
             "skip_docs_only": {
               "type": "boolean",
-              "default": false,
-              "description": "Skip auto-fire entirely when only .md / docs/ files changed (doc-builder otherwise still runs to keep generated docs in sync)"
+              "default": true,
+              "description": "Accepted for older configs; no longer read by the trigger. Since 2026-09-04 (agent-sop P102) the automatic gate always excludes documentation extensions from the line count and fires only on code projects."
             },
             "cooldown_seconds": {
               "type": "integer",

@@ -472,6 +472,24 @@ Six of 28 SHA-tracked agent-sop replicas are stale; `validate-state-transitions.
 
 ---
 
+### P26 — Gates fire only on code projects and code lines
+`[SHIPPED - 2026-09-04] [Iteration]`
+
+Operator rule, 2026-09-04: ship-sop fires for coding and for nothing else. The trigger lives in agent-sop (P97), and agent-sop P102 makes it read one project-type rule (`sop-project-type.sh`: an explicit `**Project type:**` line in CLAUDE.md, else the compliance-checklist heuristics) and count code lines only. This item is ship-sop's side of it, docs-only:
+
+- `/ship` opens with a project-type gate and stops on a non-code project; `/ship-on` refuses to enable auto-mode there.
+- README states the rule; `skip_docs_only` is documented as accepted-but-unread (documentation is always excluded now — and was already, by accident: agent-sop's hook read it with a jq `// true` default, which swallows an explicit `false`). Template default flips to `true` so the file says what happens; schema description updated.
+- This repo declares `**Project type:** code` in CLAUDE.md (bash under CI, no manifest — the heuristics alone would say non-code).
+
+**Acceptance criteria:**
+- A non-code repository with an auto config gets no gate demand, no refused push, and `/ship` stops in one line — enforced and fixture-tested in agent-sop P102
+- Template and schema agree with the trigger
+- User-scope replicas of `/ship`, `/ship-on`, `/ship-off` refreshed
+
+**Source:** operator instruction, agent-sop session 2026-09-04.
+
+---
+
 ### P25 — Retire the project-scope `auto-ship-hook.sh` wiring now that agent-sop carries the trigger
 `[OPEN] [Refactor]`
 

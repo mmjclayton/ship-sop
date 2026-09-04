@@ -137,12 +137,14 @@ Add language- and stack-specific gates as your project needs them. The schema pe
 
 ## Throttle defaults
 
-Auto-mode skips when:
-- Diff is below 10 lines (exploratory poking)
-- Cooldown of 5 min hasn't elapsed since last fire on the same diff state
+Auto-mode fires only on **code projects**, and counts only **code lines** (documentation extensions — `.md`, `.markdown`, `.txt`, `.rst` — are always excluded). The operator's rule since 2026-09-04: ship-sop fires for coding and for nothing else. What counts as a code project is agent-sop's shared rule, `sop-project-type.sh`: an explicit `**Project type:** code|non-code` line in CLAUDE.md wins, otherwise the heuristics in agent-sop's `compliance-checklist.md` (an `## Auth`/`## Database`/`## Design System` heading, a code-template reference, a test command under `## Key Commands`, or a manifest at the root). `/ship` and `/ship-on` apply the same rule.
+
+Auto-mode also skips when:
+- Diff has fewer than 10 code lines (exploratory poking)
+- No gate report already names an ancestor of HEAD with no code change since
 - Branch matches `^wip/`, `^spike/`, or `^exp/`
 
-All configurable in `ship-sop.config.json`.
+`min_diff_lines` and `skip_branch_patterns` are configurable in `ship-sop.config.json`. `skip_docs_only` is accepted for older configs but no longer read by the trigger: documentation is always excluded. (`cooldown_seconds` belonged to the retired project-scope hook; agent-sop's trigger throttles by commit state instead.)
 
 ## Quick start
 
