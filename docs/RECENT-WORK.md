@@ -7,8 +7,9 @@ the sentinels.
 Moved out of `CLAUDE.md` on 2026-08-03 so it stops consuming context every session.
 
 <!-- recent-work-rollup:start -->
-*Auto-generated from `docs/recent-work/`. Last refreshed: 2026-08-03.*
+*Auto-generated from `docs/recent-work/`. Last refreshed: 2026-09-04.*
 
+- 2026-09-04 `solo`: 2026-09-04 — auto-mode trigger folded into agent-sop; P16 superseded, P25 filed
 - 2026-08-03 `solo`: 2026-08-03 — P15: installer damage and the first CI
 - 2026-08-03 `solo`: 2026-08-03 — Full project review, Phase 3 plan, and P14 hook wiring
 - 2026-07-27 `solo`: P12 + P13 — background-gate semantics and directive integrity
