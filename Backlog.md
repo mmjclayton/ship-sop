@@ -401,7 +401,9 @@ That last part is what makes it more than an inconvenience: it converts a clean 
 ---
 
 ### P16 — Close the automation loop: SessionStart pickup so no command is typed
-`[OPEN] [Feature]`
+`[WON'T - Reason: superseded 2026-09-04 by agent-sop P97, which delivers the intent in one step instead of two] [Feature]`
+
+**Superseded (2026-09-04).** The two-step design (Stop writes a directive, SessionStart injects a pointer, the model dispatches) rested on a premise that turned out false: project-scope hooks never load for a session launched outside the project, and Stop stdout never reaches the model. agent-sop P97 ships a user-scope Stop hook (`sop-stop-drift.sh`) that reads this repo's `ship-sop.config.json` and exits 2 with the gate demand in the same turn, plus a push gate (`sop-push-gate.sh`). No directive file, no pickup, no `/restart-sop` backstop needed. See `docs/agent-memory/decisions/2026-09-04_solo_auto-mode-trigger-moves-to-agent-sop.md`.
 
 Depends on P14. The Stop hook writes a directive; nothing deterministically picks it up. Add a SessionStart hook that verifies the sidecar and freshness and injects the directive pointer into the opening context, so gates dispatch with nothing typed. `/restart-sop` becomes a backstop sharing one idempotent pickup routine keyed on a consumed marker, so a session that starts and is then given `/restart-sop` cannot dispatch twice.
 
@@ -445,6 +447,8 @@ Plus three silent-exit traps under `set -euo pipefail`: a no-match `grep -v` at 
 
 Every gate today is model judgement. shellcheck, `jq empty` and a staged-secret scan need no model: run them inside the hook where they are instant, free, and cannot be reasoned past. Then add a `PreToolUse` hook on `git push` / `gh pr create` that refuses when no gate run covers `HEAD` — coverage is a deterministic fact a hook can check, unlike "are there findings". `SHIP_SOP_SKIP_GATE=1` overrides and is recorded in the report so bypasses are greppable. This is what turns ship-sop from a reporter into a gate.
 
+**Partially delivered upstream (2026-09-04).** The push/PR gate shipped in agent-sop P97 as `sop-push-gate.sh`: refuses `git push` / `gh pr create` when `ship-sop.config.json` is `auto`, the code diff vs the default branch is at or over `min_diff_lines`, and no `docs/reviews/*-ship-auto.md` names an ancestor of HEAD with zero code lines since. The bypass token is `SOP_SKIP_GATE=1` (not `SHIP_SOP_SKIP_GATE`), logged to `.ship/bypass.log` with the HEAD it skipped. Still open here: the deterministic checks inside the hook (shellcheck, `jq empty`, staged-secret scan).
+
 ---
 
 ### P21 — Fixture harness and CI for the hook
@@ -465,6 +469,29 @@ ship-sop enforces test gates on others and has none. `CLAUDE.md:78` claims a CI 
 `[OPEN] [Refactor]`
 
 Six of 28 SHA-tracked agent-sop replicas are stale; `validate-state-transitions.sh` is 602 lines here against 783 upstream and runs a pre-fix copy of a silent-failure bug in `resolve_before()`. `.claude/agent-sop.config.json` has `update_reminder: "weekly"` and nothing reads it — add a warn-only drift check. Replicating a 600-line executable without upstream's fixtures is the worst option; decide vendor-with-fixtures or invoke via `.local_path`. Backfill P12/P13 into `docs/feature-map.md` (still "Last updated: 2026-04-26 (P10)") and the Phase 2 Batch Log. Artifact naming disagrees three ways between the hook, `ship.md` and README. README understates the install footprint by three items and misdescribes `--force` scope. Root config missing the `artifacts` block its own template has, which also makes `--uninstall` refuse to remove it as "locally modified".
+
+---
+
+### P25 — Retire the project-scope `auto-ship-hook.sh` wiring now that agent-sop carries the trigger
+`[OPEN] [Refactor]`
+
+agent-sop P97 (2026-09-04) supersedes the project-scope Stop hook: its user-scope `sop-stop-drift.sh` reads `ship-sop.config.json` and emits the gate demand via exit 2, and `sop-push-gate.sh` refuses an uncovered push. The old entry is inert for home-launched sessions and a harmless duplicate otherwise, but it still gets copied and wired by `setup.sh`, asserted by CI, and sits in four consumer repos.
+
+**Scope:**
+1. `setup.sh` — stop copying `scripts/auto-ship-hook.sh` and stop writing the `.hooks.Stop` entry; keep `--uninstall` able to remove legacy entries (both shapes). Keep the config bootstrap and the `.gitignore` block.
+2. `.github/workflows/ci.yml` — replace the P14 "nested shape" assertion (which now asserts the presence of a superseded hook) with an assertion that no `auto-ship-hook.sh` entry remains in this repo's `.claude/settings.json`; keep shellcheck on the script while it stays in the repo.
+3. This repo's `.claude/settings.json` — remove the entry.
+4. Consumer repos — remove the entry on each project's next session: `hst-tracker`, `opportunity-scan`, `os-carry`. The agent-sop context hook flags a leftover `.ship/.pending-auto-fire.md`; delete the `.ship/` legacy files with it.
+5. `/ship-on` Step 4 — probe `~/.claude/settings.json` for `sop-stop-drift.sh` instead of the project file for `auto-ship-hook.sh`.
+6. `docs/ship-sop.md` and `docs/feature-map.md` rows P1/P2/P11/P14 — mark the "next-turn pattern" superseded in place.
+
+**Acceptance criteria:**
+- A fresh `setup.sh` run wires no Stop hook and CI passes
+- `setup.sh --uninstall` on a repo with the legacy entry still removes it
+- `grep -rl auto-ship-hook.sh ~/Projects/*/.claude/settings.json` returns nothing
+- P18 and P19's hook-state-machine bugs are closed as superseded rather than fixed, with a note pointing at agent-sop's coverage-by-fact rule
+
+**Source:** agent-sop P97 close-out, 2026-09-04.
 
 ---
 

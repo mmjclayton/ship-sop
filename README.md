@@ -1,15 +1,15 @@
 # ship-sop
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Claude Code](https://img.shields.io/badge/Claude_Code-v2.1.101+-orange.svg)](https://code.claude.com/docs/en/changelog)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-v2.1.251+-orange.svg)](https://code.claude.com/docs/en/changelog)
 
-Pre-merge quality pipeline for Claude Code sessions. Runs language-agnostic gates — **tests, security, compliance, code quality, silent-failure detection, test-coverage analysis, diagrams + API catalog** — against the diff between your branch and the default branch. Fires automatically on session-end via a hook, or manually via `/ship`.
+Pre-merge quality pipeline for Claude Code sessions. Runs language-agnostic gates — **tests, security, compliance, code quality, silent-failure detection, test-coverage analysis, diagrams + API catalog** — against the diff between your branch and the default branch. Runs manually via `/ship`; the automatic trigger now lives in [agent-sop](https://github.com/mmjclayton/agent-sop)'s user-scope hooks (see [Two modes](#two-modes)).
 
 ## Why
 
 Every code change you ship needs the same hygiene: tests pass, no security regressions, no PII leaks or compliance drift, documentation kept in sync. Doing this manually means it gets skipped under pressure. Doing it via a CI step happens too late — after you've already opened a PR.
 
-ship-sop runs these checks **at session-end automatically**, so the gate is closer to the work and the feedback loop is tight. You can also run the same pipeline manually via `/ship` when you want strict-gate behaviour before opening a PR.
+ship-sop runs these checks **when the agent stops with an unreviewed code diff**, so the gate is closer to the work and the feedback loop is tight. You can also run the same pipeline manually via `/ship` when you want strict-gate behaviour before opening a PR.
 
 ## What runs
 
@@ -39,7 +39,7 @@ Projects running both get two independent reviewer turns on overlapping diff ran
 
 ## Two modes
 
-**Auto** (default after install) — a SessionStop hook reads `ship-sop.config.json`, applies throttle rules, runs the configured gates against the session's diff. Findings inject a strong warning into the next turn's context but never halt the session — auto-mode prioritises non-disruption.
+**Auto** (default after install) — agent-sop's user-scope `sop-stop-drift.sh` Stop hook reads `ship-sop.config.json`, applies the throttle rules, and when the code diff against the default branch has no gate report covering HEAD it exits 2 naming the enabled agents and the report path, so the model runs the gates before it finishes the turn. agent-sop's `sop-push-gate.sh` then refuses `git push` / `gh pr create` until a report covers HEAD (`SOP_SKIP_GATE=1` bypasses once, logged). Findings never halt the session — auto-mode prioritises non-disruption. Install with `bash scripts/install-hooks.sh` from the agent-sop checkout (superseded 2026-09-04: ship-sop's own project-scope `scripts/auto-ship-hook.sh` Stop hook, see [How auto-mode actually executes](#how-auto-mode-actually-executes)).
 
 **Manual** — `/ship` runs the same gates and writes the same artifacts, but **halts on hard-block failures**. Use when you want strict-gate behaviour before opening a PR.
 
@@ -47,21 +47,25 @@ Both modes share the same agents, the same config, and produce the same artifact
 
 ## How auto-mode actually executes
 
-Non-obvious detail worth understanding: Claude Code's SessionStop hooks run as plain shell scripts — they cannot themselves invoke `@agent` calls (that requires a model turn). ship-sop splits the work in two:
+Hooks run as plain shell scripts and cannot themselves invoke `@agent` calls; a model turn has to do that. Since 2026-09-04 the trigger is agent-sop's user-scope Stop hook, and it works in one step:
 
-1. **At session-stop:** `scripts/auto-ship-hook.sh` runs throttle checks and writes a directive file at `.ship/.pending-auto-fire.md` listing which gates to run, the diff range, and the report destination. Stdout from the hook is piped into the *next turn's* context window.
-2. **On the next user turn:** the model sees the directive in context, reads `.ship/.pending-auto-fire.md`, and invokes the configured `@compliance-reviewer`, `@diagram-builder`, etc. against the captured diff range.
+1. **When the agent stops:** `sop-stop-drift.sh` (from agent-sop) reads `ship-sop.config.json`, applies the throttle, computes the code diff from the merge-base with the default branch, and checks whether any `docs/reviews/*-ship-auto.md` carries a `Covers: <sha>` line for an ancestor of HEAD with no code change since.
+2. **If not covered:** it exits 2 with the list of enabled agents, the range, and the report path. Claude Code feeds that to the model and the turn continues, so the gates run and the report is written before the agent finishes. Nothing is typed and nothing waits for the next session.
 
-Practical flow: you finish a session → the hook fires silently → next time you start a turn in the same project, the model picks up the pending directive and dispatches the gates. Findings land in `docs/reviews/` and surface in the model's reply once the gates return, which since Claude Code 2.1.198 may be a turn later than the pickup — see the timing note below.
+Why the previous design was replaced. `scripts/auto-ship-hook.sh` was a project-scope Stop hook that wrote `.ship/.pending-auto-fire.md` and printed a directive to stdout for "the next turn". Two harness facts made that inert: project-scope hooks in `.claude/settings.json` load only from the directory Claude Code was launched in (sessions launched from `~` never register them), and Stop hook stdout is written to the debug log and never shown to the model. The script itself fired correctly when run by hand; the harness never ran it in a real session, and would have discarded its output if it had. The only auto-mode report ever produced was this repo's own dogfood on 2026-04-25. Full account: `docs/agent-memory/gotchas/2026-09-04_solo_stop-stdout-is-discarded-and-project-hooks-need-the-launch-dir.md`.
+
+`scripts/auto-ship-hook.sh` stays in the repo, and `setup.sh` still copies and wires it for now; removing that wiring, the CI guard that asserts it, and the entries already in consumer repos is P25. A leftover project-scope entry is harmless (it writes `.ship/` files nobody reads) — the agent-sop context hook flags a leftover `.ship/.pending-auto-fire.md` so it gets cleaned up.
 
 This means:
-- **Auto-mode reviews are not instantaneous.** They run on the next turn, not at session-end.
-- **Findings appear inside the model's response**, not as a separate notification — but possibly a turn later than you expect. Gate agents run in the background by default from Claude Code 2.1.198, so the model can finish a reply before they return. The summary surfaces when the gates complete, which may be the following turn.
-- **The directive file is the audit trail of what the hook scheduled** — and an input to treat sceptically. Inspect `.ship/.pending-auto-fire.md` if the behaviour seems unexpected.
+- **Auto-mode reviews happen in the same turn** the drift is detected, at the first stop after the code changed.
+- **Findings appear inside the model's response.** Gate agents run in the background by default from Claude Code 2.1.198; the hook's reason text tells the model to collect every result before writing the report.
+- **The report is the audit trail.** A report that names an ancestor of HEAD with no code change since is what "covered" means; no stamp files are involved.
 
-If you want immediate review output, run `/ship` manually — that invokes the gates in the current turn and, per its own instructions, collects every gate result before reporting a verdict.
+If you want review output on demand, run `/ship` manually — that invokes the gates in the current turn and, per its own instructions, collects every gate result before reporting a verdict.
 
 ### Directive integrity
+
+*Legacy as of 2026-09-04: this section describes the superseded project-scope hook's directive file. The agent-sop Stop hook passes its demand through the hook's exit-2 reason, which no file on disk can edit, so no sidecar is needed. Kept for consumer repos that still carry the old entry.*
 
 `.ship/.pending-auto-fire.md` is persistent state that sits on disk between turns and tells the next model turn what to run. Anything with repo write access can edit it, which makes it the same persistence vector agent-sop's `docs/sop/security.md` rule 1 covers for `CLAUDE.md` and `Backlog.md`.
 
@@ -85,7 +89,7 @@ That third row matters: conflating "unverifiable" with "tampered" would suppress
 
 ### A note on what the hook can see
 
-The SessionStop hook captures the diff **at stop**. Work still running in background subagents when the session stops is not in that range, so it is not gated on that fire — it gets picked up by the following one. If you need a specific change gated now, run `/ship` manually rather than relying on the stop hook to have seen it.
+The Stop hook computes the diff **at stop**, from committed HEAD. Uncommitted work and work still running in background subagents are not in that range, so they are gated at the first stop after they are committed. If you need a specific change gated now, run `/ship` manually rather than relying on the stop hook to have seen it.
 
 ## Per-agent toggles
 
@@ -213,8 +217,8 @@ Not legal advice. A sanity gate, not counsel.
 
 [agent-sop](https://github.com/mmjclayton/agent-sop) is the companion library for session discipline (start/end checklists, cross-session memory, parallel multi-agent sessions). The two are independent but pair naturally:
 
-- **agent-sop** manages session lifecycle and curates `Backlog.md`, `docs/agent-memory/`, build plans
-- **ship-sop** runs quality gates against the diff and auto-files Backlog entries using agent-sop's conventions
+- **agent-sop** manages session lifecycle and curates `Backlog.md`, `docs/agent-memory/`, build plans — and, since 2026-09-04, carries the user-scope Stop hook and push gate that trigger ship-sop's auto-mode
+- **ship-sop** defines the gates, the agents, the config schema and the report format, runs them via `/ship`, and auto-files Backlog entries using agent-sop's conventions
 
 If you use both: `compliance-reviewer` files `[OPEN][Bug][needs-triage]` Backlog entries with proper P-numbers; `release-notes-writer` reads `[SHIPPED]` items and Batch Logs as primary sources.
 
@@ -231,8 +235,8 @@ If you use Claude Code's reference `doc-updater` agent (or have your own), it st
 
 ## Requirements
 
-- Claude Code v2.1.101+
-- `bash`, `git`, `jq` (auto-mode hook)
+- Claude Code v2.1.251+ (agent-sop's floor; the Stop hook relies on exit-2 handling and on the 2.1.222 worktree-isolation fix)
+- `bash`, `git`, `jq` (auto-mode hook, installed from agent-sop)
 - `gh` CLI (only for `/release`)
 
 ## Troubleshooting

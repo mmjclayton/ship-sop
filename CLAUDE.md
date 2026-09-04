@@ -8,7 +8,7 @@
 
 All agents working on this project follow the Claude Code Agent SOP (`docs/sop/claude-agent-sop.md`). The SOP defines the standard file structure, never-delete-without-a-trace policy, session checklists, and update triggers. This file (CLAUDE.md) is the authority on project-specific conventions. The SOP is the authority on process.
 
-ship-sop dogfoods both itself (the SessionStop hook is wired in `.claude/settings.json`) and agent-sop (the file set in this repo follows the SOP conventions).
+ship-sop dogfoods both itself and agent-sop (the file set in this repo follows the SOP conventions). Since 2026-09-04 the auto-mode trigger is agent-sop's user-scope Stop hook (`sop-stop-drift.sh`), which reads `ship-sop.config.json` here; the project-scope `auto-ship-hook.sh` entry still in `.claude/settings.json` is superseded and comes out under P25.
 
 ---
 
@@ -110,7 +110,7 @@ gh repo view mmjclayton/ship-sop
 
 ## Common Mistakes — Read Before Working
 
-- **Stop hooks cannot invoke `@agent` directly.** They run as plain shell scripts. ship-sop's hook (`scripts/auto-ship-hook.sh`) writes `.ship/.pending-auto-fire.md` and pipes a context message to stdout — the *next-turn model* reads the directive and runs the gates. If you're tempted to make the hook "smarter" by invoking agents directly, it can't.
+- **Stop hooks cannot invoke `@agent` directly.** They run as plain shell scripts. The way a Stop hook makes the model act is exit 2 with the instruction on stderr — Claude Code feeds that back and continues the turn. Stop stdout goes to the debug log and is never shown to the model, and project-scope hooks load only from the launch directory: both are why `scripts/auto-ship-hook.sh` (stdout directive, project-scope) never produced a live gate run. The trigger now lives in agent-sop's user-scope `sop-stop-drift.sh`. See `docs/agent-memory/gotchas/2026-09-04_solo_stop-stdout-is-discarded-and-project-hooks-need-the-launch-dir.md`.
 - **Agent registry is locked at session start.** Newly-installed agents in `~/.claude/agents/` only become available to `Agent` tool calls in the *next* session. This is why dogfooding the gates inline (rather than via the Agent tool) is the only option in the install-and-test session.
 - **`git reset --hard` wipes uncommitted edits.** Lesson from the docs-only-detection fix: never include a reset in the same Bash invocation as a multi-step test that modifies tracked files. Commit small, reset rarely.
 - **Self-install means SCRIPT_DIR == TARGET.** `setup.sh` detects this and skips duplicate copies of project-side files. If you change setup.sh, preserve this detection or self-installs become noisy.

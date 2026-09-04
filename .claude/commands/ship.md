@@ -1,11 +1,11 @@
 ---
-description: Run the ship-sop gates (tests, security, compliance, docs) against the current diff. Manual entrypoint for the same pipeline that auto-mode fires on SessionStop. Produces a single readiness report. Does not push, tag, or publish.
+description: Run the ship-sop gates (tests, security, compliance, docs) against the current diff. Manual entrypoint for the same pipeline that auto-mode fires when the agent stops with an unreviewed code diff. Produces a single readiness report. Does not push, tag, or publish.
 ship_sop_version: "2026-04-25"
 ---
 
 Run the ship pipeline against the current branch's diff vs. its merge base. Each gate produces an artifact under `docs/reviews/`. Hard-blocking gates halt on failure; advisory gates surface findings and continue.
 
-This command is the **manual entrypoint** to the same pipeline that runs automatically on SessionStop when auto-mode is enabled (`ship-sop.config.json` → `trigger.mode: "auto"`). The gates and outputs are identical; the only difference is who pulls the trigger.
+This command is the **manual entrypoint** to the same pipeline that runs automatically when the agent stops with an unreviewed code diff when auto-mode is enabled (`ship-sop.config.json` → `trigger.mode: "auto"`). The gates and outputs are identical; the only difference is who pulls the trigger.
 
 ## Arguments
 
@@ -149,7 +149,7 @@ When this command is invoked manually:
 - Hard-blocking gate failures **halt** with non-zero exit. Operator fixes and re-runs.
 - Output goes to terminal and `docs/reviews/<stamp>-ship-report.md`.
 
-When the same pipeline runs automatically via the SessionStop hook:
+When the same pipeline runs automatically via the agent-sop Stop hook (`sop-stop-drift.sh`, user-scope):
 - Hard-blocking gate failures **inject a strong warning into the operator's context** but do not halt the session.
 - Output goes to `docs/reviews/<stamp>-ship-report.md` and a one-line summary in the model's reply.
 - The operator can run `/ship` manually afterwards if they want the halt-on-fail behaviour.
@@ -165,7 +165,7 @@ Date: YYYY-MM-DD
 Branch: <current-branch>
 Diff range: <BASE>..<HEAD>
 Mode: manual | auto
-Trigger: /ship | SessionStop hook
+Trigger: /ship | agent-sop Stop hook
 
 ## Gate results
 

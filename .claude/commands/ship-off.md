@@ -1,5 +1,5 @@
 ---
-description: Disable ship-sop auto-mode. Sets trigger.mode to "manual" so the SessionStop hook becomes a no-op. /ship and /release continue to work manually.
+description: Disable ship-sop auto-mode. Sets trigger.mode to "manual" so the agent-sop Stop hook (`sop-stop-drift.sh`, user-scope) becomes a no-op. /ship and /release continue to work manually.
 ship_sop_version: "2026-04-25"
 ---
 

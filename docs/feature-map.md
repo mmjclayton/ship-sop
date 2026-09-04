@@ -81,3 +81,4 @@ ship-sop is at "released, working, no immediate roadmap." Items below are likely
 | `pm-reviewer` agent | Dropped from initial scope (2026-04-25). |
 | Auto-publish on `/release` | Releases stay deliberate. For pre-push automation, use GitHub Actions on tag push. |
 | `doc-builder` (codemaps + INDEX) | Renamed to `diagram-builder` and trimmed to avoid overlap with `doc-updater`. |
+| `auto-ship-hook.sh` as the auto-mode trigger (P1, P2, P11, P14 rows above) | Superseded 2026-09-04 by agent-sop P97: project-scope hooks never load for a home-launched session and Stop stdout never reaches the model, so the next-turn directive pattern could not fire live. Trigger is now agent-sop's user-scope `sop-stop-drift.sh` + `sop-push-gate.sh`. Retirement of the wiring is P25. |
