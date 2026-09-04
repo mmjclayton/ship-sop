@@ -6,6 +6,8 @@
 
 ## Agent SOP
 
+**Project type:** code — Markdown by volume, but `setup.sh` and `scripts/auto-ship-hook.sh` are bash under CI, and the gate reviews them. Read by agent-sop's `sop-project-type.sh`; without the line the heuristics would say non-code (no manifest).
+
 All agents working on this project follow the Claude Code Agent SOP (`docs/sop/claude-agent-sop.md`). The SOP defines the standard file structure, never-delete-without-a-trace policy, session checklists, and update triggers. This file (CLAUDE.md) is the authority on project-specific conventions. The SOP is the authority on process.
 
 ship-sop dogfoods both itself and agent-sop (the file set in this repo follows the SOP conventions). Since 2026-09-04 the auto-mode trigger is agent-sop's user-scope Stop hook (`sop-stop-drift.sh`), which reads `ship-sop.config.json` here; the project-scope `auto-ship-hook.sh` entry still in `.claude/settings.json` is superseded and comes out under P25.
