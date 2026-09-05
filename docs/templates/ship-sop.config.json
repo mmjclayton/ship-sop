@@ -4,45 +4,15 @@
     "mode": "auto",
     "throttle": {
       "min_diff_lines": 10,
-      "skip_docs_only": true,
-      "cooldown_seconds": 300,
       "skip_branch_patterns": ["^wip/", "^spike/", "^exp/"]
     }
   },
   "agents": {
-    "security-reviewer": {
-      "enabled": true,
-      "block_on": "CRITICAL"
-    },
-    "compliance-reviewer": {
-      "enabled": true,
-      "block_on": "CRITICAL",
-      "auto_file_backlog": true
-    },
-    "code-reviewer": {
-      "enabled": true,
-      "block_on": "HIGH"
-    },
-    "silent-failure-hunter": {
-      "enabled": true,
-      "block_on": "HIGH"
-    },
-    "pr-test-analyzer": {
-      "enabled": true,
-      "block_on": "never",
-      "auto_file_backlog": false
-    },
-    "diagram-builder": {
-      "enabled": true,
-      "block_on": "never"
-    }
-  },
-  "release": {
-    "auto_publish": false,
-    "default_branch": "main",
-    "version_source": "package.json"
-  },
-  "artifacts": {
-    "retain_ship_artifact_days": 0
+    "security-reviewer": { "enabled": true, "block_on": "CRITICAL" },
+    "silent-failure-hunter": { "enabled": true, "block_on": "HIGH" },
+    "code-reviewer": { "enabled": true, "block_on": "HIGH" },
+    "pr-test-analyzer": { "enabled": false, "block_on": "never" },
+    "compliance-reviewer": { "enabled": false, "block_on": "CRITICAL" },
+    "diagram-builder": { "enabled": false, "block_on": "never" }
   }
 }

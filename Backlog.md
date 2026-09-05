@@ -414,7 +414,7 @@ The `/restart-sop` step ships in the **agent-sop repo** guarded on `ship-sop.con
 ---
 
 ### P17 — `/ship` dispatches 4 of the 7 gates it advertises
-`[OPEN] [Bug]`
+`[SHIPPED - 2026-09-05] [Bug]`
 
 `ship.md` hardcodes Gate 1 tests, Gate 2 security, Gate 3 compliance, Gate 4 diagrams. `code-reviewer`, `silent-failure-hunter` and `pr-test-analyzer` appear zero times in the file; two are configured `block_on: HIGH`. `ship.md:8` claims "the gates and outputs are identical" to auto-mode, which reads them from config. So the path documented as stricter is the weaker one. Flagged by the P9 reviewer on 2026-04-25 and never filed.
 
@@ -469,6 +469,26 @@ ship-sop enforces test gates on others and has none. `CLAUDE.md:78` claims a CI 
 `[OPEN] [Refactor]`
 
 Six of 28 SHA-tracked agent-sop replicas are stale; `validate-state-transitions.sh` is 602 lines here against 783 upstream and runs a pre-fix copy of a silent-failure bug in `resolve_before()`. `.claude/agent-sop.config.json` has `update_reminder: "weekly"` and nothing reads it — add a warn-only drift check. Replicating a 600-line executable without upstream's fixtures is the worst option; decide vendor-with-fixtures or invoke via `.local_path`. Backfill P12/P13 into `docs/feature-map.md` (still "Last updated: 2026-04-26 (P10)") and the Phase 2 Batch Log. Artifact naming disagrees three ways between the hook, `ship.md` and README. README understates the install footprint by three items and misdescribes `--force` scope. Root config missing the `artifacts` block its own template has, which also makes `--uninstall` refuse to remove it as "locally modified".
+
+---
+
+### P27 — Three default gates, one review run, a minimal `/ship`
+`[SHIPPED - 2026-09-05] [Iteration]`
+
+From the 2026-09-05 five-agent token review of agent-sop and ship-sop (recorded in the operator's memory note `project_sop_token_review_2026-09-05`). Measured on two agent-sop gate runs: 417k and 561k tokens per ship, ~64k fixed per agent launched regardless of diff size; compliance-reviewer and diagram-builder 23% of the total for zero findings; both CRITICALs from silent-failure-hunter.
+
+- Template and this repo's config enable `security-reviewer`, `silent-failure-hunter`, `code-reviewer`; `pr-test-analyzer`, `compliance-reviewer`, `diagram-builder` ship disabled, added per run with `/ship --with <agent>`.
+- `/ship` rewritten to ~40 lines: project-type gate, range, tests, dispatch **every enabled agent** with `isolation: "worktree"` (closes P17: the old text dispatched only three of six and omitted the agent that found both CRITICALs), collect all, one report with `Covers:`, no Backlog filing, no `--skip` override.
+- One review run serves agent-sop's Step 1b and the gate; README section rewritten.
+- Dead keys removed from the template and this config (`skip_docs_only`, `cooldown_seconds`, `auto_file_backlog`, `release.*`, `artifacts.*`); schema keeps them as deprecated so old configs validate.
+- `/ship-on` Step 4 probes `~/.claude/settings.json` for `sop-stop-drift.sh` (P25 item 5).
+
+**Acceptance criteria:**
+- Template parses; this config parses; schema parses - DONE
+- `/ship` names the config's enabled set, not a hard-coded three - DONE
+- README "What runs", "Relationship", "Per-agent toggles", "Throttle", "Outputs" agree with the trigger in agent-sop `sop-lib.sh` - DONE
+
+**Source:** operator instruction "fix all of this", 2026-09-05.
 
 ---
 

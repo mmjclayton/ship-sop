@@ -13,29 +13,31 @@ ship-sop runs these checks **when the agent stops with an unreviewed code diff**
 
 ## What runs
 
-| # | Gate | Owner | Hard block? |
-|---|------|-------|-------------|
-| 1 | Tests | project's runner (`npm test` / `pytest` / `cargo test` / `go test`) | Yes — on failure |
-| 2 | Security | `@security-reviewer` (from agent-sop or your own install) | Yes — on CRITICAL |
-| 3 | Compliance | `@compliance-reviewer` — PII / GDPR / HIPAA-applicability | Yes — on CRITICAL |
-| 4 | Code quality | `@code-reviewer` — language-agnostic quality, error handling, dead code | Yes — on HIGH |
-| 5 | Silent failures | `@silent-failure-hunter` — empty catches, swallowed errors, dangerous fallbacks | Yes — on HIGH |
-| 6 | Test coverage | `@pr-test-analyzer` — behavioural coverage of changed code | Never — advisory |
-| 7 | Diagrams + API catalog + ARCHITECTURE Δ | `@diagram-builder` | Never — advisory |
+Three gates by default (P27, 2026-09-05), each a read-only reviewer agent run in an isolated worktree against the code diff:
 
-Plus a manual `/release` command that runs `@release-notes-writer` to generate CHANGELOG entries and a tagged GitHub Release. Releases are always deliberate.
+| Gate | Agent | Hard block? | Why it is on by default |
+|---|---|---|---|
+| Security | `@security-reviewer` | on CRITICAL | found a real HIGH and a path-traversal CRITICAL in the two consumer repos on record |
+| Silent failures | `@silent-failure-hunter` | on HIGH | found both CRITICALs in the 2026-09-04/05 agent-sop runs with a 998-byte definition |
+| Code quality | `@code-reviewer` | on HIGH | the artefact contract agent-sop's Step 1b asserts |
+
+Tests run first through the project's own runner; a failure halts the ship.
+
+Three more ship disabled and are added per run with `/ship --with <agent>` or per project by flipping `enabled`:
+
+| Gate | Agent | Add when |
+|---|---|---|
+| Compliance | `@compliance-reviewer` | the diff touches routes, schema or migrations, logging, analytics SDK init, or a manifest (its own trigger list) |
+| Test coverage | `@pr-test-analyzer` | tests changed and you want the gap list |
+| Diagrams | `@diagram-builder` | a route, state machine or multi-collaborator handler changed |
+
+Measured on the two agent-sop runs that set these defaults: the six-agent set cost 417k-561k tokens per ship, roughly 64k fixed per agent launched regardless of diff size; compliance and diagram-builder were 23% of that for zero findings. `/release` (manual) runs `@release-notes-writer` for CHANGELOG entries and a tagged GitHub Release.
 
 **Language-specific reviewers are not in the default set.** Add `typescript-reviewer`, `python-reviewer`, `go-reviewer`, etc. per project — see "Common extensions" below.
 
 ### Relationship to agent-sop's Step 1b reviewer gate
 
-agent-sop's `docs/sop/claude-agent-sop.md` § 6 Step 1b runs `@code-reviewer` *per session* on Feature/Refactor items above the configured threshold (or always-on when `review_loc_threshold: 0`). ship-sop's Gate 4 runs `@code-reviewer` *per session-stop* on every diff that touches code paths, throttled by `ship-sop.config.json`.
-
-Both fire `@code-reviewer`. The difference is the trigger:
-- **Step 1b (agent-sop)** — single per-session check at session-end, partitioned by Backlog item type and diff size. Substance-asserted via `scripts/validate-state-transitions.sh --assert-review`.
-- **Gate 4 (ship-sop)** — per-stop check that runs every time a SessionStop hook fires, regardless of whether the session is mid-feature or wrapping up. Blocks on HIGH.
-
-Projects running both get two independent reviewer turns on overlapping diff ranges. That's intentional — Step 1b enforces the session-end checklist; Gate 4 enforces the pre-merge bar. Findings overlap meaningfully because both gates produce concrete file:line anchors against largely the same code, so a reader can cross-reference the two artifacts; the overlap is not measured and the gates run at different times (per-session vs per-stop) so the diffs are not guaranteed identical.
+One run serves both. On a code project with `trigger.mode: "auto"`, the gate run the Stop hook demands is also the Step 1b reviewer turn: the session writes the `*-ship-auto.md` report (with `Covers: <sha>`) and cites it from the Backlog entry's `review:` line, which `scripts/validate-state-transitions.sh --assert-review` accepts. Until 2026-09-05 the two were documented as intentionally independent runs on the same diff; that was a straight duplicate and is gone.
 
 ## Two modes
 
@@ -93,23 +95,23 @@ The Stop hook computes the diff **at stop**, from committed HEAD. Uncommitted wo
 
 ## Per-agent toggles
 
-`ship-sop.config.json` controls which agents run:
+`ship-sop.config.json` controls which agents run. The trigger reads `trigger.mode`, `trigger.throttle.min_diff_lines`, `trigger.throttle.skip_branch_patterns`, and per agent `enabled` and `block_on`; nothing else.
 
 ```json
 {
-  "trigger": { "mode": "auto" },
+  "trigger": { "mode": "auto", "throttle": { "min_diff_lines": 10, "skip_branch_patterns": ["^wip/", "^spike/", "^exp/"] } },
   "agents": {
-    "security-reviewer":     { "enabled": true, "block_on": "CRITICAL" },
-    "compliance-reviewer":   { "enabled": true, "block_on": "CRITICAL", "auto_file_backlog": true },
-    "code-reviewer":         { "enabled": true, "block_on": "HIGH" },
-    "silent-failure-hunter": { "enabled": true, "block_on": "HIGH" },
-    "pr-test-analyzer":      { "enabled": true, "block_on": "never", "auto_file_backlog": false },
-    "diagram-builder":       { "enabled": true, "block_on": "never" }
+    "security-reviewer":     { "enabled": true,  "block_on": "CRITICAL" },
+    "silent-failure-hunter": { "enabled": true,  "block_on": "HIGH" },
+    "code-reviewer":         { "enabled": true,  "block_on": "HIGH" },
+    "pr-test-analyzer":      { "enabled": false, "block_on": "never" },
+    "compliance-reviewer":   { "enabled": false, "block_on": "CRITICAL" },
+    "diagram-builder":       { "enabled": false, "block_on": "never" }
   }
 }
 ```
 
-Disable any gate by flipping `enabled: false`. Make any gate advisory by setting `block_on: "never"`. `/ship-on` and `/ship-off` flip the trigger mode without editing the file.
+Disable any gate by flipping `enabled: false`; make one advisory with `block_on: "never"`; add one for a single run with `/ship --with <agent>`. `/ship-on` and `/ship-off` flip the trigger mode without editing the file. Keys from older configs (`skip_docs_only`, `cooldown_seconds`, `auto_file_backlog`, `release.*`, `artifacts.*`) are still accepted by the schema and read by nothing.
 
 ### Common extensions
 
@@ -137,14 +139,9 @@ Add language- and stack-specific gates as your project needs them. The schema pe
 
 ## Throttle defaults
 
-Auto-mode fires only on **code projects**, and counts only **code lines** (documentation extensions — `.md`, `.markdown`, `.txt`, `.rst` — are always excluded). The operator's rule since 2026-09-04: ship-sop fires for coding and for nothing else. What counts as a code project is agent-sop's shared rule, `sop-project-type.sh`: an explicit `**Project type:** code|non-code` line in CLAUDE.md wins, otherwise the heuristics in agent-sop's `compliance-checklist.md` (an `## Auth`/`## Database`/`## Design System` heading, a code-template reference, a test command under `## Key Commands`, or a manifest at the root). `/ship` and `/ship-on` apply the same rule.
+Auto-mode fires only on **code projects**, and counts only **code lines** (documentation extensions — `.md`, `.markdown`, `.txt`, `.rst` — are always excluded; a rename is classified by both names). The operator's rule since 2026-09-04: ship-sop fires for coding and for nothing else. What counts as a code project is agent-sop's shared rule, `sop-project-type.sh`: an explicit `**Project type:** code|non-code` line in CLAUDE.md wins, otherwise the heuristics in agent-sop's `compliance-checklist.md`. `/ship` and `/ship-on` apply the same rule.
 
-Auto-mode also skips when:
-- Diff has fewer than 10 code lines (exploratory poking)
-- No gate report already names an ancestor of HEAD with no code change since
-- Branch matches `^wip/`, `^spike/`, or `^exp/`
-
-`min_diff_lines` and `skip_branch_patterns` are configurable in `ship-sop.config.json`. `skip_docs_only` is accepted for older configs but no longer read by the trigger: documentation is always excluded. (`cooldown_seconds` belonged to the retired project-scope hook; agent-sop's trigger throttles by commit state instead.)
+Auto-mode also skips when the diff has fewer than `min_diff_lines` code lines (default 10), when a gate report already names an ancestor of HEAD with no code change since, or when the branch matches a `skip_branch_patterns` entry.
 
 ## Quick start
 
@@ -178,31 +175,13 @@ Then in a Claude Code session in your project:
 
 ## Outputs
 
-Every gate writes a durable artifact under `docs/reviews/`:
+One report per ship under `docs/reviews/`, written by the session after every agent has returned:
 
 ```
-docs/reviews/
-├── 20260425-153012-ship-report.md         # the readiness summary
-├── 20260425-153012-security.md
-├── 20260425-153012-compliance.md
-├── 20260425-153012-code-reviewer.md
-├── 20260425-153012-silent-failure-hunter.md
-├── 20260425-153012-pr-test-analyzer.md
-└── 20260425-153012-diagram-builder.md
+docs/reviews/20260905-100415-ship-auto.md   # first line: Covers: <sha>; one row per agent; findings with dispositions
 ```
 
-Each enabled gate writes its own artifact — the tree above shows the default 6-gate set.
-
-`diagram-builder` additionally produces:
-
-```
-docs/
-├── ARCHITECTURE.md            # Δ log appended per ship that changes architecture
-├── diagrams/<feature>.md      # Mermaid state + sequence diagrams
-└── api/<service>.md           # endpoint catalog with schemas
-```
-
-Hand-edited docs (no `<!-- generated by diagram-builder -->` marker) are never overwritten — diagram-builder writes alongside them as `<path>.generated.md`.
+The agent-sop push gate and Stop hook read only the `Covers:` line (an ancestor of HEAD with no code change since). The rest is for people. `diagram-builder`, when enabled, additionally writes under `docs/diagrams/` and appends to `docs/ARCHITECTURE.md`; hand-edited files without its `<!-- generated by diagram-builder -->` marker are never overwritten.
 
 ## Compliance scope
 

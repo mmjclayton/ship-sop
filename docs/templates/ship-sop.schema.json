@@ -33,7 +33,7 @@
               "type": "integer",
               "minimum": 0,
               "default": 300,
-              "description": "Minimum seconds between consecutive auto-fires on the same diff state"
+              "description": "Deprecated, unread: belonged to the retired project-scope hook; agent-sop's trigger throttles by commit state."
             },
             "skip_branch_patterns": {
               "type": "array",
@@ -65,7 +65,7 @@
           "auto_file_backlog": {
             "type": "boolean",
             "default": true,
-            "description": "Whether the agent should auto-file findings as Backlog entries"
+            "description": "Deprecated, unread: findings are never auto-filed to Backlog.md (operator rule); the session writes the report and the operator decides."
           }
         }
       }
@@ -76,17 +76,17 @@
         "auto_publish": {
           "type": "boolean",
           "default": false,
-          "description": "If true, /release publishes without confirmation prompt. Strongly discouraged."
+          "description": "Deprecated, unread by the trigger; /release asks before publishing regardless."
         },
         "default_branch": {
           "type": "string",
           "default": "main",
-          "description": "Branch from which releases are cut"
+          "description": "Deprecated, unread: the trigger detects the default branch from origin/HEAD."
         },
         "version_source": {
           "type": "string",
           "default": "package.json",
-          "description": "File to read the current version from. Supports package.json, pyproject.toml, Cargo.toml, version.txt"
+          "description": "Deprecated, unread by the trigger; /release detects the manifest."
         }
       }
     },
@@ -98,7 +98,7 @@
           "type": "integer",
           "minimum": 0,
           "default": 0,
-          "description": "If > 0, prune ship-sop gate artifacts (YYYYMMDD-HHMMSS-*.md) older than this many days at hook fire time. Agent-sop /update-sop reviews (YYYY-MM-DD_<agent-id>_P<n>.md) are never touched. Default 0 disables retention."
+          "description": "Deprecated, unread: pruning belonged to the retired project-scope hook."
         }
       }
     }
