@@ -538,3 +538,54 @@ agent-sop P97 (2026-09-04) supersedes the project-scope Stop hook: its user-scop
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*
 
 (Empty — all P-numbered items above are still in the recent block.)
+
+### P28 — Native Codex support alongside Claude
+
+`[IN PROGRESS] [Feature]`
+
+Provide runtime-aware installation and updates, native Codex skills and reviewers,
+and one shared automatic review path. Preserve Claude support and project-owned files.
+
+Acceptance criteria:
+- `--runtime claude|codex|both` installs the selected integration without cross-runtime writes.
+- Codex hooks load context, continue on missing records and block uncovered pushes.
+- Native workflows have valid paths and enforce reviewer isolation.
+- Installation/update/uninstall fixtures and existing regression checks pass.
+
+Implementation complete locally (2026-09-08). Existing and new fixtures pass.
+review: docs/reviews/20260908-153509-ship-auto.md
+Implementation and configured review complete on `feat/codex-support`; prepared for branch publication and PR review. Keep IN PROGRESS until merged to main.
+
+### P29 — Preserve shared instruction symlinks during priority refresh
+
+`[OPEN] [Iteration]`
+
+The shared `scripts/refresh-priorities.sh` can replace an AGENTS.md symlink rather
+than updating its target. Fix upstream under agent-sop P108 and sync the replica.
+Source: P28 configured review, 2026-09-08. This is below the configured HIGH gate threshold.
+
+### P30 — Port shared enforcement surfaces to Codex
+
+`[IN PROGRESS] [Refactor]`
+
+Declared enforcement scope accompanying the Codex runtime feature: runtime-aware
+validator configuration and replication paths, AGENTS/native-skill review triggers,
+and the hook adapters. In ship-sop, also replace the obsolete positive project-hook
+CI assertion with unified-hook installation fixtures. Policy thresholds remain unchanged.
+
+This is an explicit enforcement work item under security rule 11, separated from
+the feature declaration for auditability. Independent configured reviewers assess
+these changes; passing output from a changed validator is not the sole evidence.
+The pre-port validator is also run against the final Backlog transitions.
+
+review: docs/reviews/20260908-153509-ship-auto.md
+Configured review complete; remains IN PROGRESS until merge.
+
+### P31 — Clear empty Codex installation ownership records
+
+`[OPEN] [Iteration]`
+
+After removing Codex assets, the empty `ship-sop.install.json` can still make a
+later Claude uninstall preserve shared config/artifacts. Check remaining owned
+assets rather than file existence, with a Codex-then-Claude removal fixture.
+Source: P28 independent review, 2026-09-08; MEDIUM, below the configured threshold.

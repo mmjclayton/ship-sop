@@ -35,6 +35,28 @@ set -euo pipefail
 # --uninstall then deleted ship-sop's own source (P15).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
+# Runtime selection is stripped before the legacy option parser.
+RUNTIME=claude
+RUNTIME_ARGS=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --runtime) [ $# -ge 2 ] || { echo '--runtime needs a value' >&2; exit 2; }; RUNTIME="$2"; shift ;;
+        --runtime=*) RUNTIME="${1#*=}" ;;
+        *) RUNTIME_ARGS+=("$1") ;;
+    esac
+    shift
+done
+case "$RUNTIME" in claude|codex|both) ;; *) echo 'runtime must be claude, codex or both' >&2; exit 2 ;; esac
+set -- ${RUNTIME_ARGS[@]+"${RUNTIME_ARGS[@]}"}
+
+
+if [ "$RUNTIME" = codex ]; then
+    exec bash "$SCRIPT_DIR/scripts/setup-codex.sh" "$@"
+fi
+if [ "$RUNTIME" = both ]; then
+    bash "$SCRIPT_DIR/scripts/setup-codex.sh" "$@"
+fi
+
 # ── Hook entry shape (P14) ────────────────────────────────────────────────────
 #
 # Claude Code discards a hook entry that does not nest its command. Install and
@@ -67,6 +89,7 @@ usage() {
     echo "  $(basename "$0") /path/to/project --uninstall [--force] [--keep-config] [--keep-artifacts]"
     echo ""
     echo "Install options:"
+    echo "  --runtime claude|codex|both  (default: claude)"
     echo "  --no-hook         Skip the SessionStop hook wiring (manual /ship only)"
     echo "  --force           Overwrite existing files (install) / remove locally-modified files (uninstall)"
     echo ""
@@ -238,7 +261,7 @@ uninstall_mode() {
     fi
     echo ""
 
-    local user_claude_dir="$HOME/.claude"
+    local user_claude_dir="${AGENT_SOP_USER_HOME:-$HOME}/.claude"
 
     # User-scope agents
     echo "Removing agents from $user_claude_dir/agents/"
@@ -313,7 +336,7 @@ uninstall_mode() {
     fi
 
     # .gitignore block
-    if [ -f "$target/.gitignore" ] && grep -q "^# ship-sop runtime artifacts$" "$target/.gitignore"; then
+    if [ "$KEEP_ARTIFACTS" = false ] && [ -f "$target/.gitignore" ] && grep -q "^# ship-sop runtime artifacts$" "$target/.gitignore"; then
         local tmp
         tmp="$(mktemp)"
         # The block is two lines: the marker and ".ship/". `next` already
@@ -373,6 +396,10 @@ if [ "$UNINSTALL" = true ]; then
         echo "         Install via: brew install jq  (macOS) | apt install jq  (Debian/Ubuntu)"
         echo ""
     fi
+    # Removing Claude integration must not remove shared Codex configuration.
+    if [ "$RUNTIME" = claude ] && [ -f "${CODEX_HOME:-${AGENT_SOP_USER_HOME:-$HOME}/.codex}/ship-sop.install.json" ]; then
+        KEEP_CONFIG=true; KEEP_ARTIFACTS=true
+    fi
     uninstall_mode "$TARGET"
     exit 0
 fi
@@ -413,7 +440,7 @@ fi
 
 # ── Install reference agents (user-scope) ─────────────────────────────────────
 
-USER_CLAUDE_DIR="${HOME}/.claude"
+USER_CLAUDE_DIR="${AGENT_SOP_USER_HOME:-$HOME}/.claude"
 mkdir -p "$USER_CLAUDE_DIR/agents" "$USER_CLAUDE_DIR/commands"
 
 echo "Installing agents to ~/.claude/agents/"
@@ -452,7 +479,9 @@ if [ "$SELF_INSTALL" = true ]; then
     # Skip copying scripts/auto-ship-hook.sh and docs/templates/ship-sop.schema.json
     # since they live in the source repo. Still create the user-facing config
     # at the project root (different from the template under docs/templates/).
-    copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json" || true
+    if [ ! -f "$TARGET/ship-sop.config.json" ]; then
+        cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json"
+    fi
 else
     echo "Installing hook script + config in $TARGET"
     mkdir -p "$TARGET/scripts" "$TARGET/docs/reviews" "$TARGET/.ship"
@@ -462,7 +491,9 @@ else
     fi
 
     # Default config — only created if missing
-    copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json" || true
+    if [ ! -f "$TARGET/ship-sop.config.json" ]; then
+        cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json"
+    fi
     copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.schema.json" "$TARGET/docs/templates/ship-sop.schema.json" || true
 fi
 
@@ -484,7 +515,27 @@ fi
 
 # ── Wire SessionStop hook (with consent) ──────────────────────────────────────
 
-if [ "$NO_HOOK" = true ]; then
+UNIFIED_SETTINGS="${AGENT_SOP_USER_HOME:-$HOME}/.claude/settings.json"
+if [ "$NO_HOOK" = false ] && command -v jq >/dev/null 2>&1 &&
+   jq -e '[.hooks.Stop[]?.hooks[]?.command | select(contains("sop-stop-drift.sh"))] | length > 0' "$UNIFIED_SETTINGS" >/dev/null 2>&1; then
+    UNIFIED_STOP="${AGENT_SOP_USER_HOME:-$HOME}/.claude/scripts/hooks/agent-sop/sop-stop-drift.sh"
+    if [ ! -f "$UNIFIED_STOP" ] || ! jq -e --arg command "bash \"$UNIFIED_STOP\"" '[.hooks.Stop[]?.hooks[]?.command | select(. == $command)] | length > 0' "$UNIFIED_SETTINGS" >/dev/null; then
+        echo 'Auto-mode registration is stale or nonstandard; repair agent-sop hooks before retiring the project handler.' >&2
+        exit 1
+    fi
+    # agent-sop already owns auto-mode. Retire only our legacy project handler.
+    SETTINGS="$TARGET/.claude/settings.json"
+    if [ -f "$SETTINGS" ]; then
+        tmp=$(mktemp)
+        jq '.hooks.Stop = [ .hooks.Stop[]? |
+            if (.command? // "") == "scripts/auto-ship-hook.sh" then empty
+            elif .hooks? then .hooks |= map(select(.command != "scripts/auto-ship-hook.sh")) | select(.hooks | length > 0)
+            else . end ]' "$SETTINGS" > "$tmp"
+        cp "$SETTINGS" "$SETTINGS.bak"
+        cat "$tmp" > "$SETTINGS"; rm -f "$tmp"
+    fi
+    echo 'Auto-mode uses agent-sop user-scope hooks; legacy project handler removed.'
+elif [ "$NO_HOOK" = true ]; then
     echo ""
     echo "Skipping SessionStop hook wiring (--no-hook)."
     echo "Use /ship and /release manually."

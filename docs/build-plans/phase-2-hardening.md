@@ -70,3 +70,10 @@ A maintenance pass on ship-sop's own surface. Phase 0 was the initial scaffold, 
 - Should the schema warning eventually escalate to a blocking error if a known-bad key is detected (vs warn-only)? [UNRESOLVED — current warn-only behaviour matches the rest of the hook's "never break the user's session" stance. Revisit if config-typo bugs continue to bite users in practice.]
 - Should `artifacts.retain_ship_artifact_days` have a recommended default in the README other than 0? [UNRESOLVED — 90 is a reasonable starting point but feels arbitrary. Defer until real adopters report disk-bloat.]
 - Should `SHIP_SOP_DEBUG` also surface what would have run on a successful fire (i.e. dry-run mode)? [UNRESOLVED — could be a separate `SHIP_SOP_DRY_RUN=1` env var. Defer; current diagnostic mode covers the "why didn't it fire" case which is the more common ask.]
+
+### 2026-09-08 — P28 Codex integration
+
+Implemented native Codex skills, isolated review runner and installer support.
+Shared agent-sop runtime files synced from the companion checkout. Installation
+and isolation fixtures pass. Implementation and review fixes are committed on
+`feat/codex-support`; P28 and the explicit enforcement item P30 remain IN PROGRESS pending merge.
