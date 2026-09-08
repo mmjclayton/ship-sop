@@ -43,7 +43,8 @@ if [ "${MOCK_HANG:-}" = true ]; then
     wait
     exit 0
 fi
-printf '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input_tokens":4,"output_tokens":3}}\n'
+if [ "${MOCK_BAD_TELEMETRY:-}" = true ]; then printf 'invalid json\n'
+else printf '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input_tokens":4,"output_tokens":3}}\n'; fi
 printf '%s\n' "$@" > "$REVIEW_TRACE/args"
 ROOT=''; RESULT=''
 while [ $# -gt 0 ]; do
@@ -80,8 +81,13 @@ test ! -d "$(cat "$WORK/root")"
 test ! -e "$WORK/compromised"
 printf 'PASS: reviewer runs in independent clone with read-only sandbox and cleans up\n'
 EVIDENCE=$(sed -n 's/^Review evidence: //p' "$WORK/review")
-jq -e '.usage[0].input_tokens == 12 and .timed_out == false and .exit_code == 0' "$EVIDENCE/metadata.json" >/dev/null
+jq -e '.usage[0].input_tokens == 12 and .timed_out == false and .exit_code == 0 and .telemetry_status == "available"' "$EVIDENCE/metadata.json" >/dev/null
 test -s "$EVIDENCE/events.jsonl"; test -s "$EVIDENCE/result.md"
+(cd "$WORK/project" && MOCK_BAD_TELEMETRY=true bash "$AGENT_SOP_USER_HOME/.codex/scripts/ship-sop/codex-review.sh" --base "$BASE" --agent silent-failure-hunter) > "$WORK/bad-telemetry" 2>&1
+EVIDENCE=$(sed -n 's/^Review evidence: //p' "$WORK/bad-telemetry")
+jq -e '.telemetry_status == "error" and .usage == null' "$EVIDENCE/metadata.json" >/dev/null
+grep -q 'telemetry parsing failed' "$WORK/bad-telemetry"
+test -s "$EVIDENCE/telemetry-error.log"
 start=$(date +%s)
 if (cd "$WORK/project" && MOCK_HANG=true SHIP_REVIEW_TIMEOUT_SECONDS=1 bash "$AGENT_SOP_USER_HOME/.codex/scripts/ship-sop/codex-review.sh" --base "$BASE" --agent silent-failure-hunter) > "$WORK/timeout" 2>&1; then
     echo 'FAIL: timed-out reviewer passed'; exit 1
