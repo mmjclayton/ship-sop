@@ -263,6 +263,8 @@ uninstall_mode() {
 
     local user_claude_dir="${AGENT_SOP_USER_HOME:-$HOME}/.claude"
 
+    remove_if_unmodified "$SCRIPT_DIR/scripts/ship-receipt.sh" "$user_claude_dir/scripts/ship-sop/ship-receipt.sh"
+
     # User-scope agents
     echo "Removing agents from $user_claude_dir/agents/"
     for src in "$SCRIPT_DIR"/.claude/agents/*.md; do
@@ -443,6 +445,8 @@ fi
 USER_CLAUDE_DIR="${AGENT_SOP_USER_HOME:-$HOME}/.claude"
 mkdir -p "$USER_CLAUDE_DIR/agents" "$USER_CLAUDE_DIR/commands"
 
+mkdir -p "$USER_CLAUDE_DIR/scripts/ship-sop"
+copy_if_missing "$SCRIPT_DIR/scripts/ship-receipt.sh" "$USER_CLAUDE_DIR/scripts/ship-sop/ship-receipt.sh" || true
 echo "Installing agents to ~/.claude/agents/"
 for src in "$SCRIPT_DIR"/.claude/agents/*.md; do
     [ -f "$src" ] || continue

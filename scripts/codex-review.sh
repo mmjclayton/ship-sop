@@ -22,8 +22,24 @@ fi
 ROLE="${CODEX_HOME:-${AGENT_SOP_USER_HOME:-$HOME}/.codex}/agents/$AGENT.toml"
 [ -f "$ROLE" ] || { echo "INCOMPLETE: reviewer $AGENT is not installed" >&2; exit 1; }
 command -v codex >/dev/null || { echo 'INCOMPLETE: codex CLI is required' >&2; exit 1; }
+TIMEOUT=${SHIP_REVIEW_TIMEOUT_SECONDS:-600}
+case "$TIMEOUT" in ''|*[!0-9]*) echo 'Invalid SHIP_REVIEW_TIMEOUT_SECONDS' >&2; exit 2 ;; esac
+[ "$TIMEOUT" -ge 1 ] && [ "$TIMEOUT" -le 3600 ] || { echo 'Review timeout must be 1..3600 seconds' >&2; exit 2; }
+MODEL=${SHIP_REVIEW_MODEL:-}
+MODEL_ARGS=(); [ -z "$MODEL" ] || MODEL_ARGS=(--model "$MODEL")
+mkdir -p "$ROOT/.ship/reviews"
+EVIDENCE=$(mktemp -d "$ROOT/.ship/reviews/$(date -u +%Y%m%dT%H%M%SZ)-$AGENT.XXXXXX")
+START=$(date +%s)
+RUNTIME_VERSION=$(codex --version 2>/dev/null || echo unavailable)
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+PID=''; WATCH=''
+cleanup() {
+    [ -z "$WATCH" ] || kill "$WATCH" 2>/dev/null || true
+    [ -z "$PID" ] || kill "$PID" 2>/dev/null || true
+    rm -rf "$WORK"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 # No linked worktree metadata, alternates or hardlinks back into the live repo.
 git clone --quiet --no-local --no-checkout "$ROOT" "$WORK/repo"
 git -C "$WORK/repo" checkout --quiet --detach "$HEAD_SHA"
@@ -39,13 +55,38 @@ if [ "$AUDIT" = false ]; then git -C "$WORK/repo" cat-file -e "$BASE^{commit}"; 
 # Keep normal authentication, but exclude operator MCP/plugin configuration.
 # The fresh clone is untrusted, so project configuration is not loaded.
 # Explicit read-only sandbox is the boundary; a prompt/worktree path is not.
-if ! codex exec --sandbox read-only --ignore-user-config --ignore-rules \
+codex exec --sandbox read-only --ignore-user-config --ignore-rules \
     --disable hooks --disable plugins --disable apps --disable multi_agent \
     --disable browser_use --disable computer_use --disable in_app_browser \
     --disable in_app_local_automation --disable image_generation -C "$WORK/repo" --ephemeral \
-    --output-last-message "$WORK/result" - < "$WORK/prompt" > "$WORK/events" 2>&1; then
-    tail -40 "$WORK/events" >&2
-    echo 'INCOMPLETE: Codex reviewer process failed' >&2
+    ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} --json \
+    --output-last-message "$WORK/result" - < "$WORK/prompt" > "$EVIDENCE/events.jsonl" 2> "$EVIDENCE/stderr.log" &
+PID=$!
+(
+    sleep "$TIMEOUT" & TIMER=$!
+    trap 'kill "$TIMER" 2>/dev/null || true; exit 0' TERM INT
+    wait "$TIMER"
+    kill -TERM "$PID" 2>/dev/null || true
+) &
+WATCH=$!
+STATUS=0
+wait "$PID" || STATUS=$?
+PID=''
+kill "$WATCH" 2>/dev/null || true
+wait "$WATCH" 2>/dev/null || true
+WATCH=''
+[ ! -f "$WORK/result" ] || cp "$WORK/result" "$EVIDENCE/result.md"
+USAGE=$(jq -s '[.[] | select(.type == "turn.completed") | .usage] | if length == 0 then null else . end' "$EVIDENCE/events.jsonl" 2>/dev/null) || USAGE=null
+jq -n --arg agent "$AGENT" --arg head "$HEAD_SHA" --arg base "$BASE" \
+    --arg model "${MODEL:-runtime-default-unresolved}" --arg runtime "$RUNTIME_VERSION" \
+    --argjson elapsed "$(( $(date +%s) - START ))" --argjson exit_code "$STATUS" \
+    --argjson usage "$USAGE" \
+    '{agent:$agent,head:$head,base:$base,model_requested:$model,runtime:$runtime,
+      elapsed_seconds:$elapsed,exit_code:$exit_code,usage:$usage}' > "$EVIDENCE/metadata.json"
+printf 'Review evidence: %s\n' "$EVIDENCE"
+if [ "$STATUS" -ne 0 ]; then
+    tail -40 "$EVIDENCE/stderr.log" >&2
+    echo 'INCOMPLETE: Codex reviewer failed or timed out; evidence retained' >&2
     exit 1
 fi
 [ -s "$WORK/result" ] || { echo 'INCOMPLETE: reviewer produced no result' >&2; exit 1; }

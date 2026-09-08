@@ -366,3 +366,12 @@ Closed more than 90 days ago; full entries in `docs/backlog-archive.md`, moved v
 - P9 — archived: Default reviewer set expansion (code-reviewer + silent-failure-hunter + pr-test-analyzer) (see docs/backlog-archive.md)
 - P10 — archived: `setup.sh --uninstall` for clean removal (see docs/backlog-archive.md)
 - P11 — archived: Phase 2: Hardening pass (diagnostics, schema warn, retention, drift, declutter) (see docs/backlog-archive.md)
+
+
+### P32 - Verified receipts, reviewer telemetry and concise workflow
+
+`[IN PROGRESS] [Refactor]`
+
+Generate validated structured review receipts; align Claude and Codex review decisions; retain bounded reviewer usage evidence; remove duplicated session instructions and document the shared gate contract.
+
+Authorised by the user following the 2026-09-08 full review. This explicitly changes enforcement policy. Acceptance: discriminating regression fixtures, complete existing suites, independent isolated review, preserved consumer customisations and documented migration.

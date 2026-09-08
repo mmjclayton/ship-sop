@@ -83,9 +83,10 @@ See the [default config](docs/templates/ship-sop.config.json) and
 [config schema](docs/templates/ship-sop.schema.json) for the full settings.
 
 Reports go in `docs/reviews/<timestamp>-ship-auto.md`. They record tests,
-reviewer results and findings. A `Covers: <commit>` line identifies the reviewed
-commit; the automatic gate also accepts a covered ancestor when no code has
-changed since. Missing or failed reviewer results are incomplete, not a pass.
+reviewer results and findings. A validated companion `*-ship-auto.json` receipt binds completion, tests and
+findings to the commit, tree, review base and policy. Markdown `Covers:` lines
+are informational and old Markdown-only reports no longer satisfy the gate.
+An ancestor receipt remains usable only when no code or executable instructions changed. Missing or failed reviewer results are incomplete, not a pass.
 
 ## Automatic review
 
@@ -136,3 +137,12 @@ bash tests/codex-install.sh
 
 The [CI workflow](.github/workflows/ci.yml) also checks shell scripts and JSON.
 Propose changes through a pull request.
+
+## Evidence and cost diagnostics
+
+Codex reviews retain events, results and usage under `.ship/reviews/`. Unknown
+usage is null, never zero. `SHIP_REVIEW_MODEL` selects an explicit model;
+`SHIP_REVIEW_TIMEOUT_SECONDS` bounds a reviewer run (default 600, maximum 3600).
+The three-reviewer default is unchanged pending measured defect yield and cost.
+Receipt generation needs current Agent SOP hooks. Upgrade both projects together.
+See `docs/build-plans/review-hardening.md` for the contract and evaluation plan.

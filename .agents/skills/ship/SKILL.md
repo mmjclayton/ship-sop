@@ -26,10 +26,20 @@ code signal. Non-code projects stop with an explanation.
    block_on severities or missing agents as configuration errors; `never` is a
    valid advisory-only threshold that does not block on findings. Any finding
    at or above its reviewer's threshold blocks the run.
-4. The parent writes docs/reviews/<YYYYMMDD-HHMMSS>-ship-auto.md, starting with
-   `Covers: <HEAD_SHA>` only after every required review completes. Include the
-   range, tests, each reviewer's verdict/counts, findings and dispositions.
-   For an incomplete or blocked run omit Covers: so it cannot satisfy the gate.
+4. The parent saves reviewer results as a JSON array. Each entry has name,
+   version (reviewer definition SHA), model (actual model if known, otherwise
+   runtime-default-unresolved), verdict (PASS/BLOCK/INCOMPLETE), and findings.
+   Each finding has severity, file, positive integer line, and message. Save test
+   results as {"status":"PASS","evidence":"commands and actual results"}, or
+   NOT_AVAILABLE with a concrete explanation when no suite exists. Never invent
+   results. A failed suite uses FAIL and cannot qualify.
+   Run the trusted installed receipt tool:
+   `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/ship-receipt.sh" --runtime codex --base <BASE> --head <HEAD_SHA> --results <results.json> --tests <tests.json> --output docs/reviews/<stamp>-ship-auto.json`
+   The tool rejects incomplete, blocked, stale or invalid evidence. Do not edit
+   receipts manually. Write a companion <stamp>-ship-auto.md with findings,
+   dispositions and links to evidence. Only a validated JSON receipt satisfies
+   the gate; a Covers: line in Markdown is informational. Existing Markdown-only
+   reports remain history and need a new review to qualify.
 5. Small fixes may be applied in scope, but a new code commit needs a fresh review
    of that HEAD. Do not stamp an old review with a newer SHA. Do not commit, push,
    tag or publish as part of ship. Do not file findings into Backlog automatically.
