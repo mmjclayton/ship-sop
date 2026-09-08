@@ -100,3 +100,13 @@ if bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex > "$WORK/stale-hooks"
     echo 'FAIL: stale hook registrations accepted'; exit 1
 fi
 printf 'PASS: stale registered hook paths rejected\n'
+
+mkdir -p "$AGENT_SOP_USER_HOME/.claude" "$WORK/project/.claude"
+printf '{"hooks":{"Stop":[{"hooks":[{"command":"bash /missing/sop-stop-drift.sh"}]}]}}\n' > "$AGENT_SOP_USER_HOME/.claude/settings.json"
+printf '{"hooks":{"Stop":[{"hooks":[{"command":"scripts/auto-ship-hook.sh"}]}]}}\n' > "$WORK/project/.claude/settings.json"
+cp "$WORK/project/.claude/settings.json" "$WORK/legacy-before"
+if bash "$SOURCE/setup.sh" "$WORK/project" --runtime claude > "$WORK/stale-claude-hooks" 2>&1; then
+    echo 'FAIL: stale Claude registration accepted'; exit 1
+fi
+cmp "$WORK/legacy-before" "$WORK/project/.claude/settings.json"
+printf 'PASS: stale unified hooks cannot retire the legacy handler\n'

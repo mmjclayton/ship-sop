@@ -518,6 +518,11 @@ fi
 UNIFIED_SETTINGS="${AGENT_SOP_USER_HOME:-$HOME}/.claude/settings.json"
 if [ "$NO_HOOK" = false ] && command -v jq >/dev/null 2>&1 &&
    jq -e '[.hooks.Stop[]?.hooks[]?.command | select(contains("sop-stop-drift.sh"))] | length > 0' "$UNIFIED_SETTINGS" >/dev/null 2>&1; then
+    UNIFIED_STOP="${AGENT_SOP_USER_HOME:-$HOME}/.claude/scripts/hooks/agent-sop/sop-stop-drift.sh"
+    if [ ! -f "$UNIFIED_STOP" ] || ! jq -e --arg command "bash \"$UNIFIED_STOP\"" '[.hooks.Stop[]?.hooks[]?.command | select(. == $command)] | length > 0' "$UNIFIED_SETTINGS" >/dev/null; then
+        echo 'Auto-mode registration is stale or nonstandard; repair agent-sop hooks before retiring the project handler.' >&2
+        exit 1
+    fi
     # agent-sop already owns auto-mode. Retire only our legacy project handler.
     SETTINGS="$TARGET/.claude/settings.json"
     if [ -f "$SETTINGS" ]; then
