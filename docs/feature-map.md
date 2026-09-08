@@ -61,6 +61,11 @@ Last updated: 2026-08-03 (P15)
 
 ---
 
+## Awaiting merge
+
+P28 adds Codex installation, native skills, isolated reviewers and shared automatic
+hook policy on `feat/codex-support`. See `Backlog.md` for review and merge status.
+
 ## Roadmap
 
 ship-sop is at "released, working, no immediate roadmap." Items below are likely-soon candidates that haven't been filed as P-numbers yet.

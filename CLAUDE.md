@@ -1,4 +1,4 @@
-# ship-sop — Pre-merge quality pipeline for Claude Code sessions
+# ship-sop — Pre-merge quality pipeline for Claude Code and Codex
 
 > Tests, security, compliance, diagrams. Auto-fires on session-end or manually via `/ship`. Companion to agent-sop.
 
@@ -33,7 +33,7 @@ Current phase files:
 | Check shipped features or roadmap | `docs/feature-map.md` | Shipped inventory |
 | Check or update work items | `Backlog.md` | Single source of truth |
 | Read phase architecture | `docs/build-plans/phase-{0,1,2}-*.md` | Batch log + locked decisions |
-| Understand the spec | `README.md` (Spec + How auto-mode works sections) | Seven gates, throttle defaults, hook IPC pattern, agent-sop composition |
+| Understand the spec | `README.md` | Seven gates, throttle defaults, hook IPC pattern, agent-sop composition |
 | Modify a reviewer agent | `.claude/agents/<name>.md` | One file per agent — installed user-scope by setup.sh |
 | Modify a slash command | `.claude/commands/<name>.md` | `/ship`, `/release`, `/audit`, `/ship-on`, `/ship-off` |
 | Modify the SessionStop hook | `scripts/auto-ship-hook.sh` | Bash script; throttle + directive emission |
@@ -41,7 +41,7 @@ Current phase files:
 | Modify the installer | `setup.sh` | Detects self-install via SCRIPT_DIR == TARGET |
 | Read the public-facing pitch | `README.md` | What ships into the world |
 
-Test: no automated test runner — this is a markdown + bash project. Manual dogfood is the test (run `bash scripts/auto-ship-hook.sh` against a real diff, then inspect both `.ship/.pending-auto-fire.md` and its `.sha256` sidecar — `SHIP_SOP_DEBUG=1` prints the hash).
+Test: `bash tests/codex-install.sh`, shellcheck and JSON validation; `.github/workflows/ci.yml` defines the required CI checks. Live hook tests complement the fixtures.
 After shipping: update Backlog.md + docs/feature-map.md + docs/build-plans/phase-N.md Batch Log
 
 ### Current state
@@ -74,10 +74,10 @@ the previous one drifted into claiming Phase 2 was both shipped and in flight.
 
 ## Stack
 
-- **Type:** Markdown + bash library (no compiled code, no test runner)
+- **Type:** Markdown + bash library with shell fixtures
 - **Key technologies:** bash 4+, jq, gh CLI (for `/release` only), Claude Code v2.1.101+
 - **Hosting:** GitHub (`mmjclayton/ship-sop`)
-- **CI:** None yet — candidate filed in `Backlog.md` if needed
+- **CI:** GitHub Actions lint, configuration and Codex installation/isolation fixtures
 - **Live:** https://github.com/mmjclayton/ship-sop
 
 ---
@@ -174,7 +174,7 @@ If In-Flight Work in `docs/agent-memory.md` has a line for this agent or `projec
 
 The `/update-sop` slash command automates this. Manual fallback. **Never delete without a trace. Update in place, mark superseded, or archive.**
 
-1. Run tests — N/A here (no test runner; markdown + bash project). Manual dogfood is the verification path.
+1. Run the fixture and lint checks defined in `.github/workflows/ci.yml`; use live dogfood for runtime behavior.
 2. `Backlog.md` — update status tags in place, append new items. Hard-block on P-number collisions with the default branch (Step 2a in `/update-sop`).
 3. Secondary trackers — N/A here (ship-sop doesn't generate audit-backlog or security-findings files).
 4. `docs/feature-map.md` — append shipped items.

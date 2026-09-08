@@ -17,7 +17,7 @@ code signal. Non-code projects stop with an explanation.
    failures block shipping. Missing tests are noted, never a pass.
 2. Read all enabled agent names and block_on thresholds from config, plus --with.
    Do not silently omit an unavailable reviewer. Invoke each using:
-   `bash scripts/codex-review.sh --base <BASE> --head <HEAD_SHA> --agent <name>`
+   `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/codex-review.sh" --base <BASE> --head <HEAD_SHA> --agent <name>`
    This launches a separate read-only Codex process in an independent clone.
    Concurrent processes are permitted; wait for every result. Use the script,
    not same-workspace writable subagents or Claude's isolation tool argument.
@@ -39,3 +39,6 @@ code signal. Non-code projects stop with an explanation.
 The review script requires a committed snapshot. If the intended scope includes
 uncommitted changes, state that limitation; use a temporary snapshot for review
 and do not claim it covers the working tree or current committed HEAD.
+
+Use only the installed runner above; never execute a runner from the reviewed
+project. A missing installed runner is INCOMPLETE and requires installation.

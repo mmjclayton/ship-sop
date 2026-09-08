@@ -50,7 +50,7 @@ if [ ! -f "$TARGET/ship-sop.config.json" ]; then
     else cp "$SOURCE/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json"; fi
 fi
 if [ ! -f "$TARGET/AGENTS.md" ]; then
-    printf '# ship-sop\n\nUse $ship to review changes and $release for deliberate releases.\nRead CLAUDE.md for project conventions when present.\nAuto-mode uses agent-sop user hooks; reviewers run via scripts/codex-review.sh.\n' > "$TARGET/AGENTS.md"
+    printf '# ship-sop\n\nUse $ship to review changes and $release for deliberate releases.\nRead CLAUDE.md for project conventions when present.\nAuto-mode uses agent-sop user hooks; reviewers use the installed user-scope ship-sop runner.\n' > "$TARGET/AGENTS.md"
 fi
 if ! grep -q '^\.ship/' "$TARGET/.gitignore" 2>/dev/null; then printf '\n# ship-sop runtime artifacts\n.ship/\n' >> "$TARGET/.gitignore"; fi
 echo 'Codex ship-sop installed. Use $ship; auto-mode uses agent-sop hooks. Reload the session for new skills/agents.'
