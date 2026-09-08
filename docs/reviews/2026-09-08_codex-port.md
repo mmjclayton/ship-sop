@@ -3,7 +3,9 @@
 **Date:** 2026-09-08
 **Agent:** codex
 **Reviewer agent:** independent code-reviewer via Codex CLI 0.153.4
-**Commits:** temporary review snapshots; working branch remains uncommitted
+**Scope:** historical development snapshots before implementation commits.
+
+Superseded by the [publication gate](20260908-153509-ship-auto.md).
 
 ## Summary
 

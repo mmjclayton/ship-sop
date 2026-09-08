@@ -553,8 +553,8 @@ Acceptance criteria:
 - Installation/update/uninstall fixtures and existing regression checks pass.
 
 Implementation complete locally (2026-09-08). Existing and new fixtures pass.
-review: docs/reviews/2026-09-08_codex-port.md
-Implementation committed on `feat/codex-support`; final review and branch publication in progress. Keep IN PROGRESS until merged to main.
+review: docs/reviews/20260908-153509-ship-auto.md
+Implementation and configured review complete on `feat/codex-support`; prepared for branch publication and PR review. Keep IN PROGRESS until merged to main.
 
 ### P29 — Preserve shared instruction symlinks during priority refresh
 
@@ -578,5 +578,14 @@ the feature declaration for auditability. Independent configured reviewers asses
 these changes; passing output from a changed validator is not the sole evidence.
 The pre-port validator is also run against the final Backlog transitions.
 
-review: docs/reviews/2026-09-08_codex-port.md
-Ready for final review; remains IN PROGRESS until merge.
+review: docs/reviews/20260908-153509-ship-auto.md
+Configured review complete; remains IN PROGRESS until merge.
+
+### P31 — Clear empty Codex installation ownership records
+
+`[OPEN] [Iteration]`
+
+After removing Codex assets, the empty `ship-sop.install.json` can still make a
+later Claude uninstall preserve shared config/artifacts. Check remaining owned
+assets rather than file existence, with a Codex-then-Claude removal fixture.
+Source: P28 independent review, 2026-09-08; MEDIUM, below the configured threshold.
