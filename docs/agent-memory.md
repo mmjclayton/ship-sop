@@ -28,7 +28,7 @@ See CLAUDE.md Key Documents & Dispatch table.
 <!-- in-flight:start -->
 *Auto-generated from `docs/agent-memory/in-flight/`.*
 
-- solo (2026-09-08): P32 implemented and verified locally on fix/review-continuity-hardening. Review: docs/reviews/20260908-hardening-ship-auto.md. Next: publish/merge when authorised; native-model pilot awaits an AUD cap. No implementation blocker remains.
+- solo (2026-09-08): P32 implemented and verified locally on fix/review-continuity-hardening. Review: docs/reviews/20260908-hardening-ship-auto.md. Next: publish/merge when authorised; native-model pilot deferred at user direction (AUD 0 budget). No implementation blocker remains.
 - solo (2026-09-08): The August handoff is superseded: P16 is WON'T, P17 is SHIPPED, and .ship/.last-auto-fire is legacy. Remaining P18-P24 scope stays in Backlog; do not resume the retired SessionStart directive design.
 <!-- in-flight:end -->
 
