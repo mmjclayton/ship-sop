@@ -1,6 +1,6 @@
 # ship-sop — Feature Map & Roadmap
 
-Last updated: 2026-08-03 (P15)
+Last updated: 2026-09-08 (P28, P30)
 
 ---
 
@@ -8,6 +8,8 @@ Last updated: 2026-08-03 (P15)
 
 | P# | Feature | Path/PR | Shipped |
 |----|---------|---------|---------|
+| P28 | Native Codex skills, installation and isolated reviewers | [PR #13](https://github.com/mmjclayton/ship-sop/pull/13) | 2026-09-08 |
+| P30 | Shared Codex enforcement and replication validation | [PR #13](https://github.com/mmjclayton/ship-sop/pull/13) | 2026-09-08 |
 | P1 | `compliance-reviewer` agent (PII / GDPR / HIPAA-applicability) | `.claude/agents/compliance-reviewer.md` | 2026-04-25 (`bd05f40`) |
 | P1 | `diagram-builder` agent (Mermaid + API catalog + ARCHITECTURE Δ) | `.claude/agents/diagram-builder.md` | 2026-04-25 (`bd05f40`) |
 | P1 | `release-notes-writer` agent | `.claude/agents/release-notes-writer.md` | 2026-04-25 (`bd05f40`) |
@@ -60,11 +62,6 @@ Last updated: 2026-08-03 (P15)
 > P12 and P13 are absent from this table — tracker drift filed as P23, not backfilled here to keep this batch's diff to its own item.
 
 ---
-
-## Awaiting merge
-
-P28 adds Codex installation, native skills, isolated reviewers and shared automatic
-hook policy on `feat/codex-support`. See `Backlog.md` for review and merge status.
 
 ## Roadmap
 

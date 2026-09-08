@@ -76,4 +76,4 @@ A maintenance pass on ship-sop's own surface. Phase 0 was the initial scaffold, 
 Implemented native Codex skills, isolated review runner and installer support.
 Shared agent-sop runtime files synced from the companion checkout. Installation
 and isolation fixtures pass. Implementation and review fixes are committed on
-`feat/codex-support`; P28 and the explicit enforcement item P30 remain IN PROGRESS pending merge.
+`feat/codex-support`; P28 and P30 merged to main in PR #13 (`451ec44`) on 2026-09-08.
