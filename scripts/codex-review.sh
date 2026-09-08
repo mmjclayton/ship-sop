@@ -83,16 +83,21 @@ kill "$WATCH" 2>/dev/null || true
 wait "$WATCH" 2>/dev/null || true
 WATCH=''
 [ ! -f "$WORK/result" ] || cp "$WORK/result" "$EVIDENCE/result.md"
-USAGE=$(jq -s '[.[] | select(.type == "turn.completed") | .usage] | if length == 0 then null else . end' "$EVIDENCE/events.jsonl" 2>/dev/null) || USAGE=null
+TELEMETRY_STATUS=available
+USAGE=$(jq -s '[.[] | select(.type == "turn.completed") | .usage] | if length == 0 then null else . end' "$EVIDENCE/events.jsonl" 2> "$EVIDENCE/telemetry-error.log") || { USAGE=null; TELEMETRY_STATUS=error; }
+if [ "$TELEMETRY_STATUS" = error ]; then
+    echo "WARNING: telemetry parsing failed; inspect $EVIDENCE/telemetry-error.log" >&2
+elif [ "$USAGE" = null ]; then TELEMETRY_STATUS=unavailable; fi
 jq -n --arg agent "$AGENT" --arg head "$HEAD_SHA" --arg base "$BASE" \
     --arg model "${MODEL:-runtime-default-unresolved}" --arg runtime "$RUNTIME_VERSION" \
     --argjson elapsed "$(( $(date +%s) - START ))" --argjson exit_code "$STATUS" \
-    --argjson usage "$USAGE" --argjson timed_out "$([ -f "$EVIDENCE/timed-out" ] && echo true || echo false)" \
+    --argjson usage "$USAGE" --arg telemetry_status "$TELEMETRY_STATUS" --argjson timed_out "$([ -f "$EVIDENCE/timed-out" ] && echo true || echo false)" \
     '{agent:$agent,head:$head,base:$base,model_requested:$model,runtime:$runtime,
-      elapsed_seconds:$elapsed,exit_code:$exit_code,usage:$usage,timed_out:$timed_out}' > "$EVIDENCE/metadata.json"
+      elapsed_seconds:$elapsed,exit_code:$exit_code,usage:$usage,telemetry_status:$telemetry_status,timed_out:$timed_out}' > "$EVIDENCE/metadata.json"
 printf 'Review evidence: %s\n' "$EVIDENCE"
 if [ "$STATUS" -ne 0 ]; then
     tail -40 "$EVIDENCE/stderr.log" >&2
+    jq -r 'select(.type == "error") | .message' "$EVIDENCE/events.jsonl" 2>/dev/null | tail -3 >&2 || true
     echo 'INCOMPLETE: Codex reviewer failed or timed out; evidence retained' >&2
     exit 1
 fi
