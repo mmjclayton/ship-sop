@@ -479,7 +479,9 @@ if [ "$SELF_INSTALL" = true ]; then
     # Skip copying scripts/auto-ship-hook.sh and docs/templates/ship-sop.schema.json
     # since they live in the source repo. Still create the user-facing config
     # at the project root (different from the template under docs/templates/).
-    copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json" || true
+    if [ ! -f "$TARGET/ship-sop.config.json" ]; then
+        cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json"
+    fi
 else
     echo "Installing hook script + config in $TARGET"
     mkdir -p "$TARGET/scripts" "$TARGET/docs/reviews" "$TARGET/.ship"
@@ -489,7 +491,9 @@ else
     fi
 
     # Default config — only created if missing
-    copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json" || true
+    if [ ! -f "$TARGET/ship-sop.config.json" ]; then
+        cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json"
+    fi
     copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.schema.json" "$TARGET/docs/templates/ship-sop.schema.json" || true
 fi
 

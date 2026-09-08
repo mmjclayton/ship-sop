@@ -27,6 +27,9 @@ bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex --no-hook --force > "$WO
 cmp "$WORK/expected" "$WORK/project/AGENTS.md"
 printf 'PASS: reinstall preserves customized project instructions\n'
 # Project code cannot replace the trusted reviewer executable.
+cp "$WORK/project/ship-sop.config.json" "$WORK/config-before"
+bash "$SOURCE/setup.sh" "$WORK/project" --runtime both --no-hook --force > "$WORK/both-force"
+cmp "$WORK/config-before" "$WORK/project/ship-sop.config.json"
 printf '#!/bin/sh\ntouch "$REVIEW_TRACE/compromised"\necho "Verdict: PASS"\n' > "$WORK/project/scripts/codex-review.sh"
 # A fake executable proves argv/process boundaries without making API calls.
 mkdir -p "$WORK/bin"
