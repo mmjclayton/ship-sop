@@ -31,7 +31,7 @@ if [ "$NO_HOOK" = false ]; then
         exit 1
     fi
     if [ ! -f "$CODEX_DIR/scripts/hooks/agent-sop/sop-codex-hook.sh" ] ||
-       ! jq -e '([.hooks.Stop[]?.hooks[]?.command | select(contains("sop-codex-hook.sh") and endswith(" Stop"))] | length > 0) and ([.hooks.PreToolUse[]?.hooks[]?.command | select(contains("sop-codex-hook.sh") and endswith(" PreToolUse"))] | length > 0)' "$CODEX_DIR/hooks.json" >/dev/null 2>&1; then
+       ! jq -e --arg wrapper "bash \"$CODEX_DIR/scripts/hooks/agent-sop/sop-codex-hook.sh\"" '([.hooks.Stop[]?.hooks[]?.command | select(. == ($wrapper + " Stop"))] | length > 0) and ([.hooks.PreToolUse[]?.hooks[]?.command | select(. == ($wrapper + " PreToolUse"))] | length > 0)' "$CODEX_DIR/hooks.json" >/dev/null 2>&1; then
         echo 'Codex auto-mode requires agent-sop setup.sh <project> --runtime codex first; or use --no-hook for manual mode.' >&2
         exit 1
     fi

@@ -89,3 +89,14 @@ bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex --uninstall > "$WORK/uni
 test -f "$WORK/project/AGENTS.md"; test -f "$WORK/project/ship-sop.config.json"
 test ! -f "$AGENT_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
 printf 'PASS: missing reviewers fail and uninstall preserves project data\n'
+
+# A wrapper on disk does not validate registrations pointing elsewhere.
+mkdir -p "$WORK/project/docs/sop" "$AGENT_SOP_USER_HOME/.codex/scripts/hooks/agent-sop"
+printf '# SOP\n' > "$WORK/project/docs/sop/claude-agent-sop.md"
+printf '# Backlog\n' > "$WORK/project/Backlog.md"
+printf '#!/bin/sh\n' > "$AGENT_SOP_USER_HOME/.codex/scripts/hooks/agent-sop/sop-codex-hook.sh"
+printf '{"hooks":{"Stop":[{"hooks":[{"command":"bash /missing/sop-codex-hook.sh Stop"}]}],"PreToolUse":[{"hooks":[{"command":"bash /missing/sop-codex-hook.sh PreToolUse"}]}]}}\n' > "$AGENT_SOP_USER_HOME/.codex/hooks.json"
+if bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex > "$WORK/stale-hooks" 2>&1; then
+    echo 'FAIL: stale hook registrations accepted'; exit 1
+fi
+printf 'PASS: stale registered hook paths rejected\n'
