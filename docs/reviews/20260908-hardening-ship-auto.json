@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "base": "e8630e1ab48d3a6ae21ae72a727e07399de191ba",
+  "head": "71dab0b3ff171f2cb0284bf53bca9fb70ee53c4a",
+  "tree": "a14645256e6ce8f3aa6aa87f22ac112a53212491",
+  "policy_sha256": "2bf3e7532a015bebf17f7553468f92f27d5b777be7d19cb8aca33e5e8b07e494",
+  "tests": {
+    "status": "PASS",
+    "evidence": "PASS: tests/codex-install.sh, tests/receipt-contract.sh, tests/receipt-integration.sh with actual AGENT_SOP_SOURCE; blocking CI ShellCheck and JSON checks; state transitions and Claude/Codex replication checks. Upstream resolver and validator changes also passed all nine Agent SOP fixture suites."
+  },
+  "reviewers": [
+    {
+      "name": "code-reviewer",
+      "version": "818f7d0046ac7ef125596d5e757d7f894f527b29837700c67b35182e402ab1aa",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "findings": [],
+      "review_chain": [
+        {
+          "stage": "full-range",
+          "base": "e8630e1ab48d3a6ae21ae72a727e07399de191ba",
+          "head": "e386087ad9145f2bdc53247ba3bacf401d05511a"
+        },
+        {
+          "stage": "reviewed-corrections",
+          "base": "e386087ad9145f2bdc53247ba3bacf401d05511a",
+          "head": "71dab0b3ff171f2cb0284bf53bca9fb70ee53c4a"
+        }
+      ]
+    },
+    {
+      "name": "security-reviewer",
+      "version": "2da4c0641ed7a0a07c9cf1e1337d5fab9299dea2e3d4220c5deb08a8a7c85476",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "findings": [],
+      "review_chain": [
+        {
+          "stage": "full-range",
+          "base": "e8630e1ab48d3a6ae21ae72a727e07399de191ba",
+          "head": "e386087ad9145f2bdc53247ba3bacf401d05511a"
+        },
+        {
+          "stage": "reviewed-corrections",
+          "base": "e386087ad9145f2bdc53247ba3bacf401d05511a",
+          "head": "71dab0b3ff171f2cb0284bf53bca9fb70ee53c4a"
+        }
+      ]
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "abdcd09023740e476942b9286ac176d46dd0aecfd630963621dfd0e7891bd7e6",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "findings": [],
+      "review_chain": [
+        {
+          "stage": "full-range",
+          "base": "e8630e1ab48d3a6ae21ae72a727e07399de191ba",
+          "head": "e386087ad9145f2bdc53247ba3bacf401d05511a"
+        },
+        {
+          "stage": "reviewed-corrections",
+          "base": "e386087ad9145f2bdc53247ba3bacf401d05511a",
+          "head": "71dab0b3ff171f2cb0284bf53bca9fb70ee53c4a"
+        }
+      ]
+    }
+  ]
+}

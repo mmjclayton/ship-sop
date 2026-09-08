@@ -372,6 +372,10 @@ Closed more than 90 days ago; full entries in `docs/backlog-archive.md`, moved v
 
 `[IN PROGRESS] [Refactor]`
 
+review: docs/reviews/20260908-hardening-ship-auto.md
+
 Generate validated structured review receipts; align Claude and Codex review decisions; retain bounded reviewer usage evidence; remove duplicated session instructions and document the shared gate contract.
 
 Authorised by the user following the 2026-09-08 full review. This explicitly changes enforcement policy. Acceptance: discriminating regression fixtures, complete existing suites, independent isolated review, preserved consumer customisations and documented migration.
+
+Implemented and verified locally on `fix/review-continuity-hardening`. Installation, timeout, receipt contract and real cross-package tests pass. Full-range findings were corrected and all three configured reviewers passed the pinned correction range. Validated receipt recorded. Both runtime integrations updated with customisations preserved. Remains IN PROGRESS until merge; publication and the comparison-pilot budget are separate decisions.

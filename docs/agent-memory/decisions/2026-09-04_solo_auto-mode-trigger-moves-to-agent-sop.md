@@ -3,6 +3,9 @@
 **Date:** 2026-09-04
 **Agent:** solo
 
+**Coverage rule superseded 2026-09-08:** see `2026-09-08_solo_validated-review-evidence.md`.
+The Markdown stamp rule below is historical; current coverage requires validated JSON.
+
 We chose to **fold ship-sop's automatic trigger into agent-sop's user-scope Stop hook** rather than fix it in place, because the two facts that kept it inert (project-scope hooks load only from the launch directory; Stop stdout is discarded) apply to any project-scope Stop hook, and agent-sop was shipping a user-scope Stop hook for its own session-end drift in the same batch. One hook computing one set of facts about the repo, with the ship-sop gate as one of them, replaces two hooks that would have had to agree about default-branch detection, merge-base and docs-only filtering.
 
 Division of responsibility from here:

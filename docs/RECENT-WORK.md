@@ -9,6 +9,7 @@ Moved out of `CLAUDE.md` on 2026-08-03 so it stops consuming context every sessi
 <!-- recent-work-rollup:start -->
 *Auto-generated from `docs/recent-work/`. Last refreshed: 2026-09-08.*
 
+- 2026-09-08 `solo`: Validated review receipts and measurable reviewer execution
 - 2026-09-08 `solo`: Native Codex runtime support
 - 2026-09-08 `solo`: Codex merge and automatic-cycle verification
 - 2026-09-05 `solo`: SOP sync after agent-sop P104/P105
