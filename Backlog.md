@@ -541,7 +541,7 @@ agent-sop P97 (2026-09-04) supersedes the project-scope Stop hook: its user-scop
 
 ### P28 — Native Codex support alongside Claude
 
-`[IN PROGRESS] [Feature]`
+`[SHIPPED - 2026-09-08] [Feature]`
 
 Provide runtime-aware installation and updates, native Codex skills and reviewers,
 and one shared automatic review path. Preserve Claude support and project-owned files.
@@ -554,7 +554,7 @@ Acceptance criteria:
 
 Implementation complete locally (2026-09-08). Existing and new fixtures pass.
 review: docs/reviews/20260908-153509-ship-auto.md
-Implementation and configured review complete on `feat/codex-support`; prepared for branch publication and PR review. Keep IN PROGRESS until merged to main.
+Merged to main in PR #13 (`451ec44`) on 2026-09-08.
 
 ### P29 — Preserve shared instruction symlinks during priority refresh
 
@@ -566,7 +566,7 @@ Source: P28 configured review, 2026-09-08. This is below the configured HIGH gat
 
 ### P30 — Port shared enforcement surfaces to Codex
 
-`[IN PROGRESS] [Refactor]`
+`[SHIPPED - 2026-09-08] [Refactor]`
 
 Declared enforcement scope accompanying the Codex runtime feature: runtime-aware
 validator configuration and replication paths, AGENTS/native-skill review triggers,
@@ -579,7 +579,7 @@ these changes; passing output from a changed validator is not the sole evidence.
 The pre-port validator is also run against the final Backlog transitions.
 
 review: docs/reviews/20260908-153509-ship-auto.md
-Configured review complete; remains IN PROGRESS until merge.
+Merged to main in PR #13 (`451ec44`) on 2026-09-08.
 
 ### P31 — Clear empty Codex installation ownership records
 

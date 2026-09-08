@@ -10,6 +10,7 @@ Moved out of `CLAUDE.md` on 2026-08-03 so it stops consuming context every sessi
 *Auto-generated from `docs/recent-work/`. Last refreshed: 2026-09-08.*
 
 - 2026-09-08 `solo`: Native Codex runtime support
+- 2026-09-08 `solo`: Codex merge and automatic-cycle verification
 - 2026-09-05 `solo`: SOP sync after agent-sop P104/P105
 - 2026-09-05 `solo`: P27 — three default gates, one review run, a minimal /ship
 - 2026-09-04 `solo`: P26 — gates fire only on code projects and code lines

@@ -97,12 +97,10 @@ By default it applies to code projects with at least 10 changed code lines.
 Documentation-only changes and branches starting with `wip/`, `spike/` or `exp/`
 are skipped. Set `trigger.mode` to `manual` to disable automatic review.
 
-**Codex verification:** live testing confirmed hook delivery, shell-tool
-translation and continuation from agent-sop's production Stop hook. The complete
-automatic review and push-gate cycle has not yet been verified end to end.
-Launch the session with the project as its root; installed scripts and saved
-trust records alone do not establish that hooks fired. Manual `$ship` and the
-isolated reviewer runner are available independently.
+**Codex verification:** a fresh-session test completed the full automatic cycle:
+production Stop continuation, all configured reviewers, a covering report and a
+successful push to a local Git remote. See the [runtime test record](docs/reviews/2026-09-08_codex-auto-runtime.md).
+Start Codex in the project root; other installations still need working, trusted hooks.
 
 The legacy `scripts/auto-ship-hook.sh` is retained for older Claude installs.
 Codex does not use it; its debug output is not a test of the current automatic
