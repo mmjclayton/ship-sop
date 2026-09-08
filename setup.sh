@@ -336,7 +336,7 @@ uninstall_mode() {
     fi
 
     # .gitignore block
-    if [ -f "$target/.gitignore" ] && grep -q "^# ship-sop runtime artifacts$" "$target/.gitignore"; then
+    if [ "$KEEP_ARTIFACTS" = false ] && [ -f "$target/.gitignore" ] && grep -q "^# ship-sop runtime artifacts$" "$target/.gitignore"; then
         local tmp
         tmp="$(mktemp)"
         # The block is two lines: the marker and ".ship/". `next` already

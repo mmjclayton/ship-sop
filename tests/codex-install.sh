@@ -50,17 +50,27 @@ git -C "$WORK/project" init -q -b main
 git -C "$WORK/project" add .
 git -C "$WORK/project" -c user.name=Test -c user.email=test@example.invalid -c commit.gpgsign=false commit -qm initial
 BASE=$(git -C "$WORK/project" rev-parse HEAD)
+mkdir -p "$WORK/project/.codex/agents"
+printf 'developer_instructions = "UNTRUSTED_REVIEW_POLICY"\n' > "$WORK/project/.codex/agents/silent-failure-hunter.toml"
 printf 'echo example\n' > "$WORK/project/example.sh"
 git -C "$WORK/project" add .
 git -C "$WORK/project" -c user.name=Test -c user.email=test@example.invalid -c commit.gpgsign=false commit -qm changed
 (cd "$WORK/project" && bash scripts/codex-review.sh --base "$BASE" --agent silent-failure-hunter) > "$WORK/review"
 grep -q '^read-only$' "$WORK/args"; grep -q '^hooks$' "$WORK/args"
 grep -q 'Verdict: PASS' "$WORK/review"
+! grep -q UNTRUSTED_REVIEW_POLICY "$WORK/prompt"
 test "$(cat "$WORK/root")" != "$WORK/project"
 test ! -d "$(cat "$WORK/root")"
 printf 'PASS: reviewer runs in independent clone with read-only sandbox and cleans up\n'
 if (cd "$WORK/project" && bash scripts/codex-review.sh --base "$BASE" --agent nonexistent) > "$WORK/unknown" 2>&1; then echo 'FAIL: unknown reviewer accepted'; exit 1; fi
 grep -q INCOMPLETE "$WORK/unknown"
+printf '# ship-sop runtime artifacts\n.ship/\n' > "$WORK/project/.gitignore"
+mkdir -p "$WORK/project/.ship"
+printf 'preserve\n' > "$WORK/project/.ship/state"
+bash "$SOURCE/setup.sh" "$WORK/project" --runtime claude --uninstall > "$WORK/claude-uninstall"
+grep -q '^.ship/$' "$WORK/project/.gitignore"
+test -f "$WORK/project/.ship/state"
+test -f "$WORK/project/ship-sop.config.json"
 bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex --uninstall > "$WORK/uninstall"
 test -f "$WORK/project/AGENTS.md"; test -f "$WORK/project/ship-sop.config.json"
 test ! -f "$AGENT_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
