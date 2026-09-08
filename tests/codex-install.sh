@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SOURCE="$(cd "$(dirname "$0")/.." && pwd -P)"
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+export AGENT_SOP_USER_HOME="$WORK/user"
+unset CODEX_HOME
+mkdir -p "$WORK/project"
+if bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex > "$WORK/missing" 2>&1; then echo 'FAIL: missing agent-sop accepted'; exit 1; fi
+test ! -f "$WORK/project/ship-sop.config.json"
+bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex --no-hook > "$WORK/install"
+test ! -e "$AGENT_SOP_USER_HOME/.claude"
+jq -e '.trigger.mode == "manual"' "$WORK/project/ship-sop.config.json" >/dev/null
+test -f "$WORK/project/scripts/codex-review.sh"
+test -f "$AGENT_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
+jq -e '.trigger.mode == "manual" and (.agents | has("code-reviewer"))' "$AGENT_SOP_USER_HOME/.codex/ship-sop.config.json" >/dev/null
+jq -e 'has("local_path")' "$AGENT_SOP_USER_HOME/.codex/ship-sop.source.json" >/dev/null
+for alias in "$SOURCE"/.agents/skills/source-command-*/SKILL.md; do
+    name="$(basename "$(dirname "$alias")")"; name="${name#source-command-}"
+    test -f "$(dirname "$alias")/../$name/SKILL.md"
+    grep -qF "(../$name/SKILL.md)" "$alias"
+done
+printf 'PASS: manual install, separate source metadata, valid fallback config and aliases\n'
+printf '\nLocal project instructions\n' >> "$WORK/project/AGENTS.md"
+cp "$WORK/project/AGENTS.md" "$WORK/expected"
+bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex --no-hook --force > "$WORK/reinstall"
+cmp "$WORK/expected" "$WORK/project/AGENTS.md"
+printf 'PASS: reinstall preserves customized project instructions\n'
+# A fake executable proves argv/process boundaries without making API calls.
+mkdir -p "$WORK/bin"
+cat > "$WORK/bin/codex" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$@" > "$REVIEW_TRACE/args"
+ROOT=''; RESULT=''
+while [ $# -gt 0 ]; do
+ case "$1" in -C) ROOT="$2"; shift ;; --output-last-message) RESULT="$2"; shift ;; esac; shift
+done
+test -d "$ROOT/.git"
+test ! -f "$ROOT/.git/commondir"
+test ! -f "$ROOT/.git/objects/info/alternates"
+cat > "$REVIEW_TRACE/prompt"
+printf 'Verdict: PASS\n' > "$RESULT"
+printf '%s\n' "$ROOT" > "$REVIEW_TRACE/root"
+STUB
+chmod +x "$WORK/bin/codex"
+export REVIEW_TRACE="$WORK"
+export PATH="$WORK/bin:$PATH"
+git -C "$WORK/project" init -q -b main
+git -C "$WORK/project" add .
+git -C "$WORK/project" -c user.name=Test -c user.email=test@example.invalid -c commit.gpgsign=false commit -qm initial
+BASE=$(git -C "$WORK/project" rev-parse HEAD)
+printf 'echo example\n' > "$WORK/project/example.sh"
+git -C "$WORK/project" add .
+git -C "$WORK/project" -c user.name=Test -c user.email=test@example.invalid -c commit.gpgsign=false commit -qm changed
+(cd "$WORK/project" && bash scripts/codex-review.sh --base "$BASE" --agent silent-failure-hunter) > "$WORK/review"
+grep -q '^read-only$' "$WORK/args"; grep -q '^hooks$' "$WORK/args"
+grep -q 'Verdict: PASS' "$WORK/review"
+test "$(cat "$WORK/root")" != "$WORK/project"
+test ! -d "$(cat "$WORK/root")"
+printf 'PASS: reviewer runs in independent clone with read-only sandbox and cleans up\n'
+if (cd "$WORK/project" && bash scripts/codex-review.sh --base "$BASE" --agent nonexistent) > "$WORK/unknown" 2>&1; then echo 'FAIL: unknown reviewer accepted'; exit 1; fi
+grep -q INCOMPLETE "$WORK/unknown"
+bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex --uninstall > "$WORK/uninstall"
+test -f "$WORK/project/AGENTS.md"; test -f "$WORK/project/ship-sop.config.json"
+test ! -f "$AGENT_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
+printf 'PASS: missing reviewers fail and uninstall preserves project data\n'

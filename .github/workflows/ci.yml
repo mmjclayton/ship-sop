@@ -20,7 +20,7 @@ jobs:
 
       # ship-sop's own bash. Blocking.
       - name: shellcheck (ship-sop scripts)
-        run: shellcheck -S warning setup.sh scripts/auto-ship-hook.sh
+        run: shellcheck -S warning setup.sh scripts/auto-ship-hook.sh scripts/{install-codex,setup-codex,codex-review}.sh tests/codex-install.sh
 
       - name: bash -n (ship-sop scripts)
         run: |
@@ -48,18 +48,12 @@ jobs:
             jq empty "$f" || { echo "::error file=$f::invalid JSON"; exit 1; }
           done
 
-      # The P14 regression. A hook entry Claude Code silently discards is the
-      # failure mode that left auto-mode dead from P1 to P14, and it is
-      # invisible without an explicit assertion.
-      - name: Assert the wired hook entry uses the nested shape
+      - name: Codex install and isolation fixtures
+        run: bash tests/codex-install.sh
+
+      - name: Reject legacy flat hook entries
         run: |
-          if ! jq -e '[.hooks.Stop[]?.hooks[]?.command] | index("scripts/auto-ship-hook.sh")' \
-               .claude/settings.json >/dev/null; then
-            echo "::error file=.claude/settings.json::SessionStop hook is not in the nested shape Claude Code executes"
-            exit 1
-          fi
-          if jq -e '.hooks.Stop[]? | select((.command? // "") == "scripts/auto-ship-hook.sh")' \
-               .claude/settings.json >/dev/null 2>&1; then
-            echo "::error file=.claude/settings.json::a pre-P14 flat hook entry is present; it will never fire"
+          if jq -e '.hooks.Stop[]? | select((.command? // "") == "scripts/auto-ship-hook.sh")' .claude/settings.json >/dev/null; then
+            echo "::error::Legacy flat hook entry cannot execute"
             exit 1
           fi
