@@ -51,6 +51,9 @@ jobs:
       - name: Codex install and isolation fixtures
         run: bash tests/codex-install.sh
 
+      - name: Receipt assembly contract
+        run: bash tests/receipt-contract.sh
+
       - name: Reject legacy flat hook entries
         run: |
           if jq -e '.hooks.Stop[]? | select((.command? // "") == "scripts/auto-ship-hook.sh")' .claude/settings.json >/dev/null; then

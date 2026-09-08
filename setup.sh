@@ -156,8 +156,8 @@ copy_if_missing() {
         return 1
     fi
 
-    mkdir -p "$(dirname "$dest")"
-    cp "$src" "$dest"
+    mkdir -p "$(dirname "$dest")" || return 2
+    cp "$src" "$dest" || return 2
     echo "  create $(basename "$dest")"
     return 0
 }
@@ -446,7 +446,8 @@ USER_CLAUDE_DIR="${AGENT_SOP_USER_HOME:-$HOME}/.claude"
 mkdir -p "$USER_CLAUDE_DIR/agents" "$USER_CLAUDE_DIR/commands"
 
 mkdir -p "$USER_CLAUDE_DIR/scripts/ship-sop"
-copy_if_missing "$SCRIPT_DIR/scripts/ship-receipt.sh" "$USER_CLAUDE_DIR/scripts/ship-sop/ship-receipt.sh" || true
+if copy_if_missing "$SCRIPT_DIR/scripts/ship-receipt.sh" "$USER_CLAUDE_DIR/scripts/ship-sop/ship-receipt.sh"; then :
+else result=$?; [ "$result" = 1 ] || { echo 'Receipt tool installation failed' >&2; exit "$result"; }; fi
 echo "Installing agents to ~/.claude/agents/"
 for src in "$SCRIPT_DIR"/.claude/agents/*.md; do
     [ -f "$src" ] || continue

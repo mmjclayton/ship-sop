@@ -35,7 +35,7 @@ WORK=$(mktemp -d)
 PID=''; WATCH=''
 cleanup() {
     [ -z "$WATCH" ] || kill "$WATCH" 2>/dev/null || true
-    [ -z "$PID" ] || kill "$PID" 2>/dev/null || true
+    [ -z "$PID" ] || kill -KILL -- "-$PID" 2>/dev/null || true
     rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -55,6 +55,7 @@ if [ "$AUDIT" = false ]; then git -C "$WORK/repo" cat-file -e "$BASE^{commit}"; 
 # Keep normal authentication, but exclude operator MCP/plugin configuration.
 # The fresh clone is untrusted, so project configuration is not loaded.
 # Explicit read-only sandbox is the boundary; a prompt/worktree path is not.
+set -m  # Each background job gets a process group, including reviewer descendants.
 codex exec --sandbox read-only --ignore-user-config --ignore-rules \
     --disable hooks --disable plugins --disable apps --disable multi_agent \
     --disable browser_use --disable computer_use --disable in_app_browser \
@@ -66,11 +67,17 @@ PID=$!
     sleep "$TIMEOUT" & TIMER=$!
     trap 'kill "$TIMER" 2>/dev/null || true; exit 0' TERM INT
     wait "$TIMER"
-    kill -TERM "$PID" 2>/dev/null || true
+    : > "$EVIDENCE/timed-out"
+    kill -TERM -- "-$PID" 2>/dev/null || true
+    sleep 2
+    kill -KILL -- "-$PID" 2>/dev/null || true
 ) &
 WATCH=$!
+set +m
 STATUS=0
 wait "$PID" || STATUS=$?
+kill -KILL -- "-$PID" 2>/dev/null || true
+[ ! -f "$EVIDENCE/timed-out" ] || STATUS=124
 PID=''
 kill "$WATCH" 2>/dev/null || true
 wait "$WATCH" 2>/dev/null || true
@@ -80,9 +87,9 @@ USAGE=$(jq -s '[.[] | select(.type == "turn.completed") | .usage] | if length ==
 jq -n --arg agent "$AGENT" --arg head "$HEAD_SHA" --arg base "$BASE" \
     --arg model "${MODEL:-runtime-default-unresolved}" --arg runtime "$RUNTIME_VERSION" \
     --argjson elapsed "$(( $(date +%s) - START ))" --argjson exit_code "$STATUS" \
-    --argjson usage "$USAGE" \
+    --argjson usage "$USAGE" --argjson timed_out "$([ -f "$EVIDENCE/timed-out" ] && echo true || echo false)" \
     '{agent:$agent,head:$head,base:$base,model_requested:$model,runtime:$runtime,
-      elapsed_seconds:$elapsed,exit_code:$exit_code,usage:$usage}' > "$EVIDENCE/metadata.json"
+      elapsed_seconds:$elapsed,exit_code:$exit_code,usage:$usage,timed_out:$timed_out}' > "$EVIDENCE/metadata.json"
 printf 'Review evidence: %s\n' "$EVIDENCE"
 if [ "$STATUS" -ne 0 ]; then
     tail -40 "$EVIDENCE/stderr.log" >&2
