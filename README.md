@@ -1,8 +1,8 @@
 # ship-sop
 
-Code review gates for Claude Code and Codex. Run your project's tests, ask the
-configured reviewers to inspect a change, and collect their findings in one report
-before you merge.
+Code review gates for Claude Code and Codex, with isolated reviewers, validated
+review receipts and usage telemetry. Run your project's tests, inspect the
+committed change and collect findings with evidence tied to the reviewed code.
 
 [MIT licensed](LICENSE). Companion to
 [agent-sop](https://github.com/mmjclayton/agent-sop), which manages session context,
@@ -12,7 +12,9 @@ project records and the hooks used for automatic review.
 
 - Runs configurable reviewers for correctness, security and silent failures.
 - Offers optional test-coverage, compliance and architecture reviews.
-- Writes a report with the reviewed commit, findings and their disposition.
+- Produces a validated JSON receipt and a readable report with findings and dispositions.
+- Rejects blocked, incomplete or stale review evidence.
+- Retains Codex reviewer usage, timing and timeout diagnostics.
 - Provides a whole-repository compliance audit and a separate release workflow.
 
 `ship` does not commit, push or publish. Releases are deliberate actions through
@@ -95,12 +97,20 @@ uncovered code diff, the Stop hook requests the configured review. The push hook
 checks coverage before supported `git push` and `gh pr create` calls.
 
 By default it applies to code projects with at least 10 changed code lines.
-Documentation-only changes and branches starting with `wip/`, `spike/` or `exp/`
-are skipped. Set `trigger.mode` to `manual` to disable automatic review.
+Executable instruction changes, including applicable Markdown skills, commands
+and policy files, require review even below that threshold. Ordinary prose-only
+changes and branches starting with `wip/`, `spike/` or `exp/` are skipped.
+Invalid configured policy produces an error. Set `trigger.mode` to `manual` to
+disable automatic review.
 
-**Codex verification:** a fresh-session test completed the full automatic cycle:
+**Earlier Codex runtime verification:** a fresh-session test completed the automatic cycle:
 production Stop continuation, all configured reviewers, a covering report and a
 successful push to a local Git remote. See the [runtime test record](docs/reviews/2026-09-08_codex-auto-runtime.md).
+That test predates structured receipts. The
+[hardening review and verification record](docs/reviews/20260908-hardening-ship-auto.md)
+covers the subsequent receipt contract, installation and timeout checks, together
+with independent source reviews. These checks do not establish a general quality
+or cost advantage over native agent workflows.
 Start Codex in the project root; other installations still need working, trusted hooks.
 
 The legacy `scripts/auto-ship-hook.sh` is retained for older Claude installs.
