@@ -404,7 +404,9 @@ Closed more than 90 days ago; full entries in `docs/backlog-archive.md`, moved v
 
 ### P32 - Verified receipts, reviewer telemetry and concise workflow
 
-`[IN PROGRESS] [Refactor]`
+`[SHIPPED - 2026-09-24] [Refactor]`
+
+Merged to main via PR #15 (5fe6e61) on 2026-09-24 with agent-sop P110 (PR #29, ac93962); CI green on main in both repositories.
 
 review: docs/reviews/20260908-hardening-ship-auto.md
 
