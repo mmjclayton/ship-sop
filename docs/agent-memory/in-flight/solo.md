@@ -1,2 +1,2 @@
-(2026-08-03): Phase 3 batches 3.3-3.10 (P16-P24) planned, not started. Next: P16 SessionStart pickup. Plan: docs/build-plans/phase-3-automation-and-correctness.md
-(2026-08-03): P14 acceptance still unobserved — confirm .ship/.last-auto-fire advances past 1785111491 at the next session boundary.
+(2026-09-08): P32 implemented and verified locally on fix/review-continuity-hardening. Review: docs/reviews/20260908-hardening-ship-auto.md. Next: publish/merge when authorised; native-model pilot deferred at user direction (AUD 0 budget). No implementation blocker remains.
+(2026-09-08): The August handoff is superseded: P16 is WON'T, P17 is SHIPPED, and .ship/.last-auto-fire is legacy. Remaining P18-P24 scope stays in Backlog; do not resume the retired SessionStart directive design.

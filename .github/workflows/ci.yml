@@ -20,7 +20,7 @@ jobs:
 
       # ship-sop's own bash. Blocking.
       - name: shellcheck (ship-sop scripts)
-        run: shellcheck -S warning setup.sh scripts/auto-ship-hook.sh scripts/{install-codex,setup-codex,codex-review}.sh tests/codex-install.sh
+        run: shellcheck -S warning setup.sh scripts/auto-ship-hook.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt}.sh tests/codex-install.sh
 
       - name: bash -n (ship-sop scripts)
         run: |
@@ -50,6 +50,9 @@ jobs:
 
       - name: Codex install and isolation fixtures
         run: bash tests/codex-install.sh
+
+      - name: Receipt assembly contract
+        run: bash tests/receipt-contract.sh
 
       - name: Reject legacy flat hook entries
         run: |
