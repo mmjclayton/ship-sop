@@ -33,7 +33,12 @@ code signal. Non-code projects stop with an explanation.
    at or above its reviewer's threshold blocks the run.
 4. The parent saves reviewer results as a JSON array. Each entry has name,
    version (reviewer definition SHA), model (actual model if known, otherwise
-   runtime-default-unresolved), verdict (PASS/BLOCK/INCOMPLETE), and findings.
+   runtime-default-unresolved), verdict (PASS/BLOCK/INCOMPLETE), findings, and
+   the run counts (P34): launches (runner invocations for this reviewer, at
+   least 1), rechecks (re-reviews of a fix commit), block_rounds (rounds that
+   returned BLOCK, never more than launches plus rechecks), and usage (the
+   runner's recorded usage object when it reports one, otherwise null; never
+   invented).
    Each finding has severity, file, positive integer line, and message. Save test
    results as {"status":"PASS","evidence":"commands and actual results"}, or
    NOT_AVAILABLE with a concrete explanation when no suite exists. Never invent

@@ -96,7 +96,11 @@ See the [default config](docs/templates/ship-sop.config.json) and
 
 Reports go in `docs/reviews/<timestamp>-ship-auto.md`. They record tests,
 reviewer results and findings. A validated companion `*-ship-auto.json` receipt binds completion, tests and
-findings to the commit, tree, review base and policy. Markdown `Covers:` lines
+findings to the commit, tree, review base and policy, and (schema version 2,
+since 2026-09-24) records per reviewer how many agents were launched, how many
+re-checks ran and how many rounds blocked, so gate cost rests on counts rather
+than estimates; a `usage` object is recorded only when the runtime reports one.
+Markdown `Covers:` lines
 are informational and old Markdown-only reports no longer satisfy the gate.
 An ancestor receipt remains usable only when no code or executable instructions changed. Missing or failed reviewer results are incomplete, not a pass.
 

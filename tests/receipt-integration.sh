@@ -21,7 +21,7 @@ git update-ref refs/remotes/origin/main "$BASE"
 printf 'change\n' >> code.sh
 git commit -qam change
 jq '[.agents | to_entries[] | select(.value.enabled) |
-  {name:.key,version:"fixture-v1",model:"fixture",verdict:"PASS",findings:[]}]' ship-sop.config.json > "$WORK/results.json"
+  {name:.key,version:"fixture-v1",model:"fixture",verdict:"PASS",findings:[],launches:1,rechecks:0,block_rounds:0,usage:null}]' ship-sop.config.json > "$WORK/results.json"
 printf '{"status":"PASS","evidence":"integration fixture"}\n' > "$WORK/tests.json"
 run_receipt() {
     bash "$SOURCE/scripts/ship-receipt.sh" --base "$BASE" --results "$WORK/results.json" \
@@ -43,6 +43,9 @@ cp ship-sop.config.json "$CODEX_HOME/ship-sop.config.json"
 mv ship-sop.config.json "$WORK/config.saved"
 run_receipt docs/reviews/fallback-ship-auto.json
 mv "$WORK/config.saved" ship-sop.config.json
+jq 'map(del(.launches))' "$WORK/results-original.json" > "$WORK/results.json"
+if run_receipt docs/reviews/uncounted-ship-auto.json 2>/dev/null; then echo 'FAIL: wrote a version-2 receipt without run counts'; exit 1; fi
+cp "$WORK/results-original.json" "$WORK/results.json"
 jq '.[0].verdict="BLOCK"'  "$WORK/results.json" > "$WORK/blocked.json"
 mv "$WORK/blocked.json" "$WORK/results.json"
 if run_receipt docs/reviews/blocked-ship-auto.json 2>/dev/null; then echo 'FAIL: wrote blocked receipt'; exit 1; fi
@@ -60,5 +63,5 @@ run_receipt docs/reviews/scoped-ship-auto.json
 jq 'map(select(.name != "code-reviewer"))' "$WORK/results-original.json" > "$WORK/results.json"
 if run_receipt docs/reviews/scoped-missing-ship-auto.json 2>/dev/null; then echo 'FAIL: accepted a receipt missing an in-scope reviewer'; exit 1; fi
 test ! -e docs/reviews/scoped-missing-ship-auto.json
-echo 'PASS: real cross-package receipts qualify, reject BLOCK, preserve existing evidence and honour reviewer scope'
+echo 'PASS: real cross-package receipts qualify, reject BLOCK, preserve existing evidence, honour reviewer scope and require run counts'
 
