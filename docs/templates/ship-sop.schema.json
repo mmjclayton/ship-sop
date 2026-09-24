@@ -4,15 +4,24 @@
   "title": "ship-sop configuration",
   "description": "Per-project configuration for ship-sop auto-mode and per-agent toggles.",
   "type": "object",
-  "required": ["trigger", "agents"],
+  "required": [
+    "trigger",
+    "agents"
+  ],
   "properties": {
     "trigger": {
       "type": "object",
-      "required": ["mode"],
+      "required": [
+        "mode"
+      ],
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["auto", "manual", "off"],
+          "enum": [
+            "auto",
+            "manual",
+            "off"
+          ],
           "description": "auto = SessionStop hook fires the pipeline; manual = /ship only; off = pipeline disabled entirely"
         },
         "throttle": {
@@ -37,8 +46,14 @@
             },
             "skip_branch_patterns": {
               "type": "array",
-              "items": { "type": "string" },
-              "default": ["^wip/", "^spike/", "^exp/"],
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "^wip/",
+                "^spike/",
+                "^exp/"
+              ],
               "description": "Regex patterns; auto-fire skips branches matching any of these"
             }
           }
@@ -50,7 +65,9 @@
       "description": "Per-agent toggles. Keys are agent names; values control whether the gate runs and what severity blocks ship.",
       "additionalProperties": {
         "type": "object",
-        "required": ["enabled"],
+        "required": [
+          "enabled"
+        ],
         "properties": {
           "enabled": {
             "type": "boolean",
@@ -58,7 +75,12 @@
           },
           "block_on": {
             "type": "string",
-            "enum": ["CRITICAL", "HIGH", "MEDIUM", "never"],
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "MEDIUM",
+              "never"
+            ],
             "default": "CRITICAL",
             "description": "Severity that hard-blocks ship. 'never' makes the gate advisory."
           },
@@ -66,6 +88,14 @@
             "type": "boolean",
             "default": true,
             "description": "Deprecated, unread: findings are never auto-filed to Backlog.md (operator rule); the session writes the report and the operator decides."
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Optional. Regular expressions (jq syntax; ordinary ERE such as ^scripts/ or \\\\.sh$ works unchanged) matched against every path changed in the review range. When present, the reviewer joins the gate only if at least one changed path matches; absent means every diff; an empty array never. The Stop hook demand, the receipt validator and /ship read the same rule (P33)."
           }
         }
       }

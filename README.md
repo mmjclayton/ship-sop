@@ -71,16 +71,26 @@ read-only sandbox; the parent session collects the results and writes the report
 
 Edit `ship-sop.config.json` in your project. The defaults are:
 
-| Reviewer | Enabled | Blocks on |
-|---|---|---|
-| `security-reviewer` | Yes | CRITICAL |
-| `silent-failure-hunter` | Yes | HIGH or CRITICAL |
-| `code-reviewer` | Yes | HIGH or CRITICAL |
-| `pr-test-analyzer` | No | Advisory |
-| `compliance-reviewer` | No | CRITICAL |
-| `diagram-builder` | No | Advisory |
+| Reviewer | Enabled | Blocks on | Runs when the diff touches |
+|---|---|---|---|
+| `security-reviewer` | Yes | CRITICAL | shell, server/auth/route code, HTML templates, env and container files, workflows, SQL |
+| `silent-failure-hunter` | Yes | HIGH or CRITICAL | any code |
+| `code-reviewer` | Yes | HIGH or CRITICAL | any code |
+| `pr-test-analyzer` | No | Advisory | any code |
+| `compliance-reviewer` | No | CRITICAL | any code |
+| `diagram-builder` | No | Advisory | any code |
 
 Set `enabled` per reviewer and use `block_on: "never"` for advisory findings.
+Set `paths` (an array of regular expressions) to scope a reviewer to the files
+where it earns its run: with `paths`, the reviewer joins the gate only when a
+path changed in the review range matches one of the patterns; without `paths`
+it runs on every code diff; an empty array never runs it. The Stop hook demand,
+the receipt validator and `ship` read the same rule, so a receipt is complete
+when it carries every reviewer in scope for its own range. `ship --with <agent>`
+adds a reviewer for one run regardless of scope. The default `paths` on
+`security-reviewer` come from the 2026-09-24 gate-yield review (zero blocking
+findings in eleven gates on a TypeScript viewer, a CRITICAL on shell scripts);
+tune them per project.
 See the [default config](docs/templates/ship-sop.config.json) and
 [config schema](docs/templates/ship-sop.schema.json) for the full settings.
 
