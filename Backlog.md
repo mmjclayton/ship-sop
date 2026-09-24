@@ -293,6 +293,40 @@ agent-sop P97 (2026-09-04) supersedes the project-scope Stop hook: its user-scop
 
 ---
 
+### P33 — Path-scoped reviewer enablement
+`[OPEN] [Feature]`
+
+A reviewer's yield depends on what the diff touches. Over eleven Opportunity Scan gates (8 to 24 September 2026) security-reviewer produced zero CRITICAL and zero HIGH; the same agent found a CRITICAL in agent-sop's shell on 5 September. The only control today is `enabled` per repository, so a reviewer either runs on every diff or never. Decision record: opportunity-scan `docs/agent-memory/decisions/2026-09-24_client_two-reviewers-carry-the-gate.md`.
+
+Add an optional `paths` array of globs per agent in `ship-sop.config.json`. An agent with `paths` joins the gate plan only when `git diff --name-only BASE..HEAD` matches at least one glob; an agent without `paths` behaves as today. The template ships security-reviewer scoped to shell, server routes, auth, HTML rendering and env/config files, and leaves the other agents unscoped.
+
+**Acceptance criteria:**
+- `auto-ship-hook.sh` gate plan and `/ship` (Claude and Codex) select the same set for the same diff and config
+- Schema accepts `paths` (array of strings) and rejects a non-array
+- Fixtures: scoped agent skipped on a non-matching diff, selected on a matching diff, unscoped agent unaffected; a config with no `paths` anywhere produces today's plan byte for byte
+- README "Per-agent toggles" documents `paths` and the template default
+
+**Source:** operator decision, opportunity-scan session 2026-09-24.
+
+---
+
+### P34 — Reviewer run and round counts in Claude receipts
+`[OPEN] [Iteration]`
+
+The Codex path records `usage` per review (`codex-review.sh`, P32). The Claude path cannot see subagent token usage, so a Claude receipt's `model` reads `runtime-default-unresolved` and carries no cost field. The one measured cost figure on file is the 5 September gate (about 64k tokens fixed per reviewer launched); the 24 September B43 estimate of 1.4M was not measured. Gate-cost decisions need a recorded proxy.
+
+Add to each reviewer entry in the receipt: `launches` (fresh agents started), `rechecks` (re-reviews by an agent with context intact) and `block_rounds`, plus an optional `usage` object when the runtime exposes it. Both write paths produce the fields; the validator requires the three counts.
+
+**Acceptance criteria:**
+- Schema and validator require `launches`, `rechecks`, `block_rounds` on every reviewer entry; `usage` optional
+- Codex path fills `usage` from the existing telemetry; Claude path leaves it null and does not claim a figure
+- Existing receipts without the fields still validate under `schema_version: 1`; new fields land under `schema_version: 2`
+- `/ship` report table shows launches and rechecks per reviewer
+
+**Source:** operator decision, opportunity-scan session 2026-09-24.
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*
