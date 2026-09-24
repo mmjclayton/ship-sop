@@ -1,1 +1,1 @@
-(2026-09-24): P32 merged (PR #15), P33 shipped (PR #16) with agent-sop P111. P34 filed and OPEN, not authorised. P25 (retire project-scope hook wiring) still OPEN.
+(2026-09-24): P32 merged (PR #15), P33 (PR #16) and P34 (PR #17) shipped. Open: P25; Codex usage wiring for receipts (not filed, small). main is unprotected: the operator holds the protection commands.
