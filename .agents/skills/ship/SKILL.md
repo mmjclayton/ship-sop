@@ -36,9 +36,12 @@ code signal. Non-code projects stop with an explanation.
    runtime-default-unresolved), verdict (PASS/BLOCK/INCOMPLETE), findings, and
    the run counts (P34): launches (runner invocations for this reviewer, at
    least 1), rechecks (re-reviews of a fix commit), block_rounds (rounds that
-   returned BLOCK, never more than launches plus rechecks), and usage (the
-   runner's recorded usage object when it reports one, otherwise null; never
-   invented).
+   returned BLOCK, never more than launches plus rechecks), and usage. For
+   usage, collect every "Review evidence:" directory the runner printed for
+   that reviewer (launches and rechecks alike) and run
+   `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/codex-usage.sh" --agent <name> <dir>...`;
+   paste its output as the value. It prints one object summing the runs, or
+   null when any run lacked telemetry; never invent a figure or sum by hand.
    Each finding has severity, file, positive integer line, and message. Save test
    results as {"status":"PASS","evidence":"commands and actual results"}, or
    NOT_AVAILABLE with a concrete explanation when no suite exists. Never invent
