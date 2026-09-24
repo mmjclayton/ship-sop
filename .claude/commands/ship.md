@@ -1,16 +1,16 @@
 ---
 description: Run the ship-sop gates against the current code diff — every agent enabled in ship-sop.config.json, read-only, in isolated worktrees; the session writes one report that covers HEAD. Manual entrypoint for the same run the agent-sop Stop hook demands in auto-mode. Does not push, tag, or publish.
-ship_sop_version: "2026-09-05"
+ship_sop_version: "2026-09-24"
 ---
 
 Run the ship gates on the code diff versus the default branch. Agents are read-only reviewers; the session writes the report.
 
-Arguments: `--base <ref>` overrides the diff base. `--with <agent>` adds a disabled agent (for example `compliance-reviewer` when the diff touches a PII surface, `diagram-builder` when a route or state machine changed) for this run only.
+Arguments: `--base <ref>` overrides the diff base. `--with <agent>` adds a disabled or out-of-scope agent (for example `compliance-reviewer` when the diff touches a PII surface, `typescript-reviewer` for a type-system-heavy change) for this run only.
 
 1. **Project type.** `bash ~/.claude/scripts/hooks/agent-sop/sop-project-type.sh` — on `non-code`, stop with one line: ship-sop reviews code; declare `**Project type:** code` in CLAUDE.md to opt a scripts repository in. If the script is missing, apply the rule in agent-sop's `docs/sop/compliance-checklist.md` § Code vs Non-Code Detection by hand.
 2. **Range.** `BASE=${BASE_OVERRIDE:-$(git merge-base origin/main HEAD 2>/dev/null || git merge-base origin/master HEAD)}`; `HEAD_SHA=$(git rev-parse HEAD)`. Empty or equal: nothing to ship, stop.
 3. **Tests.** If the project has a runner (`package.json` test script, `pyproject.toml`, `Cargo.toml`, `go.mod`, or a fixture suite named in CLAUDE.md), run it. A failure halts the ship; a missing runner is noted, never treated as a pass.
-4. **Agents.** `jq -r '.agents | to_entries[] | select(.value.enabled == true) | .key' ship-sop.config.json` (project file, else `~/.claude/ship-sop.config.json`), plus any `--with`. Launch each with the Agent tool using `isolation: "worktree"`, all at once, against `$BASE..$HEAD_SHA`, with these instructions: read-only; create nothing outside `mktemp -d`; run only existing suites; return findings inline as `[SEVERITY] file:line — issue — fix` and a one-line verdict. A prompt that names a worktree path is not isolation; the flag is.
+4. **Agents.** The in-scope set comes from the installed library, never from `enabled` alone: `bash -c '. ~/.claude/scripts/hooks/agent-sop/sop-lib.sh; CFG=$(sop_effective_config .); sop_agents_in_scope "$CFG" "$(sop_changed_files_json . '"$BASE"' '"$HEAD_SHA"')"'` prints `[{key, block_on}]`. An enabled agent with `paths` is included only when a path changed in the range matches one of its patterns; without `paths` it always is. Add any `--with` (it joins regardless of scope). A missing library is INCOMPLETE: install current agent-sop hooks, which the receipt tool needs too. Launch each with the Agent tool using `isolation: "worktree"`, all at once, against `$BASE..$HEAD_SHA`, with these instructions: read-only; create nothing outside `mktemp -d`; run only existing suites; return findings inline as `[SEVERITY] file:line — issue — fix` and a one-line verdict. A prompt that names a worktree path is not isolation; the flag is.
 5. **Collect.** Agents run in the background. Wait for every result. A missing result is INCOMPLETE, never a pass.
 6. **Report.** Save a JSON reviewer array with name, version (definition SHA),
 model (actual value or runtime-default-unresolved), verdict (PASS/BLOCK/INCOMPLETE)

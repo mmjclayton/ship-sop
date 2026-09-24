@@ -294,11 +294,11 @@ agent-sop P97 (2026-09-04) supersedes the project-scope Stop hook: its user-scop
 ---
 
 ### P33 — Path-scoped reviewer enablement
-`[OPEN] [Feature]`
+`[IN PROGRESS] [Feature]`
 
 A reviewer's yield depends on what the diff touches. Over eleven Opportunity Scan gates (8 to 24 September 2026) security-reviewer produced zero CRITICAL and zero HIGH; the same agent found a CRITICAL in agent-sop's shell on 5 September. The only control today is `enabled` per repository, so a reviewer either runs on every diff or never. Decision record: opportunity-scan `docs/agent-memory/decisions/2026-09-24_client_two-reviewers-carry-the-gate.md`.
 
-Add an optional `paths` array of globs per agent in `ship-sop.config.json`. An agent with `paths` joins the gate plan only when `git diff --name-only BASE..HEAD` matches at least one glob; an agent without `paths` behaves as today. The template ships security-reviewer scoped to shell, server routes, auth, HTML rendering and env/config files, and leaves the other agents unscoped.
+Add an optional `paths` array per agent in `ship-sop.config.json`. Patterns are regular expressions rather than globs: the config already uses regular expressions for `skip_branch_patterns`, and jq matches them inside the receipt validator without a second matcher. An agent with `paths` joins the gate plan only when `git diff --name-only BASE..HEAD` matches at least one glob; an agent without `paths` behaves as today. The template ships security-reviewer scoped to shell, server routes, auth, HTML rendering and env/config files, and leaves the other agents unscoped.
 
 **Acceptance criteria:**
 - `auto-ship-hook.sh` gate plan and `/ship` (Claude and Codex) select the same set for the same diff and config

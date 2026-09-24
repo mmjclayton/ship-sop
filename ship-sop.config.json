@@ -14,7 +14,18 @@
   "agents": {
     "security-reviewer": {
       "enabled": true,
-      "block_on": "CRITICAL"
+      "block_on": "CRITICAL",
+      "paths": [
+        "^scripts/",
+        "\\.(sh|bash|zsh|py|rb)$",
+        "(^|/)(server|api|routes?|auth|middleware|handlers?)/",
+        "\\.(html|ejs|hbs|jsx|tsx|vue|svelte)$",
+        "(^|/)\\.env",
+        "(^|/)(Dockerfile|docker-compose[^/]*\\.ya?ml)$",
+        "^\\.github/workflows/",
+        "\\.sql$",
+        "(^|/)migrations?/"
+      ]
     },
     "compliance-reviewer": {
       "enabled": false,

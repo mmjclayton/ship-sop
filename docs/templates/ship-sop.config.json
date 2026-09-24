@@ -8,7 +8,8 @@
     }
   },
   "agents": {
-    "security-reviewer": { "enabled": true, "block_on": "CRITICAL" },
+    "security-reviewer": { "enabled": true, "block_on": "CRITICAL",
+      "paths": ["^scripts/", "\\.(sh|bash|zsh|py|rb)$", "(^|/)(server|api|routes?|auth|middleware|handlers?)/", "\\.(html|ejs|hbs|jsx|tsx|vue|svelte)$", "(^|/)\\.env", "(^|/)(Dockerfile|docker-compose[^/]*\\.ya?ml)$", "^\\.github/workflows/", "\\.sql$", "(^|/)migrations?/"] },
     "silent-failure-hunter": { "enabled": true, "block_on": "HIGH" },
     "code-reviewer": { "enabled": true, "block_on": "HIGH" },
     "pr-test-analyzer": { "enabled": false, "block_on": "never" },

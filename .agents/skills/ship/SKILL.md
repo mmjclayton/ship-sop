@@ -15,8 +15,13 @@ code signal. Non-code projects stop with an explanation.
    use origin/main or origin/master only as verified fallbacks. Pin HEAD_SHA.
    Empty ranges have nothing to review. Run the project's existing test suites;
    failures block shipping. Missing tests are noted, never a pass.
-2. Read all enabled agent names and block_on thresholds from config, plus --with.
-   Do not silently omit an unavailable reviewer. Invoke each using:
+2. Read the in-scope reviewer set from the installed library, never from
+   `enabled` alone:
+   `AGENT_SOP_RUNTIME=codex bash -c '. "${CODEX_HOME:-$HOME/.codex}/scripts/hooks/agent-sop/sop-lib.sh"; CFG=$(sop_effective_config .); sop_agents_in_scope "$CFG" "$(sop_changed_files_json . <BASE> <HEAD_SHA>)"'`
+   prints `[{key, block_on}]`. An enabled agent with `paths` is included only
+   when a path changed in the range matches one of its patterns; without
+   `paths` it always is. Add --with (it joins regardless of scope). A missing
+   library is INCOMPLETE. Do not silently omit an unavailable reviewer. Invoke each using:
    `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/codex-review.sh" --base <BASE> --head <HEAD_SHA> --agent <name>`
    This launches a separate read-only Codex process in an independent clone.
    Concurrent processes are permitted; wait for every result. Use the script,
