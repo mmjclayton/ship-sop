@@ -294,7 +294,9 @@ agent-sop P97 (2026-09-04) supersedes the project-scope Stop hook: its user-scop
 ---
 
 ### P33 — Path-scoped reviewer enablement
-`[IN PROGRESS] [Feature]`
+`[SHIPPED - 2026-09-24] [Feature]`
+
+Merged via PR #16 (1ace2d8) with agent-sop P111 (PR #30, 2d4cf7d). Template scopes security-reviewer; opportunity-scan scoped the same day (3b2d23a): on its twelve receipt ranges the reviewer stays in scope for eight.
 
 A reviewer's yield depends on what the diff touches. Over eleven Opportunity Scan gates (8 to 24 September 2026) security-reviewer produced zero CRITICAL and zero HIGH; the same agent found a CRITICAL in agent-sop's shell on 5 September. The only control today is `enabled` per repository, so a reviewer either runs on every diff or never. Decision record: opportunity-scan `docs/agent-memory/decisions/2026-09-24_client_two-reviewers-carry-the-gate.md`.
 

@@ -1,2 +1,1 @@
-(2026-09-08): P32 implemented and verified locally on fix/review-continuity-hardening. Review: docs/reviews/20260908-hardening-ship-auto.md. Next: publish/merge when authorised; native-model pilot deferred at user direction (AUD 0 budget). No implementation blocker remains.
-(2026-09-08): The August handoff is superseded: P16 is WON'T, P17 is SHIPPED, and .ship/.last-auto-fire is legacy. Remaining P18-P24 scope stays in Backlog; do not resume the retired SessionStart directive design.
+(2026-09-24): P32 merged (PR #15), P33 shipped (PR #16) with agent-sop P111. P34 filed and OPEN, not authorised. P25 (retire project-scope hook wiring) still OPEN.
