@@ -313,7 +313,7 @@ Add an optional `paths` array per agent in `ship-sop.config.json`. Patterns are 
 ---
 
 ### P34 — Reviewer run and round counts in Claude receipts
-`[OPEN] [Iteration]`
+`[IN PROGRESS] [Iteration]`
 
 The Codex path records `usage` per review (`codex-review.sh`, P32). The Claude path cannot see subagent token usage, so a Claude receipt's `model` reads `runtime-default-unresolved` and carries no cost field. The one measured cost figure on file is the 5 September gate (about 64k tokens fixed per reviewer launched); the 24 September B43 estimate of 1.4M was not measured. Gate-cost decisions need a recorded proxy.
 

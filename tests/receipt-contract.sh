@@ -23,10 +23,13 @@ sop_agents_in_scope() {
 sop_receipt_valid() {
     local scope
     scope=$(sop_agents_in_scope "$(sop_effective_config "$1")" "$(sop_changed_files_json "$1" "$(jq -r .base "$2")" "$(jq -r .head "$2")")")
-    jq -e --argjson scope "$scope" '. as $r | .schema_version == 1 and .policy_sha256 == "fixture-policy" and
+    jq -e --argjson scope "$scope" '. as $r | (.schema_version | IN(1, 2)) and .policy_sha256 == "fixture-policy" and
       (.base | length == 40) and (.head | length == 40) and (.tree | length == 40) and
       .tests.status == "PASS" and all(.reviewers[]; .verdict == "PASS") and
-      all($scope[]; .key as $k | any($r.reviewers[]; .name == $k))' "$2" >/dev/null
+      all($scope[]; .key as $k | any($r.reviewers[]; .name == $k)) and
+      (if .schema_version == 2 then all(.reviewers[];
+         (.launches | type == "number" and . >= 1) and (.rechecks | type == "number" and . >= 0) and
+         (.block_rounds | type == "number" and . >= 0) and .block_rounds <= .launches + .rechecks) else true end)' "$2" >/dev/null
 }
 sop_shipsop_covered() { sop_receipt_valid "$1" "$1/docs/reviews/valid-ship-auto.json"; }
 STUB

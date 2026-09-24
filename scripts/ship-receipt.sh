@@ -42,7 +42,7 @@ trap 'rm -f "$TMP"' EXIT
 jq -n --arg base "$BASE" --arg head "$HEAD_SHA" --arg tree "$TREE" \
     --arg policy "$(sop_policy_digest "$CONFIG")" \
     --slurpfile results "$RESULTS" --slurpfile tests "$TESTS" \
-    '{schema_version:1,base:$base,head:$head,tree:$tree,policy_sha256:$policy,
+    '{schema_version:2,base:$base,head:$head,tree:$tree,policy_sha256:$policy,
       tests:$tests[0],reviewers:$results[0]}' > "$TMP"
 if ! sop_receipt_valid "$ROOT" "$TMP"; then
     echo 'BLOCK/INCOMPLETE: results, tests, policy or review range do not qualify; no receipt written' >&2
