@@ -13,6 +13,7 @@ test ! -e "$AGENT_SOP_USER_HOME/.claude"
 jq -e '.trigger.mode == "manual"' "$WORK/project/ship-sop.config.json" >/dev/null
 test -f "$WORK/project/scripts/codex-review.sh"
 test -f "$AGENT_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
+test -x "$AGENT_SOP_USER_HOME/.codex/scripts/ship-sop/codex-usage.sh"
 jq -e '.trigger.mode == "manual" and (.agents | has("code-reviewer"))' "$AGENT_SOP_USER_HOME/.codex/ship-sop.config.json" >/dev/null
 jq -e 'has("local_path")' "$AGENT_SOP_USER_HOME/.codex/ship-sop.source.json" >/dev/null
 for alias in "$SOURCE"/.agents/skills/source-command-*/SKILL.md; do
@@ -114,6 +115,7 @@ test -f "$WORK/project/ship-sop.config.json"
 bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex --uninstall > "$WORK/uninstall"
 test -f "$WORK/project/AGENTS.md"; test -f "$WORK/project/ship-sop.config.json"
 test ! -f "$AGENT_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
+test ! -f "$AGENT_SOP_USER_HOME/.codex/scripts/ship-sop/codex-usage.sh"
 printf 'PASS: missing reviewers fail and uninstall preserves project data\n'
 
 # A wrapper on disk does not validate registrations pointing elsewhere.

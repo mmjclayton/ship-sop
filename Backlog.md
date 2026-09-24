@@ -331,6 +331,20 @@ Add to each reviewer entry in the receipt: `launches` (fresh agents started), `r
 
 ---
 
+### P35 — Codex usage in receipts
+`[IN PROGRESS] [Iteration]`
+
+P34 left `usage` null on both runtimes. The Codex runner already records per-turn usage and a telemetry status in each run's `metadata.json` (P32); nothing turned that into the receipt's one object per reviewer. `scripts/codex-usage.sh [--agent NAME] EVIDENCE_DIR...` sums a reviewer's runs (launches and re-checks) into `{source, runs, turns, elapsed_seconds, tokens{...}, evidence[]}`, prints null when any run lacked telemetry so a partial sum never reads as a total, and refuses evidence from another reviewer or from before telemetry existed. Installed beside the runner; `$ship` step 4 names it. Claude stays null.
+
+**Acceptance criteria:**
+- `tests/codex-usage.sh`: two runs sum; a run without telemetry yields null with the run named on stderr; mixed, mismatched, non-evidence and pre-telemetry inputs exit 2
+- Installer places and removes the helper with the runner; `tests/codex-install.sh` checks both
+- CI runs the helper test
+
+**Source:** operator instruction, 2026-09-24 evening.
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*
