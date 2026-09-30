@@ -347,6 +347,21 @@ P34 left `usage` null on both runtimes. The Codex runner already records per-tur
 
 ---
 
+### P36 - Replicate agent-sop P113 and P114 documents
+
+`[IN PROGRESS] [Iteration]`
+review skipped (P36): docs-only
+
+Two pristine-replica documents updated from agent-sop main (6d89a77, PR #33) with `sync-sop-files.sh --apply`: `docs/sop/claude-agent-sop.md` carries the rule that SOP project state stays out of harness memory (agent-sop P114), and `docs/sop/harness-configuration.md` documents the memory index size check hook (agent-sop P113). No ship-sop code changed. The hook itself is installed from agent-sop.
+
+**Acceptance criteria:**
+- `sync-sop-files.sh --root` on this repository reports no older or missing rows
+- CI green
+
+**Source:** operator instruction, 2026-09-30.
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*
