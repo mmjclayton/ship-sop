@@ -7,8 +7,12 @@ the sentinels.
 Moved out of `CLAUDE.md` on 2026-08-03 so it stops consuming context every session.
 
 <!-- recent-work-rollup:start -->
-*Auto-generated from `docs/recent-work/`. Last refreshed: 2026-09-09.*
+*Auto-generated from `docs/recent-work/`. Last refreshed: 2026-09-30.*
 
+- 2026-09-30 `solo`: Replicate agent-sop P113 and P114 documents
+- 2026-09-24 `solo`: Codex usage in receipts
+- 2026-09-24 `solo`: Receipt schema version 2 with run counts
+- 2026-09-24 `solo`: Path-scoped reviewer enablement
 - 2026-09-09 `solo`: README and GitHub About update
 - 2026-09-08 `solo`: Validated review receipts and measurable reviewer execution
 - 2026-09-08 `solo`: Native Codex runtime support

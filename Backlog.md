@@ -347,6 +347,25 @@ P34 left `usage` null on both runtimes. The Codex runner already records per-tur
 
 ---
 
+### P36 - Replicate agent-sop P113 and P114 documents
+
+`[SHIPPED - 2026-09-30] [Iteration]`
+review: docs/reviews/20260930-112230-ship-auto.md
+
+Two pristine-replica documents updated from agent-sop main (6d89a77, PR #33) with `sync-sop-files.sh --apply`: `docs/sop/claude-agent-sop.md` carries the rule that SOP project state stays out of harness memory (agent-sop P114), and `docs/sop/harness-configuration.md` documents the memory index size check hook (agent-sop P113). No ship-sop code changed. The hook itself is installed from agent-sop. Their content was reviewed upstream (agent-sop `docs/reviews/20260930-111521-ship-auto.json`, PR #33).
+
+The sync also advanced the baseline SHAs for five installed files that this repository does not hold: `update-sop.md`, `update-agent-sop.md`, `sop-doctor.sh`, `sop-lib.sh` and the new `sop-memory-index.sh`.
+
+On branch `docs/p36-replicate-agent-sop-p113-p114` (7ff9962, a505be0) at the time of writing. The status tag travels inside the PR because main accepts no direct commit; CI runs on the PR and the merge is pending.
+
+**Acceptance criteria:**
+- `sync-sop-files.sh --root` on this repository reports no older or missing rows
+- CI green
+
+**Source:** operator instruction, 2026-09-30.
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*

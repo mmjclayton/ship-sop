@@ -1,0 +1,79 @@
+{
+  "schema_version": 2,
+  "base": "c917657776e3171fb091b9e1e34dca65d160ac67",
+  "head": "a505be0684769349066b203dd83b3e3a5315d50e",
+  "tree": "a6a9e581a02491e9757959ad739887b67ace4c48",
+  "policy_sha256": "b7b6afd9bb0ee123aeec892b91291324b9c37ade2febd5035e685c0051eff352",
+  "tests": {
+    "status": "PASS",
+    "evidence": "At a505be0: tests/receipt-contract.sh, tests/codex-usage.sh, tests/codex-install.sh exit 0; tests/receipt-integration.sh exits 0 with AGENT_SOP_SOURCE set to the agent-sop checkout (it exits 1 without the variable, on origin/main as well). code-reviewer ran the same four on a git archive extract of a505be0: exit 0 each. scripts/validate-state-transitions.sh OK. sync-sop-files.sh --root dry run: 44 rows, 44 in sync."
+  },
+  "reviewers": [
+    {
+      "name": "code-reviewer",
+      "version": "f6420e5df2c684f2da46628e1c1c264dbb865ac3130701ff8025111b392bd677",
+      "model": "sonnet",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 0,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "Backlog.md",
+          "line": 350,
+          "message": "P36 asserts PR #33 and a clean sync report; the reviewer verified neither. The other reviewer ran the sync dry run: 44 in sync."
+        }
+      ]
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "004ce0389356e0666d80c89cef39ad895ab326b3f7d19d34d23c70ab249a795d",
+      "model": "sonnet",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 0,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "MEDIUM",
+          "file": "Backlog.md",
+          "line": 350,
+          "message": "P36 tagged shipped on an unmerged branch with no note of the branch or PR. Fixed in the commit that carries this receipt."
+        },
+        {
+          "severity": "MEDIUM",
+          "file": "Backlog.md",
+          "line": 356,
+          "message": "Acceptance criterion CI green unverified at this commit. Recorded as pending in the entry."
+        },
+        {
+          "severity": "MEDIUM",
+          "file": "docs/agent-memory/in-flight/solo.md",
+          "line": 1,
+          "message": "No in-flight line for the unmerged P36 branch. Added in the commit that carries this receipt."
+        },
+        {
+          "severity": "LOW",
+          "file": ".claude/agent-sop.config.json",
+          "line": 9,
+          "message": "The sync advanced baselines for five installed files outside this repository; the records said two documents only. Recorded in the entry."
+        },
+        {
+          "severity": "LOW",
+          "file": "docs/recent-work/2026-09-30_solo_p36-replicate-agent-sop-p113-p114.md",
+          "line": 5,
+          "message": "Commits line was a placeholder. SHAs filled in."
+        },
+        {
+          "severity": "LOW",
+          "file": "docs/agent-memory.md",
+          "line": 1,
+          "message": "Completed Work section stale before this range. Not changed here."
+        }
+      ]
+    }
+  ]
+}
