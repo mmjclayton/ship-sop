@@ -349,10 +349,10 @@ P34 left `usage` null on both runtimes. The Codex runner already records per-tur
 
 ### P36 - Replicate agent-sop P113 and P114 documents
 
-`[IN PROGRESS] [Iteration]`
-review skipped (P36): docs-only
+`[SHIPPED - 2026-09-30] [Iteration]`
+review skipped (P36): dep-bump
 
-Two pristine-replica documents updated from agent-sop main (6d89a77, PR #33) with `sync-sop-files.sh --apply`: `docs/sop/claude-agent-sop.md` carries the rule that SOP project state stays out of harness memory (agent-sop P114), and `docs/sop/harness-configuration.md` documents the memory index size check hook (agent-sop P113). No ship-sop code changed. The hook itself is installed from agent-sop.
+Two pristine-replica documents updated from agent-sop main (6d89a77, PR #33) with `sync-sop-files.sh --apply`: `docs/sop/claude-agent-sop.md` carries the rule that SOP project state stays out of harness memory (agent-sop P114), and `docs/sop/harness-configuration.md` documents the memory index size check hook (agent-sop P113). No ship-sop code changed. The hook itself is installed from agent-sop. The skip is `dep-bump` because both files are vendored copies moved to a newer upstream version; their content was reviewed upstream (agent-sop `docs/reviews/20260930-111521-ship-auto.json`).
 
 **Acceptance criteria:**
 - `sync-sop-files.sh --root` on this repository reports no older or missing rows
