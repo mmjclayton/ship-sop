@@ -356,7 +356,7 @@ Two pristine-replica documents updated from agent-sop main (6d89a77, PR #33) wit
 
 The sync also advanced the baseline SHAs for five installed files that this repository does not hold: `update-sop.md`, `update-agent-sop.md`, `sop-doctor.sh`, `sop-lib.sh` and the new `sop-memory-index.sh`.
 
-On branch `docs/p36-replicate-agent-sop-p113-p114` (7ff9962, a505be0) at the time of writing. The status tag travels inside the PR because main accepts no direct commit; CI runs on the PR and the merge is pending.
+Merged via PR #21 (f6679f6) on 2026-09-30, CI green.
 
 **Acceptance criteria:**
 - `sync-sop-files.sh --root` on this repository reports no older or missing rows
