@@ -404,6 +404,8 @@ The stale agent-sop `scripts/codex-review.sh` copy stays with P23 and is fixed i
 `[SHIPPED - 2026-10-10] [Feature]`
 
 Merged via PR #27 (dac81d4), CI green.
+
+2026-10-10 review v2: the README overstated the scope. The check runs only in `ship-receipt.sh`; agent-sop's gates validate the receipt alone, so a receipt written straight into `docs/reviews/` bypasses it (confirmed in `sop_shipsop_covered`, which calls only `sop_receipt_valid`). README reworded. Moving the check into the gate was declined: it needs a runtime field in the receipt, works for Codex only, and the session can still write `.ship/`.
 review: docs/reviews/20261010-145222-ship-auto.md
 
 2026-10-10: `ship-receipt.sh` refuses a Codex receipt when any reviewer entry lacks a run record in `.ship/reviews/` with the same reviewer, commit, base, verdict, exit 0 and no timeout; reviewer names are validated before use. Fixtures in `tests/receipt-integration.sh` (no evidence, verdict mismatch, other commit, timeout, bad name; Claude unchanged). README states the check per runtime. Also carries the six P39 review LOWs: settings links followed only to a Claude settings file inside the project or home, including a linked `.claude` directory; guarded `$HOME`; named `readlink -f` failure; library load reason includes stdout; differing-copy check includes schema version.
