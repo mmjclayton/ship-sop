@@ -99,20 +99,49 @@ grep -q "Could not check agent-sop's hooks" "$WORK/unknown.log"
 rm "$AGENT_SOP_USER_HOME/.claude/settings.json"
 printf 'PASS: registered and unreadable agent-sop hook states are reported\n'
 
-# An entry under another event is removed too; mode and a symlinked file survive.
+# An entry under another event is removed too, and a regular file keeps its mode.
 legacy_project other-event
-jq --argjson other "$OTHER_HOOK" '.hooks.SessionStart = [{matcher:"*",hooks:[{type:"command",command:"scripts/auto-ship-hook.sh"}]}]' \
-    "$WORK/other-event/.claude/settings.json" > "$WORK/dotfile.json"
-rm "$WORK/other-event/.claude/settings.json"
-ln -s "$WORK/dotfile.json" "$WORK/other-event/.claude/settings.json"
-chmod 600 "$WORK/dotfile.json"
+jq '.hooks.SessionStart = [{matcher:"*",hooks:[{type:"command",command:"scripts/auto-ship-hook.sh"}]}]' \
+    "$WORK/other-event/.claude/settings.json" > "$WORK/tmp.json" && mv "$WORK/tmp.json" "$WORK/other-event/.claude/settings.json"
+chmod 600 "$WORK/other-event/.claude/settings.json"
 bash "$SOURCE/setup.sh" "$WORK/other-event" --runtime claude --no-hook > "$WORK/other-event.log" 2>&1
-test -L "$WORK/other-event/.claude/settings.json"
-find "$WORK/dotfile.json" -perm 600 | grep -q .
-retired_settings "$WORK/dotfile.json"
-jq -e '.hooks.SessionStart == []' "$WORK/dotfile.json" >/dev/null
+find "$WORK/other-event/.claude/settings.json" -perm 600 | grep -q .
+retired_settings "$WORK/other-event/.claude/settings.json"
+jq -e '.hooks.SessionStart == []' "$WORK/other-event/.claude/settings.json" >/dev/null
 test ! -e "$WORK/other-event/scripts/auto-ship-hook.sh"
-printf 'PASS: entries under any event are removed; symlink and mode preserved\n'
+printf 'PASS: entries under any event are removed; mode preserved\n'
+
+# A symlinked settings file is edited at its target inside home, and the link kept.
+mkdir -p "$WORK/home/dotfiles"
+legacy_project linked
+mv "$WORK/linked/.claude/settings.json" "$WORK/home/dotfiles/settings.json"
+ln -s "$WORK/home/dotfiles/settings.json" "$WORK/linked/.claude/settings.json"
+HOME="$WORK/home" bash "$SOURCE/setup.sh" "$WORK/linked" --runtime claude --no-hook > "$WORK/linked.log" 2>&1
+test -L "$WORK/linked/.claude/settings.json"
+retired_settings "$WORK/home/dotfiles/settings.json"
+printf 'PASS: symlinked settings edited at a target inside home; link kept\n'
+
+# A link to a target outside the project and home is not followed; nor is a broken one.
+mkdir -p "$WORK/elsewhere"
+legacy_project outside
+mv "$WORK/outside/.claude/settings.json" "$WORK/elsewhere/settings.json"
+cp "$WORK/elsewhere/settings.json" "$WORK/outside-before"
+ln -s "$WORK/elsewhere/settings.json" "$WORK/outside/.claude/settings.json"
+if HOME="$WORK/home" bash "$SOURCE/setup.sh" "$WORK/outside" --runtime claude --no-hook > "$WORK/outside.log" 2>&1; then
+    echo 'FAIL: setup followed a link outside the project and home'; exit 1
+fi
+cmp "$WORK/outside-before" "$WORK/elsewhere/settings.json"
+test -f "$WORK/outside/scripts/auto-ship-hook.sh"
+grep -q 'links outside the project and home' "$WORK/outside.log"
+legacy_project dangling
+rm "$WORK/dangling/.claude/settings.json"
+ln -s "$WORK/nowhere.json" "$WORK/dangling/.claude/settings.json"
+if bash "$SOURCE/setup.sh" "$WORK/dangling" --runtime claude --no-hook > "$WORK/dangling.log" 2>&1; then
+    echo 'FAIL: setup ignored a broken settings symlink'; exit 1
+fi
+test -f "$WORK/dangling/scripts/auto-ship-hook.sh"
+grep -q 'broken symlink' "$WORK/dangling.log"
+printf 'PASS: links outside the project and home, and broken links, are left alone\n'
 
 # A stale agent-sop registration stops setup before anything is retired.
 mkdir -p "$AGENT_SOP_USER_HOME/.claude"

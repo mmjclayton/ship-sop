@@ -420,7 +420,7 @@ Limits: Codex only, since Claude subagents leave no evidence to check. It raises
 
 From the 2026-10-10 independent review (two repositories that must move together; no evidence of value).
 
-- `ship-receipt.sh --check-lib` checks the installed agent-sop library for every function ship-sop calls and names any missing one with the minimum agent-sop (`0a1e5ee`, P112, 2026-09-24, the first with receipt schema version 2; its parent fails the cross-package test). Claude setup warns; Codex auto-mode setup refuses. CI runs the cross-package test at that commit and at agent-sop `main`. Fixture: `tests/agent-sop-compat.sh`.
+- `ship-receipt.sh --check-lib` checks the installed agent-sop library for every function ship-sop calls and names any missing one with the minimum agent-sop (`0a1e5ee`, P112, 2026-09-24, the first with receipt schema version 2; its parent fails the cross-package test, verified locally 2026-10-10). Claude setup warns; Codex auto-mode setup refuses. CI runs the cross-package test at that commit and at agent-sop `main`. Fixture: `tests/agent-sop-compat.sh`.
 - `scripts/receipt-totals.sh` totals receipts across projects (deduped across clones). Fixture: `tests/receipt-totals.sh`.
 - README: minimum agent-sop, the totals tool and what it cannot show, a one-maintainer statement.
 - P25 review LOWs: legacy entries removed under any hook event; settings mode and symlinks preserved; incomplete uninstall reported; Dependabot comment corrected; stale-registration path tested.

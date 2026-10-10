@@ -4,13 +4,14 @@ set -euo pipefail
 BASE=''; HEAD_REF=HEAD; RESULTS=''; TESTS=''; OUTPUT=''
 RUNTIME=${AGENT_SOP_RUNTIME:-codex}
 CHECK_LIB=false
-# agent-sop library functions ship-sop calls. The oldest agent-sop known to
+# agent-sop library functions ship-sop calls: the first three here, the last two
+# from /ship and $ship. The check is by name only. The oldest agent-sop known to
 # provide all of them, with receipt schema version 2, is 0a1e5ee (P112,
 # 2026-09-24); CI tests against that commit and against agent-sop main.
 REQUIRED_SOP_FUNCTIONS='sop_effective_config sop_policy_digest sop_receipt_valid sop_agents_in_scope sop_changed_files_json'
 MIN_AGENT_SOP='0a1e5ee (2026-09-24)'
-if [ "${1:-}" = --check-lib ]; then CHECK_LIB=true; shift; fi
 while [ $# -gt 0 ]; do
+    if [ "$1" = --check-lib ]; then CHECK_LIB=true; shift; continue; fi
     [ $# -ge 2 ] || { echo 'Each option needs a value' >&2; exit 2; }
     case "$1" in
         --base) BASE=$2 ;; --head) HEAD_REF=$2 ;; --results) RESULTS=$2 ;;
@@ -27,6 +28,11 @@ esac
 export AGENT_SOP_RUNTIME="$RUNTIME" AGENT_SOP_CONFIG_HOME="$CONFIG_HOME"
 LIB="$CONFIG_HOME/scripts/hooks/agent-sop/sop-lib.sh"
 [ -f "$LIB" ] || { echo "INCOMPLETE: agent-sop hooks not installed at $LIB; install agent-sop $MIN_AGENT_SOP or later" >&2; exit 1; }
+# Load it once in a throwaway shell so a broken library is reported, not fatal.
+if ! load_error=$(bash -euo pipefail -c '. "$1"' _ "$LIB" 2>&1 >/dev/null); then
+    echo "INCOMPLETE: $LIB failed to load; reinstall agent-sop $MIN_AGENT_SOP or later${load_error:+: $load_error}" >&2
+    exit 1
+fi
 # shellcheck disable=SC1090
 . "$LIB"
 missing=''

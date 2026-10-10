@@ -25,10 +25,23 @@ printf 'PASS: older library is refused and the missing function named\n'
 printf 'sop_agents_in_scope() { :; }\n' >> "$LIB"
 check
 grep -q 'provides every function' "$WORK/out"
-printf 'PASS: complete library accepted\n'
+bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --check-lib > "$WORK/out" 2>&1
+grep -q 'provides every function' "$WORK/out"
+printf 'PASS: complete library accepted, with --check-lib in any position\n'
+
+cp "$LIB" "$WORK/good-lib"
+printf 'false\n' >> "$LIB"
+if check; then echo 'FAIL: library that fails to load accepted'; exit 1; fi
+grep -q 'failed to load' "$WORK/out"
+printf 'if then\n' > "$LIB"
+if check; then echo 'FAIL: library with a syntax error accepted'; exit 1; fi
+grep -q 'failed to load' "$WORK/out"
+cp "$WORK/good-lib" "$LIB"
+printf 'PASS: a library that fails to load is reported, not silent\n'
 
 rm "$LIB"
 mkdir -p "$WORK/project"
 bash "$SOURCE/setup.sh" "$WORK/project" --runtime claude --no-hook > "$WORK/setup.log" 2>&1
-grep -q '/ship cannot write receipts until agent-sop is installed' "$WORK/setup.log"
+grep -q 'agent-sop hooks not installed' "$WORK/setup.log"
+grep -q '/ship cannot write receipts until the agent-sop library problem above is fixed' "$WORK/setup.log"
 printf 'PASS: Claude setup warns when the library is missing\n'

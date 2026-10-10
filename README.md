@@ -199,12 +199,16 @@ The three-reviewer default is unchanged pending measured defect yield and cost.
 
 `scripts/receipt-totals.sh REPO_ROOT...` totals the receipts in one or more
 projects: receipts, gates that blocked at least once, block rounds, reviewer
-launches and re-checks, and findings by severity (`--json` for raw output). It
+launches and re-checks, and findings by severity (`--json` for raw output). A
+receipt present in several clones counts once. It exits 1 when a file could not
+be read or a root has no receipts. It
 measures what the gates recorded. It does not show what would have happened
 without them; that needs a comparison run.
 
 Receipt generation needs the agent-sop library. `ship-receipt.sh --check-lib`
-reports whether the installed library provides every function ship-sop calls;
-setup runs it and names any missing function and the minimum agent-sop version.
+reports whether the installed library loads and defines every function ship-sop
+calls, naming any that is missing and the minimum agent-sop. It checks names, not
+behaviour; CI covers behaviour by running the cross-package test at the minimum
+agent-sop and at `main`. Setup runs the check.
 Upgrade both projects together.
 See `docs/build-plans/review-hardening.md` for the contract and evaluation plan.
