@@ -1,0 +1,127 @@
+{
+  "schema_version": 2,
+  "base": "4370b7f85737690cece7ffeaef1811370ea506e6",
+  "head": "778d2bc171669a18dae33360bfa9e96eb390e21b",
+  "tree": "cb8feeb8709f4a4bb8863ac8cb678b12d1868203",
+  "policy_sha256": "b7b6afd9bb0ee123aeec892b91291324b9c37ade2febd5035e685c0051eff352",
+  "tests": {
+    "status": "PASS",
+    "evidence": "At 778d2bc on macOS: codex-install, claude-install, legacy-hook, receipt-contract, codex-usage PASS; receipt-integration PASS against agent-sop main 6578ac0; shellcheck -S warning clean on setup.sh, scripts and tests/*.sh. Linux confirmed by CI."
+  },
+  "reviewers": [
+    {
+      "name": "security-reviewer",
+      "version": "0f8a59958459703fc4108ecf1977f4638b6a4565",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": ".github/dependabot.yml",
+          "line": 12,
+          "message": "major ignore applies to version updates only; security updates can still propose a major; workflow comment overstates"
+        },
+        {
+          "severity": "LOW",
+          "file": "setup.sh",
+          "line": 282,
+          "message": "settings rewrite forces 644 and replaces a symlinked settings.json with a regular file"
+        },
+        {
+          "severity": "INFO",
+          "file": ".github/workflows/dependabot-auto-merge.yml",
+          "line": 17,
+          "message": "fixed in 778d2bc: gate on PR author and same repo instead of github.actor"
+        },
+        {
+          "severity": "INFO",
+          "file": ".github/workflows/dependabot-auto-merge.yml",
+          "line": 20,
+          "message": "fixed in 778d2bc: semver-major updates ignored"
+        }
+      ]
+    },
+    {
+      "name": "code-reviewer",
+      "version": "01027637966b1e741c49018f071b91b0cad528f6",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 1,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "setup.sh",
+          "line": 436,
+          "message": "uninstall prints its Done line before the LEGACY_PENDING exit-1 message"
+        },
+        {
+          "severity": "INFO",
+          "file": "tests/legacy-hook.sh",
+          "line": 14,
+          "message": "fixed in 778d2bc: HIGH, test needed history absent from CI depth-1 checkout; fetch-depth 0 and blob-list assertion"
+        },
+        {
+          "severity": "INFO",
+          "file": "setup.sh",
+          "line": 562,
+          "message": "fixed in 778d2bc: script deleted while settings entry remained when jq missing; now entry-first"
+        },
+        {
+          "severity": "INFO",
+          "file": "setup.sh",
+          "line": 562,
+          "message": "declined: gating retirement on agent-sop wired; legacy hook never ran live (2026-09-04 decision)"
+        }
+      ]
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "46bcbfc7adb8b13d1e0f0d9bcdf16d512b165d89",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "setup.sh",
+          "line": 67,
+          "message": "probe covers .hooks.Stop only; a legacy command under another event is not detected"
+        },
+        {
+          "severity": "LOW",
+          "file": "tests/legacy-hook.sh",
+          "line": 93,
+          "message": "stale-registration exit 1 path untested here (covered in tests/codex-install.sh); wired/unknown checks grep only"
+        },
+        {
+          "severity": "INFO",
+          "file": "setup.sh",
+          "line": 548,
+          "message": "fixed in 778d2bc: unknown hook state for missing jq or unreadable settings"
+        },
+        {
+          "severity": "INFO",
+          "file": "setup.sh",
+          "line": 254,
+          "message": "fixed in 778d2bc: retire_legacy_hook_entry separates no-match from error and verifies the edit"
+        },
+        {
+          "severity": "INFO",
+          "file": "setup.sh",
+          "line": 496,
+          "message": "fixed in 778d2bc: trap removed"
+        }
+      ]
+    }
+  ]
+}

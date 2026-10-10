@@ -274,6 +274,7 @@ Operator rule, 2026-09-04: ship-sop fires for coding and for nothing else. The t
 
 ### P25 — Retire the project-scope `auto-ship-hook.sh` wiring now that agent-sop carries the trigger
 `[IN PROGRESS] [Refactor]`
+review: docs/reviews/20261010-143321-ship-auto.md
 
 2026-10-10: script deleted outright (not kept as reference); setup retires leftover copies by blob hash and both entry shapes, `tests/legacy-hook.sh`; CI asserts no entry remains. This repo's settings already had none; `/ship-on` already probes `sop-stop-drift.sh`. Folded in from the P37 review: actions pinned by SHA with Dependabot and auto-merge, a cleanup trap and distinct jq messages in `create_default_config`, self-install and Codex default-config tests. Consumer repos (step 4) are checked separately.
 
