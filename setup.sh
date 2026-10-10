@@ -477,6 +477,34 @@ done
 
 # ── Install hook script and config (project-scope) ────────────────────────────
 
+# Default config, only created if missing. Claude ships no silent-failure-hunter
+# profile, and an enabled reviewer that cannot launch makes every run INCOMPLETE,
+# so a new Claude-only config disables it until the user supplies one. The file is
+# built beside the target and renamed once, so a failure leaves no config and a
+# rerun starts clean.
+create_default_config() {
+    local config="$TARGET/ship-sop.config.json" tmp
+    local filter='.'
+    [ -f "$config" ] && return 0
+    if [ "$RUNTIME" = claude ] \
+        && [ ! -f "$USER_CLAUDE_DIR/agents/silent-failure-hunter.md" ] \
+        && [ ! -f "$TARGET/.claude/agents/silent-failure-hunter.md" ]; then
+        filter='.agents["silent-failure-hunter"].enabled = false'
+    fi
+    tmp=$(mktemp "$config.XXXXXX") || { echo "Cannot create a temporary file in $TARGET" >&2; return 1; }
+    if [ "$filter" = '.' ]; then
+        cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$tmp" || { rm -f "$tmp"; return 1; }
+    elif ! jq "$filter" "$SCRIPT_DIR/docs/templates/ship-sop.config.json" > "$tmp"; then
+        rm -f "$tmp"
+        echo "Could not write $config: jq is required to disable silent-failure-hunter. Install jq and re-run setup." >&2
+        return 1
+    fi
+    chmod 644 "$tmp" && mv "$tmp" "$config" || { rm -f "$tmp"; echo "Could not write $config" >&2; return 1; }
+    if [ "$filter" != '.' ]; then
+        echo "  note   silent-failure-hunter disabled: no profile in ~/.claude/agents/ or .claude/agents/"
+    fi
+}
+
 echo ""
 if [ "$SELF_INSTALL" = true ]; then
     echo "Self-install — project-side files already present in source repo"
@@ -484,9 +512,7 @@ if [ "$SELF_INSTALL" = true ]; then
     # Skip copying scripts/auto-ship-hook.sh and docs/templates/ship-sop.schema.json
     # since they live in the source repo. Still create the user-facing config
     # at the project root (different from the template under docs/templates/).
-    if [ ! -f "$TARGET/ship-sop.config.json" ]; then
-        cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json"
-    fi
+    create_default_config
 else
     echo "Installing hook script + config in $TARGET"
     mkdir -p "$TARGET/scripts" "$TARGET/docs/reviews" "$TARGET/.ship"
@@ -495,10 +521,7 @@ else
         chmod +x "$TARGET/scripts/auto-ship-hook.sh"
     fi
 
-    # Default config — only created if missing
-    if [ ! -f "$TARGET/ship-sop.config.json" ]; then
-        cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json"
-    fi
+    create_default_config
     copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.schema.json" "$TARGET/docs/templates/ship-sop.schema.json" || true
 fi
 

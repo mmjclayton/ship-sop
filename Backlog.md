@@ -366,6 +366,47 @@ Merged via PR #21 (f6679f6) on 2026-09-30, CI green.
 
 ---
 
+### P37 - Act on the 2026-10-10 independent review
+
+`[IN PROGRESS] [Iteration]`
+review: docs/reviews/20261010-125845-ship-auto.md
+
+An independent review of main (80a2b04) found that a receipt certifies recorded results, not that reviews ran: `ship-receipt.sh` takes verdicts and test status from files the session writes, and agent-sop's `sop_receipt_valid` checks `.verdict == "PASS"` without comparing it to reviewer evidence. README line 16 ("Rejects blocked, incomplete or stale review evidence") read stronger than that.
+
+- README states the limit in a "What a receipt proves" section and rewords the two summary bullets (Option A).
+- CI runs `tests/receipt-integration.sh` against a checkout of agent-sop main, the only suite covering both repositories.
+- `setup.sh` disables `silent-failure-hunter` in a new Claude-only config when no profile exists at user or project scope, and says so. The config is built beside the target and renamed once (mode 644); a failed edit leaves no config and names jq. Fixture: `tests/claude-install.sh`.
+- CI: agent-sop checkout without persisted credentials, its SHA logged, all test scripts under shellcheck and `bash -n`.
+- Housekeeping: merged and squash-merged branches deleted, including `docs/p26-code-projects-only` (tree identical to 9eadcc7, PR #11); stray `.claude/agent-sop.config.json.bak` removed.
+
+The stale agent-sop `scripts/codex-review.sh` copy stays with P23 and is fixed in agent-sop.
+
+**Acceptance criteria:**
+- `tests/claude-install.sh` fails before the setup change and passes after
+- CI runs all five suites, including the cross-package one
+- README makes no claim that a receipt proves a review ran
+
+**Source:** operator instruction, 2026-10-10, on the independent review.
+
+---
+
+### P38 - Check Codex receipt entries against runner evidence
+
+`[OPEN] [Feature]`
+
+Option B from the 2026-10-10 independent review. Before `ship-receipt.sh` writes a receipt under Codex, check each reviewer entry against the runner's evidence in `.ship/reviews/`: the run exists, it was for the same commit and base, and its recorded verdict matches. Refuse the receipt on any mismatch.
+
+Limits: Codex only, since Claude subagents leave no evidence to check. It raises the cost of forging a receipt but does not prevent it, because the evidence directory is writable by the same session. The README limits section would then describe the Codex check.
+
+**Acceptance criteria:**
+- A fixture with a hand-written `PASS` result and no matching evidence is refused under Codex
+- A genuine run still produces a receipt
+- Claude behaviour unchanged and documented
+
+**Source:** 2026-10-10 independent review, logged at operator instruction.
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*

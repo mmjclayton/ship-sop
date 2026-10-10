@@ -12,8 +12,8 @@ project records and the hooks used for automatic review.
 
 - Runs configurable reviewers for correctness, security and silent failures.
 - Offers optional test-coverage, compliance and architecture reviews.
-- Produces a validated JSON receipt and a readable report with findings and dispositions.
-- Rejects blocked, incomplete or stale review evidence.
+- Produces a JSON receipt, checked for completeness and binding to the commit, and a readable report with findings and dispositions.
+- Rejects receipts that are blocked, incomplete or written for different code. The session reports reviewer verdicts and test results itself; see [What a receipt proves](#what-a-receipt-proves).
 - Retains Codex reviewer usage, timing and timeout diagnostics.
 - Provides a whole-repository compliance audit and a separate release workflow.
 
@@ -45,8 +45,12 @@ For manual-only Codex setup, add `--no-hook` to ship-sop's setup command. This
 creates a new project config in manual mode; it does not reset an existing config.
 
 Codex installs include the default reviewers. For Claude, `code-reviewer` and
-`security-reviewer` come from agent-sop; supply a `silent-failure-hunter` profile
-in `~/.claude/agents/` or disable that reviewer in the project config.
+`security-reviewer` come from agent-sop. ship-sop does not ship a Claude
+`silent-failure-hunter`: when setup creates a new Claude-only config and finds no
+`silent-failure-hunter.md` in `~/.claude/agents/` or the project's `.claude/agents/`,
+it disables that reviewer and says so. Supply the profile and set `enabled` back
+to `true` to use it. Writing that config needs `jq`; without it, setup stops
+before writing one.
 
 ## Everyday use
 
@@ -106,6 +110,22 @@ reports no subagent usage.
 Markdown `Covers:` lines
 are informational and old Markdown-only reports no longer satisfy the gate.
 An ancestor receipt remains usable only when no code or executable instructions changed. Missing or failed reviewer results are incomplete, not a pass.
+
+## What a receipt proves
+
+A receipt that passes validation proves that a complete set of results was
+recorded for this commit and its review range, under the current policy, with no
+blocking findings. It does not prove that the reviews ran or that the tests passed.
+The session gathers reviewer verdicts and test results and passes them to
+`scripts/ship-receipt.sh`; nothing checks those inputs against what the reviewers
+or tests actually produced. Under Codex, the runner keeps each reviewer's evidence
+in `.ship/reviews/`, but the receipt is not checked against it. Under Claude there
+is no such evidence.
+
+ship-sop is a discipline aid for an agent that follows the workflow, in line with
+agent-sop's cooperative hooks. It is not a control against a session that chooses
+to skip review: a hand-written result file with `PASS` verdicts produces a receipt
+that passes validation.
 
 ## Automatic review
 
