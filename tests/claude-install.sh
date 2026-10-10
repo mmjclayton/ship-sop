@@ -18,14 +18,14 @@ install_claude missing
 jq -e '.agents["silent-failure-hunter"].enabled == false' "$WORK/missing/ship-sop.config.json" >/dev/null
 jq -e '.agents["code-reviewer"].enabled == true' "$WORK/missing/ship-sop.config.json" >/dev/null
 grep -q 'silent-failure-hunter disabled' "$WORK/missing.log"
-[ "$(stat -f %Lp "$WORK/missing/ship-sop.config.json" 2>/dev/null || stat -c %a "$WORK/missing/ship-sop.config.json")" = 644 ]
+find "$WORK/missing/ship-sop.config.json" -perm 644 | grep -q .
 [ -z "$(find "$WORK/missing" -maxdepth 1 -name 'ship-sop.config.json.*')" ]
 printf 'PASS: absent silent-failure-hunter profile is disabled in a new, readable config\n'
 
 printf -- '---\nname: silent-failure-hunter\n---\n' > "$PROFILE"
 install_claude present
 cmp "$SOURCE/docs/templates/ship-sop.config.json" "$WORK/present/ship-sop.config.json"
-! grep -q 'silent-failure-hunter disabled' "$WORK/present.log"
+if grep -q 'silent-failure-hunter disabled' "$WORK/present.log"; then echo 'FAIL: reviewer disabled despite profile'; exit 1; fi
 rm "$PROFILE"
 mkdir -p "$WORK/project-scope/.claude/agents"
 printf -- '---\nname: silent-failure-hunter\n---\n' > "$WORK/project-scope/.claude/agents/silent-failure-hunter.md"
