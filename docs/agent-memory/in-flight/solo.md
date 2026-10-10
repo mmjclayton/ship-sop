@@ -6,4 +6,4 @@
 (2026-10-10): P39 round 1 fixed (76a7957), round 2 running. P38 next.
 (2026-10-10): P39 merged (PR #26, daf1dfd). P38 on feat/p38-codex-evidence-check (38cb15a), review round 1 running.
 (2026-10-10): P38 round 1 fixed (d351352), round 2 running.
-(2026-10-10): P25 and P39 merged; P38 PR pending. Then the operator re-runs the independent review.
+(2026-10-10): P25 (#25), P39 (#26), P38 (#27, dac81d4) merged. Nothing in flight; next is the operator's independent review.

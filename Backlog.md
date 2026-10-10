@@ -401,7 +401,9 @@ The stale agent-sop `scripts/codex-review.sh` copy stays with P23 and is fixed i
 
 ### P38 - Check Codex receipt entries against runner evidence
 
-`[IN PROGRESS] [Feature]`
+`[SHIPPED - 2026-10-10] [Feature]`
+
+Merged via PR #27 (dac81d4), CI green.
 review: docs/reviews/20261010-145222-ship-auto.md
 
 2026-10-10: `ship-receipt.sh` refuses a Codex receipt when any reviewer entry lacks a run record in `.ship/reviews/` with the same reviewer, commit, base, verdict, exit 0 and no timeout; reviewer names are validated before use. Fixtures in `tests/receipt-integration.sh` (no evidence, verdict mismatch, other commit, timeout, bad name; Claude unchanged). README states the check per runtime. Also carries the six P39 review LOWs: settings links followed only to a Claude settings file inside the project or home, including a linked `.claude` directory; guarded `$HOME`; named `readlink -f` failure; library load reason includes stdout; differing-copy check includes schema version.
