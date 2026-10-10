@@ -1,0 +1,121 @@
+{
+  "schema_version": 2,
+  "base": "daf1dfdc1de2f24f356d80181606e32f2fdad1b0",
+  "head": "d351352e7ed590e538038aa7421452df40578efb",
+  "tree": "1eacf3c8f3947461a4f8ec80ed1fbb93b25d878c",
+  "policy_sha256": "b7b6afd9bb0ee123aeec892b91291324b9c37ade2febd5035e685c0051eff352",
+  "tests": {
+    "status": "PASS",
+    "evidence": "At d351352 on macOS: codex-install PASS; claude-install PASS; legacy-hook PASS; receipt-contract PASS; codex-usage PASS; agent-sop-compat PASS; receipt-totals PASS; receipt-integration PASS at agent-sop main d11e724 and at minimum 0a1e5ee; shellcheck clean; each evidence condition shown load-bearing by removal. Linux confirmed by CI."
+  },
+  "reviewers": [
+    {
+      "name": "security-reviewer",
+      "version": "0f8a59958459703fc4108ecf1977f4638b6a4565",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "README.md",
+          "line": 131,
+          "message": "re-wrapped paragraph has one overlong line"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/ship-receipt.sh",
+          "line": 77,
+          "message": "declined: --runtime claude bypasses the Codex check; enforcing would break dual-runtime users; README states the caller chooses"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/ship-receipt.sh",
+          "line": 82,
+          "message": "fixed in d351352: results validated and rows read before the loop"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/ship-receipt.sh",
+          "line": 65,
+          "message": "fixed in d351352: records must resolve inside this repository's .ship/reviews"
+        }
+      ]
+    },
+    {
+      "name": "code-reviewer",
+      "version": "01027637966b1e741c49018f071b91b0cad528f6",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/ship-receipt.sh",
+          "line": 67,
+          "message": "a symlinked .ship or .ship/reviews rejects every record with a generic message"
+        },
+        {
+          "severity": "LOW",
+          "file": "setup.sh",
+          "line": 278,
+          "message": "project_dir failure branch untested"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/ship-receipt.sh",
+          "line": 70,
+          "message": "fixed in d351352: exactly one verdict line required, as the runner requires"
+        },
+        {
+          "severity": "INFO",
+          "file": "tests/receipt-integration.sh",
+          "line": 50,
+          "message": "fixed in d351352: each evidence condition isolated"
+        }
+      ]
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "46bcbfc7adb8b13d1e0f0d9bcdf16d512b165d89",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/ship-receipt.sh",
+          "line": 67,
+          "message": "no warning naming a record rejected for its physical path"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/ship-receipt.sh",
+          "line": 90,
+          "message": "verdicts with tabs or backslashes cannot match after @tsv; fails closed"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/ship-receipt.sh",
+          "line": 80,
+          "message": "fixed in d351352: zero-iteration fail-open closed"
+        },
+        {
+          "severity": "INFO",
+          "file": "setup.sh",
+          "line": 277,
+          "message": "fixed in d351352: empty project_dir no longer matches every path"
+        }
+      ]
+    }
+  ]
+}
