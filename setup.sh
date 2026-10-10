@@ -5,9 +5,10 @@
 # Installs ship-sop into a target project:
 #   - Three reference agents into ~/.claude/agents/
 #   - Five slash commands into ~/.claude/commands/
-#   - scripts/auto-ship-hook.sh into the project
 #   - ship-sop.config.json at the project root (with defaults)
-#   - An entry in .claude/settings.json wiring the SessionStop hook (with consent)
+#
+# Automatic review runs from agent-sop's user-scope hooks. Setup retires the
+# project-scope auto-ship-hook.sh and its settings entry left by older installs.
 #
 # Or removes the same install footprint when --uninstall is passed.
 #
@@ -16,11 +17,11 @@
 #   ./setup.sh /path/to/your/project --uninstall [--force] [--keep-config] [--keep-artifacts]
 #
 # Install options:
-#   --no-hook         Skip the SessionStop hook wiring (manual /ship and /release only)
+#   --no-hook         Skip the agent-sop hook check (manual /ship and /release only)
 #   --force           Overwrite existing files (install) / remove locally-modified files (uninstall)
 #
 # Uninstall options:
-#   --uninstall       Reverse the install — remove agents, commands, hook script, config, gitignore entry, settings.json hook
+#   --uninstall       Reverse the install — remove agents, commands, config, gitignore entry and any legacy hook script or settings entry
 #   --keep-config     Keep ship-sop.config.json (project-scope; useful to preserve per-project tuning across re-installs)
 #   --keep-artifacts  Keep .ship/ runtime artifacts directory (cooldown stamps, pending directives)
 #
@@ -57,20 +58,23 @@ if [ "$RUNTIME" = both ]; then
     bash "$SCRIPT_DIR/scripts/setup-codex.sh" "$@"
 fi
 
-# ── Hook entry shape (P14) ────────────────────────────────────────────────────
+# ── Legacy project hook (retired by P25) ──────────────────────────────────────
 #
-# Claude Code discards a hook entry that does not nest its command. Install and
-# uninstall must agree on the selector or one of them silently no-ops, so both
-# read these three constants rather than inlining their own jq.
+# Installs before P25 copied scripts/auto-ship-hook.sh into the project and wired
+# it as a Stop hook, in the nested shape or the pre-P14 flat shape. Install and
+# uninstall both retire them, so both read these constants.
 
-# Matches the nested shape the harness actually executes.
-HOOK_NESTED_PROBE='[.hooks.Stop[]?.hooks[]?.command] | index("scripts/auto-ship-hook.sh")'
+LEGACY_HOOK_PROBE='[.. | objects | select(.command? == "scripts/auto-ship-hook.sh")] | length > 0'
 
-# Matches the pre-P14 flat shape, which parses but never runs. Retained so
-# existing installs can be migrated and uninstalled rather than orphaned.
-HOOK_LEGACY_PROBE='.hooks.Stop[]? | select((.command? // "") == "scripts/auto-ship-hook.sh")'
-
-HOOK_ENTRY_EXAMPLE='{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"scripts/auto-ship-hook.sh"}]}]}}'
+# Git blob hashes of every shipped auto-ship-hook.sh. A project copy matching one
+# is unmodified and safe to delete; anything else is a local edit and is kept.
+LEGACY_HOOK_BLOBS='104935d37c983a0511670ce02cb49e88f94ed108
+3f8fa9b72046c17e146efc7594a67fd21dad1d3e
+40a315fc1b65a7fb1a60dc005cc1cb74721c941c
+62fee50bf93e0bb78d30cc1bed6c627962208553
+c4c19edfe4a776a853d5ef132a74de760a93d247
+ea003ece385291a1fd54dd8c2bb7053192f59a83
+fc62bb678d306df823f3af76e8c48c07eb3a0694'
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 
@@ -138,8 +142,8 @@ TARGET="$(cd "$TARGET" 2>/dev/null && pwd -P)" || {
 
 # Detect self-install (running setup on the source repo itself).
 # Use case: dogfooding ship-sop on its own repo. Project-side files like
-# scripts/auto-ship-hook.sh and docs/templates/ship-sop.schema.json already
-# exist as part of the source — we skip those copies to avoid noise.
+# docs/templates/ship-sop.schema.json already exist as part of the source —
+# we skip those copies to avoid noise.
 SELF_INSTALL=false
 if [ "$SCRIPT_DIR" = "$TARGET" ]; then
     SELF_INSTALL=true
@@ -160,26 +164,6 @@ copy_if_missing() {
     cp "$src" "$dest" || return 2
     echo "  create $(basename "$dest")"
     return 0
-}
-
-prompt_yn() {
-    local prompt="$1"
-    local default="${2:-y}"
-    local response
-    if [ "$default" = "y" ]; then
-        printf "%s [Y/n] " "$prompt"
-    else
-        printf "%s [y/N] " "$prompt"
-    fi
-    # 30s timeout protects non-interactive shells (CI runners, scripted installs).
-    # Falls through to the supplied default rather than hanging.
-    if ! read -t 30 -r response 2>/dev/null; then
-        echo ""
-        echo "  (no input within 30s — using default '$default')"
-        response="$default"
-    fi
-    response="${response:-$default}"
-    [[ "$response" =~ ^[Yy]$ ]]
 }
 
 # ── Hash helpers (uninstall integrity check) ──────────────────────────────────
@@ -244,6 +228,49 @@ remove_if_unmodified() {
     fi
 }
 
+# Remove a project copy of the legacy hook script when it matches a shipped version.
+remove_legacy_hook_script() {
+    local dest="$1/scripts/auto-ship-hook.sh" blob
+    [ -f "$dest" ] || return 0
+    if [ "$FORCE" = true ]; then
+        rm -f "$dest"; echo "  remove scripts/auto-ship-hook.sh (--force)"; return 0
+    fi
+    blob=$(git hash-object "$dest" 2>/dev/null) || blob=''
+    if [ -n "$blob" ] && printf '%s\n' "$LEGACY_HOOK_BLOBS" | grep -qx "$blob"; then
+        rm -f "$dest"; echo "  remove scripts/auto-ship-hook.sh (retired, auto-mode runs from agent-sop)"
+    else
+        echo "  skip   scripts/auto-ship-hook.sh (locally modified, use --force to remove)"
+    fi
+}
+
+# Remove the legacy Stop hook entry in either shape, keeping other hooks.
+retire_legacy_hook_entry() {
+    local settings="$1/.claude/settings.json" tmp
+    [ -f "$settings" ] || return 0
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "  warn   jq not installed; manually remove the entry where .hooks.Stop[].command == 'scripts/auto-ship-hook.sh' from $settings"
+        return 0
+    fi
+    jq -e "$LEGACY_HOOK_PROBE" "$settings" >/dev/null 2>&1 || return 0
+    tmp=$(mktemp "$settings.XXXXXX") || return 1
+    # Drop flat entries, strip our command out of nested entries, then drop a
+    # nested entry only when OUR removal emptied it. An entry that already had
+    # "hooks": [] is inert but not ours to delete (P15). Other hooks stay (P14).
+    if jq '.hooks.Stop = [ .hooks.Stop[]?
+          | select((.command? // "") != "scripts/auto-ship-hook.sh")
+          | if (has("hooks") and ([.hooks[]?.command] | index("scripts/auto-ship-hook.sh")))
+            then (.hooks |= map(select((.command? // "") != "scripts/auto-ship-hook.sh")))
+               | select((.hooks | length) > 0)
+            else . end ]' "$settings" > "$tmp"; then
+        cat "$tmp" > "$settings"; rm -f "$tmp"
+        echo "  update .claude/settings.json (removed legacy auto-ship-hook.sh entry)"
+    else
+        rm -f "$tmp"
+        echo "  warn   could not edit $settings; remove the auto-ship-hook.sh entry by hand" >&2
+        return 1
+    fi
+}
+
 # ── Uninstall mode ────────────────────────────────────────────────────────────
 
 uninstall_mode() {
@@ -288,9 +315,7 @@ uninstall_mode() {
         echo ""
         echo "Removing project files from $target"
 
-        remove_if_unmodified \
-            "$SCRIPT_DIR/scripts/auto-ship-hook.sh" \
-            "$target/scripts/auto-ship-hook.sh"
+        remove_legacy_hook_script "$target"
 
         remove_if_unmodified \
             "$SCRIPT_DIR/docs/templates/ship-sop.schema.json" \
@@ -305,37 +330,9 @@ uninstall_mode() {
         fi
     fi
 
-    # SessionStop hook entry in .claude/settings.json
+    # Legacy Stop hook entry in .claude/settings.json
     echo ""
-    local settings="$target/.claude/settings.json"
-    if [ -f "$settings" ]; then
-        if command -v jq >/dev/null 2>&1; then
-            if jq -e "$HOOK_NESTED_PROBE" "$settings" >/dev/null 2>&1 \
-               || jq -e "$HOOK_LEGACY_PROBE" "$settings" >/dev/null 2>&1; then
-                local tmp
-                tmp="$(mktemp)"
-                # Drop legacy flat entries, strip our command out of nested
-                # entries, then drop a nested entry only when OUR removal is
-                # what emptied it. An entry that already had "hooks": [] is
-                # left alone — it is inert, but it is not ours to delete (P15).
-                # Other people's hooks in the same array are preserved (P14).
-                jq '.hooks.Stop = [ .hooks.Stop[]?
-                      | select((.command? // "") != "scripts/auto-ship-hook.sh")
-                      | if (has("hooks") and ([.hooks[]?.command] | index("scripts/auto-ship-hook.sh")))
-                        then (.hooks |= map(select((.command? // "") != "scripts/auto-ship-hook.sh")))
-                           | select((.hooks | length) > 0)
-                        else . end ]' \
-                   "$settings" > "$tmp" && mv "$tmp" "$settings"
-                echo "  update .claude/settings.json (removed SessionStop hook entry)"
-            else
-                echo "  skip   .claude/settings.json (hook entry not present)"
-            fi
-        else
-            echo "  warn   jq not installed; manually remove the entry where .hooks.Stop[].command == 'scripts/auto-ship-hook.sh' from $settings"
-        fi
-    else
-        echo "  skip   .claude/settings.json (file does not exist)"
-    fi
+    retire_legacy_hook_entry "$target"
 
     # .gitignore block
     if [ "$KEEP_ARTIFACTS" = false ] && [ -f "$target/.gitignore" ] && grep -q "^# ship-sop runtime artifacts$" "$target/.gitignore"; then
@@ -426,7 +423,7 @@ if command -v claude >/dev/null 2>&1; then
     fi
 fi
 
-# Check jq (required for auto-ship-hook.sh)
+# Check jq (required for config edits and the hook check)
 if ! command -v jq >/dev/null 2>&1; then
     echo "Warning: jq not installed. Auto-mode hook requires jq for config parsing."
     echo "         Install via: brew install jq  (macOS) | apt install jq  (Debian/Ubuntu)"
@@ -491,15 +488,22 @@ create_default_config() {
         && [ ! -f "$TARGET/.claude/agents/silent-failure-hunter.md" ]; then
         filter='.agents["silent-failure-hunter"].enabled = false'
     fi
+    if [ "$filter" != '.' ] && ! command -v jq >/dev/null 2>&1; then
+        echo "Could not write $config: jq is required to disable silent-failure-hunter. Install jq and re-run setup." >&2
+        return 1
+    fi
     tmp=$(mktemp "$config.XXXXXX") || { echo "Cannot create a temporary file in $TARGET" >&2; return 1; }
+    trap 'rm -f "$tmp"' INT TERM
     if [ "$filter" = '.' ]; then
         cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$tmp" || { rm -f "$tmp"; return 1; }
     elif ! jq "$filter" "$SCRIPT_DIR/docs/templates/ship-sop.config.json" > "$tmp"; then
         rm -f "$tmp"
-        echo "Could not write $config: jq is required to disable silent-failure-hunter. Install jq and re-run setup." >&2
+        echo "Could not write $config: jq failed to edit the template." >&2
         return 1
     fi
-    chmod 644 "$tmp" && mv "$tmp" "$config" || { rm -f "$tmp"; echo "Could not write $config" >&2; return 1; }
+    if ! chmod 644 "$tmp"; then rm -f "$tmp"; echo "Could not set permissions on $config" >&2; return 1; fi
+    if ! mv "$tmp" "$config"; then rm -f "$tmp"; echo "Could not move the new config into $config" >&2; return 1; fi
+    trap - INT TERM
     if [ "$filter" != '.' ]; then
         echo "  note   silent-failure-hunter disabled: no profile in ~/.claude/agents/ or .claude/agents/"
     fi
@@ -509,17 +513,13 @@ echo ""
 if [ "$SELF_INSTALL" = true ]; then
     echo "Self-install — project-side files already present in source repo"
     mkdir -p "$TARGET/docs/reviews" "$TARGET/.ship"
-    # Skip copying scripts/auto-ship-hook.sh and docs/templates/ship-sop.schema.json
-    # since they live in the source repo. Still create the user-facing config
+    # Skip copying docs/templates/ship-sop.schema.json since it lives in the
+    # source repo. Still create the user-facing config
     # at the project root (different from the template under docs/templates/).
     create_default_config
 else
-    echo "Installing hook script + config in $TARGET"
-    mkdir -p "$TARGET/scripts" "$TARGET/docs/reviews" "$TARGET/.ship"
-
-    if copy_if_missing "$SCRIPT_DIR/scripts/auto-ship-hook.sh" "$TARGET/scripts/auto-ship-hook.sh"; then
-        chmod +x "$TARGET/scripts/auto-ship-hook.sh"
-    fi
+    echo "Installing config in $TARGET"
+    mkdir -p "$TARGET/docs/reviews" "$TARGET/.ship"
 
     create_default_config
     copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.schema.json" "$TARGET/docs/templates/ship-sop.schema.json" || true
@@ -541,100 +541,35 @@ EOF
     echo "  create .gitignore"
 fi
 
-# ── Wire SessionStop hook (with consent) ──────────────────────────────────────
+# ── Automatic review hooks (agent-sop) ────────────────────────────────────────
 
 UNIFIED_SETTINGS="${AGENT_SOP_USER_HOME:-$HOME}/.claude/settings.json"
-if [ "$NO_HOOK" = false ] && command -v jq >/dev/null 2>&1 &&
+UNIFIED_STOP="${AGENT_SOP_USER_HOME:-$HOME}/.claude/scripts/hooks/agent-sop/sop-stop-drift.sh"
+UNIFIED_STATE=absent
+if command -v jq >/dev/null 2>&1 &&
    jq -e '[.hooks.Stop[]?.hooks[]?.command | select(contains("sop-stop-drift.sh"))] | length > 0' "$UNIFIED_SETTINGS" >/dev/null 2>&1; then
-    UNIFIED_STOP="${AGENT_SOP_USER_HOME:-$HOME}/.claude/scripts/hooks/agent-sop/sop-stop-drift.sh"
+    UNIFIED_STATE=wired
     if [ ! -f "$UNIFIED_STOP" ] || ! jq -e --arg command "bash \"$UNIFIED_STOP\"" '[.hooks.Stop[]?.hooks[]?.command | select(. == $command)] | length > 0' "$UNIFIED_SETTINGS" >/dev/null; then
-        echo 'Auto-mode registration is stale or nonstandard; repair agent-sop hooks before retiring the project handler.' >&2
-        exit 1
+        UNIFIED_STATE=stale
     fi
-    # agent-sop already owns auto-mode. Retire only our legacy project handler.
-    SETTINGS="$TARGET/.claude/settings.json"
-    if [ -f "$SETTINGS" ]; then
-        tmp=$(mktemp)
-        jq '.hooks.Stop = [ .hooks.Stop[]? |
-            if (.command? // "") == "scripts/auto-ship-hook.sh" then empty
-            elif .hooks? then .hooks |= map(select(.command != "scripts/auto-ship-hook.sh")) | select(.hooks | length > 0)
-            else . end ]' "$SETTINGS" > "$tmp"
-        cp "$SETTINGS" "$SETTINGS.bak"
-        cat "$tmp" > "$SETTINGS"; rm -f "$tmp"
-    fi
-    echo 'Auto-mode uses agent-sop user-scope hooks; legacy project handler removed.'
-elif [ "$NO_HOOK" = true ]; then
-    echo ""
-    echo "Skipping SessionStop hook wiring (--no-hook)."
-    echo "Use /ship and /release manually."
+fi
+if [ "$NO_HOOK" = false ] && [ "$UNIFIED_STATE" = stale ]; then
+    echo 'Auto-mode registration is stale or nonstandard; repair agent-sop hooks before retiring the project handler.' >&2
+    exit 1
+fi
+
+echo ""
+if [ "$SELF_INSTALL" = false ]; then remove_legacy_hook_script "$TARGET"; fi
+retire_legacy_hook_entry "$TARGET"
+
+echo ""
+if [ "$NO_HOOK" = true ]; then
+    echo "Skipping the agent-sop hook check (--no-hook). Use /ship and /release manually."
+elif [ "$UNIFIED_STATE" = wired ]; then
+    echo "Auto-mode uses agent-sop's user-scope hooks: registered."
 else
-    echo ""
-    if prompt_yn "Wire SessionStop hook in $TARGET/.claude/settings.json so auto-mode fires after each Claude Code session?" "y"; then
-        SETTINGS="$TARGET/.claude/settings.json"
-        mkdir -p "$TARGET/.claude"
-
-        # Claude Code requires each hook entry to nest its command:
-        #   {"matcher": "*", "hooks": [{"type": "command", "command": "..."}]}
-        # A flat {"command": "..."} entry parses as JSON but is discarded by the
-        # harness, so the hook never runs and nothing reports an error. Every
-        # write and every selector below must use the nested shape (P14).
-        if [ ! -f "$SETTINGS" ]; then
-            cat > "$SETTINGS" <<'EOF'
-{
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          { "type": "command", "command": "scripts/auto-ship-hook.sh" }
-        ]
-      }
-    ]
-  }
-}
-EOF
-            echo "  create .claude/settings.json with SessionStop hook"
-        else
-            if command -v jq >/dev/null 2>&1; then
-                # Idempotent merge: add the hook entry only if not already present
-                if jq -e "$HOOK_NESTED_PROBE" "$SETTINGS" >/dev/null 2>&1; then
-                    echo "  skip   .claude/settings.json (hook already wired)"
-                elif jq -e "$HOOK_LEGACY_PROBE" "$SETTINGS" >/dev/null 2>&1; then
-                    # Pre-P14 install: rewrite the dead flat entry in place rather
-                    # than appending a second one.
-                    tmp="$(mktemp)"
-                    jq '.hooks.Stop = [ .hooks.Stop[]
-                          | if (.command? // "") == "scripts/auto-ship-hook.sh"
-                            then {"matcher": "*", "hooks": [{"type": "command", "command": "scripts/auto-ship-hook.sh"}]}
-                            else . end ]' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
-                    echo "  update .claude/settings.json (migrated legacy flat hook entry to nested shape)"
-                else
-                    tmp="$(mktemp)"
-                    jq '.hooks //= {} | .hooks.Stop //= [] | .hooks.Stop += [{"matcher": "*", "hooks": [{"type": "command", "command": "scripts/auto-ship-hook.sh"}]}]' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
-                    echo "  update .claude/settings.json (added SessionStop hook)"
-                fi
-            else
-                echo "  warn   jq not installed; please add the following to .claude/settings.json manually:"
-                echo "         $HOOK_ENTRY_EXAMPLE"
-            fi
-        fi
-
-        # Post-install assertion. A silently-unwired hook is the failure this
-        # whole batch exists to remove, so fail loudly rather than report success.
-        if command -v jq >/dev/null 2>&1 && [ -f "$SETTINGS" ]; then
-            if jq -e "$HOOK_NESTED_PROBE" "$SETTINGS" >/dev/null 2>&1; then
-                echo "  verify SessionStop hook entry is parseable by Claude Code"
-            else
-                echo "" >&2
-                echo "  ERROR  .claude/settings.json has no SessionStop hook entry Claude Code can parse." >&2
-                echo "         Auto-mode would silently never fire. Expected shape:" >&2
-                echo "         $HOOK_ENTRY_EXAMPLE" >&2
-                exit 1
-            fi
-        fi
-    else
-        echo "Hook wiring skipped. To enable later, re-run setup.sh or edit .claude/settings.json directly."
-    fi
+    echo "Auto-mode needs agent-sop's user-scope hooks, which are not registered."
+    echo "Install agent-sop (its setup.sh), then /ship-on. /ship works manually meanwhile."
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
@@ -644,7 +579,7 @@ echo "Done. Next steps:"
 echo ""
 echo "  1. Commit the install artifacts:"
 echo "     - ship-sop.config.json (project's per-agent toggles + throttle)"
-echo "     - .claude/settings.json (SessionStop hook wiring, if not already tracked)"
+echo "     - .claude/settings.json (if setup removed a legacy hook entry)"
 echo "     - .gitignore (additions for .ship/)"
 echo ""
 echo "     Suggested:"
@@ -658,12 +593,12 @@ echo ""
 echo "  3. Verify the install:"
 echo "     - ~/.claude/agents/{compliance-reviewer,diagram-builder,release-notes-writer}.md"
 echo "     - ~/.claude/commands/{ship,release,ship-on,ship-off,audit}.md"
-echo "     - $TARGET/scripts/auto-ship-hook.sh (executable)"
 echo ""
 echo "  4. Try a dry run:"
 echo "     - Make a small commit, then in a Claude Code session in this project,"
 echo "       run /ship to see the manual pipeline."
-echo "     - End the session normally; auto-mode should fire if enabled."
+echo "     - With agent-sop hooks and auto-mode on, ending a session with an"
+echo "       unreviewed code diff requests the configured review."
 echo ""
 echo "  5. Toggle modes any time:"
 echo "     /ship-on     enable auto-mode"

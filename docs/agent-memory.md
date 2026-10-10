@@ -16,7 +16,7 @@ See CLAUDE.md Key Documents & Dispatch table.
 |------|------|
 | Reviewer agents (the gates' prompts) | `.claude/agents/{compliance-reviewer,diagram-builder,release-notes-writer}.md` |
 | Slash commands | `.claude/commands/{ship,release,audit,ship-on,ship-off}.md` |
-| SessionStop hook (throttle + directive emission) | `scripts/auto-ship-hook.sh` |
+| Automatic trigger | agent-sop user-scope `sop-stop-drift.sh` and `sop-push-gate.sh` (project hook retired, P25) |
 | Installer (with self-install detection) | `setup.sh` |
 | Default config + JSON schema | `docs/templates/ship-sop.{config,schema}.json` |
 | Public spec + pitch | `README.md` (canonical post-P11; `docs/ship-sop.md` is now a redirect stub) |
