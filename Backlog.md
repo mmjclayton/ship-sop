@@ -368,8 +368,10 @@ Merged via PR #21 (f6679f6) on 2026-09-30, CI green.
 
 ### P37 - Act on the 2026-10-10 independent review
 
-`[IN PROGRESS] [Iteration]`
+`[SHIPPED - 2026-10-10] [Iteration]`
 review: docs/reviews/20261010-125845-ship-auto.md
+
+Merged via PR #23 (c77f836) on 2026-10-10. CI green on ubuntu-latest, including `tests/claude-install.sh` and the cross-package `tests/receipt-integration.sh`. Stale remote branches deleted.
 
 An independent review of main (80a2b04) found that a receipt certifies recorded results, not that reviews ran: `ship-receipt.sh` takes verdicts and test status from files the session writes, and agent-sop's `sop_receipt_valid` checks `.verdict == "PASS"` without comparing it to reviewer evidence. README line 16 ("Rejects blocked, incomplete or stale review evidence") read stronger than that.
 
