@@ -46,9 +46,11 @@ creates a new project config in manual mode; it does not reset an existing confi
 
 Codex installs include the default reviewers. For Claude, `code-reviewer` and
 `security-reviewer` come from agent-sop. ship-sop does not ship a Claude
-`silent-failure-hunter`: when setup creates a new Claude-only config and
-`~/.claude/agents/silent-failure-hunter.md` is absent, it disables that reviewer
-and says so. Supply the profile and set `enabled` back to `true` to use it.
+`silent-failure-hunter`: when setup creates a new Claude-only config and finds no
+`silent-failure-hunter.md` in `~/.claude/agents/` or the project's `.claude/agents/`,
+it disables that reviewer and says so. Supply the profile and set `enabled` back
+to `true` to use it. Writing that config needs `jq`; without it, setup stops
+before writing one.
 
 ## Everyday use
 

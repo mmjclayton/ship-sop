@@ -374,7 +374,8 @@ An independent review of main (80a2b04) found that a receipt certifies recorded 
 
 - README states the limit in a "What a receipt proves" section and rewords the two summary bullets (Option A).
 - CI runs `tests/receipt-integration.sh` against a checkout of agent-sop main, the only suite covering both repositories.
-- `setup.sh` disables `silent-failure-hunter` in a new Claude-only config when `~/.claude/agents/silent-failure-hunter.md` is absent, and says so. Fixture: `tests/claude-install.sh`.
+- `setup.sh` disables `silent-failure-hunter` in a new Claude-only config when no profile exists at user or project scope, and says so. The config is built beside the target and renamed once (mode 644); a failed edit leaves no config and names jq. Fixture: `tests/claude-install.sh`.
+- CI: agent-sop checkout without persisted credentials, its SHA logged, all test scripts under shellcheck and `bash -n`.
 - Housekeeping: merged and squash-merged branches deleted, including `docs/p26-code-projects-only` (tree identical to 9eadcc7, PR #11); stray `.claude/agent-sop.config.json.bak` removed.
 
 The stale agent-sop `scripts/codex-review.sh` copy stays with P23 and is fixed in agent-sop.

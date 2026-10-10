@@ -479,20 +479,29 @@ done
 
 # Default config, only created if missing. Claude ships no silent-failure-hunter
 # profile, and an enabled reviewer that cannot launch makes every run INCOMPLETE,
-# so a new Claude-only config disables it until the user supplies one.
+# so a new Claude-only config disables it until the user supplies one. The file is
+# built beside the target and renamed once, so a failure leaves no config and a
+# rerun starts clean.
 create_default_config() {
     local config="$TARGET/ship-sop.config.json" tmp
+    local filter='.'
     [ -f "$config" ] && return 0
-    cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$config"
-    [ "$RUNTIME" = claude ] || return 0
-    [ -f "$USER_CLAUDE_DIR/agents/silent-failure-hunter.md" ] && return 0
-    tmp=$(mktemp)
-    if jq '.agents["silent-failure-hunter"].enabled = false' "$config" > "$tmp"; then
-        mv "$tmp" "$config"
-        echo "  note   silent-failure-hunter disabled: no profile in ~/.claude/agents/"
-    else
+    if [ "$RUNTIME" = claude ] \
+        && [ ! -f "$USER_CLAUDE_DIR/agents/silent-failure-hunter.md" ] \
+        && [ ! -f "$TARGET/.claude/agents/silent-failure-hunter.md" ]; then
+        filter='.agents["silent-failure-hunter"].enabled = false'
+    fi
+    tmp=$(mktemp "$config.XXXXXX") || { echo "Cannot create a temporary file in $TARGET" >&2; return 1; }
+    if [ "$filter" = '.' ]; then
+        cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$tmp" || { rm -f "$tmp"; return 1; }
+    elif ! jq "$filter" "$SCRIPT_DIR/docs/templates/ship-sop.config.json" > "$tmp"; then
         rm -f "$tmp"
-        echo "  warn   could not disable silent-failure-hunter; supply its profile or disable it in ship-sop.config.json" >&2
+        echo "Could not write $config: jq is required to disable silent-failure-hunter. Install jq and re-run setup." >&2
+        return 1
+    fi
+    chmod 644 "$tmp" && mv "$tmp" "$config" || { rm -f "$tmp"; echo "Could not write $config" >&2; return 1; }
+    if [ "$filter" != '.' ]; then
+        echo "  note   silent-failure-hunter disabled: no profile in ~/.claude/agents/ or .claude/agents/"
     fi
 }
 

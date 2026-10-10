@@ -31,7 +31,7 @@ publication requires gh. CI is `.github/workflows/ci.yml`.
 ```bash
 bash tests/codex-install.sh && bash tests/claude-install.sh
 AGENT_SOP_SOURCE=../agent-sop bash tests/receipt-integration.sh
-shellcheck -S warning setup.sh scripts/auto-ship-hook.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt}.sh tests/{codex-install,claude-install}.sh
+shellcheck -S warning setup.sh scripts/auto-ship-hook.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt}.sh tests/{codex-install,claude-install,receipt-integration}.sh
 bash setup.sh /path/to/project --runtime codex
 ```
 
