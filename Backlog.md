@@ -447,6 +447,29 @@ A version constant exported by agent-sop's library would replace the function li
 
 ---
 
+### P40 - Measure reviewer precision on a blind sample of blocking findings
+
+`[OPEN] [Feature]`
+
+From review v2 (2026-10-10). The gates' block rate (edward: 98 of 142 schema-2 receipts blocked at least once) shows how often they stopped work, not whether the blocks were worth it. This item measures precision from existing records, with no new review runs, and puts a cost estimate for a full with-and-without benchmark beside the result.
+
+**Design:**
+- **Sample.** 30 blocking findings from edward's `docs/reviews/*-ship-auto.md` tables (rounds that blocked), stratified across reviewers and severities so no single reviewer dominates. Record the sampling frame and seed.
+- **Blind input.** Each grader sees only the finding (severity, file, line, message) and the code at the reviewed commit. The disposition column is stripped before grading.
+- **Grades.** Validity on its own merits: real defect, valid but minor, or false positive, each with a one-line reason. Outcome recorded separately from the reports: fixed or not fixed. A real defect left unfixed is reported.
+- **Two graders.** The session agent and a fresh agent with no edward context grade all 30 independently. Report percentage agreement and a 3x3 disagreement table (real/minor/false positive).
+- **Benchmark estimate.** Scope a with-and-without benchmark (repos, change set, runs) and estimate its API cost from receipt run counts and Codex usage records where available; label anything not measured as an estimate.
+
+**Acceptance criteria:**
+- Sample frame, seed and the 30 extracted findings committed (without dispositions) before grading
+- Both graders' grades, agreement figure and disagreement table in one report
+- Precision per reviewer and overall, with the unfixed-real-defect count
+- Benchmark scope and cost estimate beside the result, with measured and estimated figures separated
+
+**Source:** operator approval 2026-10-10, on the review v2 recommendation.
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*
