@@ -1,0 +1,115 @@
+{
+  "schema_version": 2,
+  "base": "80a2b043c8c27d96e0d756c7ba74ce1badee4596",
+  "head": "2aa0dd350233a1e626adca9e83eaff519718030a",
+  "tree": "9292c1dce42696872f704b69e2f600dbc0aba814",
+  "policy_sha256": "b7b6afd9bb0ee123aeec892b91291324b9c37ade2febd5035e685c0051eff352",
+  "tests": {
+    "status": "PASS",
+    "evidence": "At 2aa0dd3: tests/codex-install.sh, tests/claude-install.sh, tests/receipt-contract.sh, tests/codex-usage.sh PASS; tests/receipt-integration.sh PASS against a fresh clone of agent-sop main (61b8642); shellcheck -S warning clean on setup.sh, scripts and tests; bash -n clean on tests/*.sh. macOS only; Linux confirmed by CI on push."
+  },
+  "reviewers": [
+    {
+      "name": "security-reviewer",
+      "version": "0f8a59958459703fc4108ecf1977f4638b6a4565",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 2,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": ".github/workflows/ci.yml",
+          "line": 16,
+          "message": "actions/checkout pinned by mutable tag (lines 16, 69); repo-wide convention, not changed here"
+        },
+        {
+          "severity": "LOW",
+          "file": "setup.sh",
+          "line": 494,
+          "message": "no trap for an interrupted mktemp/mv; a stray ship-sop.config.json.XXXXXX can remain; rerun still creates the config"
+        },
+        {
+          "severity": "INFO",
+          "file": ".github/workflows/ci.yml",
+          "line": 73,
+          "message": "fixed in 4a0e54d: agent-sop checkout persisted GITHUB_TOKEN; now persist-credentials false"
+        },
+        {
+          "severity": "INFO",
+          "file": ".github/workflows/ci.yml",
+          "line": 65,
+          "message": "fixed in 4a0e54d: unpinned agent-sop main now documented as deliberate and SHA logged"
+        }
+      ]
+    },
+    {
+      "name": "code-reviewer",
+      "version": "01027637966b1e741c49018f071b91b0cad528f6",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 2,
+      "block_rounds": 1,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "tests/claude-install.sh",
+          "line": 48,
+          "message": "failing jq stub could mask a later jq call in setup; the 'jq is required' assertion covers the intended path"
+        },
+        {
+          "severity": "INFO",
+          "file": "tests/claude-install.sh",
+          "line": 21,
+          "message": "fixed in 2aa0dd3: stat -f/-c fallback broke on GNU stat (HIGH in round 2); now find -perm 644"
+        },
+        {
+          "severity": "INFO",
+          "file": "setup.sh",
+          "line": 494,
+          "message": "fixed in 4a0e54d: temp file mode 0600 replaced config; now chmod 644 and same-dir rename"
+        }
+      ]
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "46bcbfc7adb8b13d1e0f0d9bcdf16d512b165d89",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 2,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "setup.sh",
+          "line": 497,
+          "message": "'jq is required' also fires when jq exists but fails on the template"
+        },
+        {
+          "severity": "LOW",
+          "file": "tests/claude-install.sh",
+          "line": 14,
+          "message": "no codex-runtime or self-install case in this fixture"
+        },
+        {
+          "severity": "INFO",
+          "file": "setup.sh",
+          "line": 490,
+          "message": "fixed in 4a0e54d: jq failure left an enabled config that reruns skipped; now no config is written and setup exits non-zero"
+        },
+        {
+          "severity": "INFO",
+          "file": "tests/claude-install.sh",
+          "line": 28,
+          "message": "fixed in 2aa0dd3: negated grep could not fail under set -e"
+        }
+      ]
+    }
+  ]
+}
