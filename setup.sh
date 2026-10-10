@@ -275,7 +275,10 @@ retire_legacy_hook_entry() {
     # managers make them) are followed only to a Claude settings file inside the
     # project or the user's home; anything else is left for the user.
     local project_dir home_dir
-    project_dir=$(cd "$1" && pwd -P)
+    if ! project_dir=$(cd "$1" && pwd -P) || [ -z "$project_dir" ]; then
+        echo "  warn   cannot resolve $1; remove the scripts/auto-ship-hook.sh hook entry by hand" >&2
+        LEGACY_PENDING=true; return 1
+    fi
     home_dir=$(cd "${HOME:-/nonexistent}" 2>/dev/null && pwd -P) || home_dir=''
     if [ -L "$settings" ]; then
         if ! target=$(readlink -f "$settings" 2>/dev/null) || [ -z "$target" ]; then

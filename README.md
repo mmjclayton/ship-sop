@@ -122,13 +122,13 @@ a test run.
 
 What else is checked depends on the runtime:
 
-| Runtime | Reviewer verdicts checked against | A hand-written `PASS` result file |
+| `--runtime` | Reviewer verdicts checked against | A hand-written `PASS` result file |
 |---|---|---|
-| Codex | The runner's record in `.ship/reviews/`: each reviewer needs a run by `codex-review.sh` on the same commit and base, with a clean exit, no timeout and the same final verdict | Refused unless matching run records are also written by hand |
-| Claude | Nothing; Claude subagents leave no record ship-sop can read | Produces a receipt that passes validation |
+| `codex` | The runner's record in this repository's `.ship/reviews/`: each reviewer needs a run by `codex-review.sh` on the same commit and base, with a clean exit, no timeout and the same final verdict | Refused unless matching run records are also written by hand |
+| `claude` | Nothing; Claude subagents leave no record ship-sop can read | Produces a receipt that passes validation |
 
-The session can write `.ship/` as well, so under Codex a false receipt is harder
-to produce, not impossible. ship-sop is a discipline aid for an agent that follows
+The calling session chooses `--runtime`, and it can write `.ship/` as well, so the
+Codex check makes a false receipt harder to produce, not impossible. ship-sop is a discipline aid for an agent that follows
 the workflow, in line with agent-sop's cooperative hooks. It is not a control
 against a session that chooses to skip review. Enforcing review against such a
 session needs reviewers that run outside it, for example in CI.
