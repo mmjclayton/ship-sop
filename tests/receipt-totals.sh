@@ -51,6 +51,10 @@ mkdir -p "$WORK/beta/docs/reviews"
 jq '.reviewers[0].block_rounds = 0' "$WORK/alpha/docs/reviews/20260101-000000-ship-auto.json" > "$WORK/beta/docs/reviews/20260101-000000-ship-auto.json"
 bash "$SOURCE/scripts/receipt-totals.sh" --json "$WORK/alpha-clone" "$WORK/beta" > /dev/null 2> "$WORK/err" || true
 grep -q 'differs between' "$WORK/err"
+rm -rf "$WORK/beta"; mkdir -p "$WORK/beta/docs/reviews"
+jq '.schema_version = 3' "$WORK/alpha-clone/docs/reviews/20260101-000000-ship-auto.json" > "$WORK/beta/docs/reviews/20260101-000000-ship-auto.json"
+bash "$SOURCE/scripts/receipt-totals.sh" --json "$WORK/alpha-clone" "$WORK/beta" > /dev/null 2> "$WORK/err" || true
+grep -q 'differs between' "$WORK/err"
 printf 'PASS: differing copies are reported\n'
 
 if bash "$SOURCE/scripts/receipt-totals.sh" "$WORK/missing" 2>/dev/null; then echo 'FAIL: missing root accepted'; exit 1; fi

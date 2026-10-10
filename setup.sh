@@ -271,20 +271,32 @@ retire_legacy_hook_entry() {
         echo "  warn   could not read $settings as JSON; check it for a scripts/auto-ship-hook.sh entry" >&2
         LEGACY_PENDING=true; return 1
     fi
-    # Edit the real file. A symlinked settings file (dotfile managers) is followed,
-    # but only to a target inside the project or the user's home.
-    target=$settings
+    # Edit the real file. Links (on the file or a parent directory, as dotfile
+    # managers make them) are followed only to a Claude settings file inside the
+    # project or the user's home; anything else is left for the user.
+    local project_dir home_dir
+    project_dir=$(cd "$1" && pwd -P)
+    home_dir=$(cd "${HOME:-/nonexistent}" 2>/dev/null && pwd -P) || home_dir=''
     if [ -L "$settings" ]; then
         if ! target=$(readlink -f "$settings" 2>/dev/null) || [ -z "$target" ]; then
-            echo "  warn   cannot resolve the symlink $settings; remove the scripts/auto-ship-hook.sh hook entry by hand" >&2
+            echo "  warn   cannot resolve the symlink $settings (needs readlink -f); remove the scripts/auto-ship-hook.sh hook entry by hand" >&2
             LEGACY_PENDING=true; return 1
         fi
-        case "$target" in
-            "$(cd "$1" && pwd -P)"/*|"$(cd "$HOME" && pwd -P)"/*) ;;
-            *) echo "  warn   $settings links outside the project and home ($target); remove the scripts/auto-ship-hook.sh hook entry by hand" >&2
-               LEGACY_PENDING=true; return 1 ;;
-        esac
+    else
+        target="$(cd "$(dirname "$settings")" && pwd -P)/$(basename "$settings")"
     fi
+    case "$(basename "$target")" in
+        settings.json|settings.local.json) ;;
+        *) echo "  warn   $settings resolves to $target, which is not a Claude settings file; remove the scripts/auto-ship-hook.sh hook entry by hand" >&2
+           LEGACY_PENDING=true; return 1 ;;
+    esac
+    case "$target" in
+        "$project_dir"/*) ;;
+        *) if [ -z "$home_dir" ] || [ "${target#"$home_dir"/}" = "$target" ]; then
+               echo "  warn   $settings resolves outside the project and home ($target); remove the scripts/auto-ship-hook.sh hook entry by hand" >&2
+               LEGACY_PENDING=true; return 1
+           fi ;;
+    esac
     if ! tmp=$(mktemp "$target.XXXXXX"); then
         echo "  warn   cannot create a temporary file beside $target" >&2
         LEGACY_PENDING=true; return 1

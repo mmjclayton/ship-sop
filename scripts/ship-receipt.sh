@@ -29,7 +29,7 @@ export AGENT_SOP_RUNTIME="$RUNTIME" AGENT_SOP_CONFIG_HOME="$CONFIG_HOME"
 LIB="$CONFIG_HOME/scripts/hooks/agent-sop/sop-lib.sh"
 [ -f "$LIB" ] || { echo "INCOMPLETE: agent-sop hooks not installed at $LIB; install agent-sop $MIN_AGENT_SOP or later" >&2; exit 1; }
 # Load it once in a throwaway shell so a broken library is reported, not fatal.
-if ! load_error=$(bash -euo pipefail -c '. "$1"' _ "$LIB" 2>&1 >/dev/null); then
+if ! load_error=$(bash -euo pipefail -c '. "$1"' _ "$LIB" 2>&1); then
     echo "INCOMPLETE: $LIB failed to load; reinstall agent-sop $MIN_AGENT_SOP or later${load_error:+: $load_error}" >&2
     exit 1
 fi
@@ -54,6 +54,37 @@ jq -se 'length == 1 and (.[0] | type == "object")' "$TESTS" >/dev/null || { echo
 CONFIG=$(sop_effective_config "$ROOT")
 BASE=$(git rev-parse --verify "$BASE^{commit}")
 HEAD_SHA=$(git rev-parse --verify "$HEAD_REF^{commit}")
+
+# Under Codex, every reviewer entry must match a run that scripts/codex-review.sh
+# recorded in .ship/reviews/ (P38): same reviewer, commit and base, a clean exit,
+# no timeout, and the same final verdict. Claude subagents leave no such record.
+# The session can write .ship/ too, so this raises the cost of a false receipt
+# rather than preventing one.
+evidence_matches() { # name verdict
+    local meta dir last
+    for meta in "$ROOT"/.ship/reviews/*-"$1".*/metadata.json; do
+        [ -f "$meta" ] || continue
+        dir=$(dirname "$meta")
+        jq -e --arg a "$1" --arg h "$HEAD_SHA" --arg b "$BASE" \
+            '.agent == $a and .head == $h and .base == $b and .exit_code == 0 and .timed_out == false' \
+            "$meta" >/dev/null 2>&1 || continue
+        [ -f "$dir/result.md" ] || continue
+        last=$(awk 'NF { line = $0 } END { sub(/[[:space:]]+$/, "", line); print line }' "$dir/result.md")
+        [ "$last" = "Verdict: $2" ] && return 0
+    done
+    return 1
+}
+if [ "$RUNTIME" = codex ]; then
+    unmatched=''
+    while IFS=$'\t' read -r name verdict; do
+        [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "INCOMPLETE: invalid reviewer name in results: $name" >&2; exit 1; }
+        evidence_matches "$name" "$verdict" || unmatched="$unmatched $name"
+    done < <(jq -r '.[] | [(.name | tostring), (.verdict | tostring)] | @tsv' "$RESULTS")
+    if [ -n "$unmatched" ]; then
+        echo "INCOMPLETE: no Codex runner evidence in .ship/reviews/ matches${unmatched} at $HEAD_SHA (base $BASE) with the same verdict; run the reviewer with codex-review.sh, or no receipt is written" >&2
+        exit 1
+    fi
+fi
 TREE=$(git rev-parse "$HEAD_SHA^{tree}")
 mkdir -p "$(dirname "$OUTPUT")"
 TMP=$(mktemp "${OUTPUT}.XXXXXX")

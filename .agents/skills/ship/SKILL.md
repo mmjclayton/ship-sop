@@ -46,6 +46,10 @@ code signal. Non-code projects stop with an explanation.
    results as {"status":"PASS","evidence":"commands and actual results"}, or
    NOT_AVAILABLE with a concrete explanation when no suite exists. Never invent
    results. A failed suite uses FAIL and cannot qualify.
+   Under Codex the tool matches every reviewer entry to a run record in
+   `.ship/reviews/` (same reviewer, commit and base, clean exit, same verdict);
+   a reviewer without one is INCOMPLETE. Keep those directories until the
+   receipt is written.
    Run the trusted installed receipt tool:
    `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/ship-receipt.sh" --runtime codex --base <BASE> --head <HEAD_SHA> --results <results.json> --tests <tests.json> --output docs/reviews/<stamp>-ship-auto.json`
    The tool rejects incomplete, blocked, stale or invalid evidence. Do not edit

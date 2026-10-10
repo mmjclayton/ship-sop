@@ -116,17 +116,22 @@ An ancestor receipt remains usable only when no code or executable instructions 
 
 A receipt that passes validation proves that a complete set of results was
 recorded for this commit and its review range, under the current policy, with no
-blocking findings. It does not prove that the reviews ran or that the tests passed.
-The session gathers reviewer verdicts and test results and passes them to
-`scripts/ship-receipt.sh`; nothing checks those inputs against what the reviewers
-or tests actually produced. Under Codex, the runner keeps each reviewer's evidence
-in `.ship/reviews/`, but the receipt is not checked against it. Under Claude there
-is no such evidence.
+blocking findings. The session gathers reviewer verdicts and test results and
+passes them to `scripts/ship-receipt.sh`. Test results are never checked against
+a test run.
 
-ship-sop is a discipline aid for an agent that follows the workflow, in line with
-agent-sop's cooperative hooks. It is not a control against a session that chooses
-to skip review: a hand-written result file with `PASS` verdicts produces a receipt
-that passes validation.
+What else is checked depends on the runtime:
+
+| Runtime | Reviewer verdicts checked against | A hand-written `PASS` result file |
+|---|---|---|
+| Codex | The runner's record in `.ship/reviews/`: each reviewer needs a run by `codex-review.sh` on the same commit and base, with a clean exit, no timeout and the same final verdict | Refused unless matching run records are also written by hand |
+| Claude | Nothing; Claude subagents leave no record ship-sop can read | Produces a receipt that passes validation |
+
+The session can write `.ship/` as well, so under Codex a false receipt is harder
+to produce, not impossible. ship-sop is a discipline aid for an agent that follows
+the workflow, in line with agent-sop's cooperative hooks. It is not a control
+against a session that chooses to skip review. Enforcing review against such a
+session needs reviewers that run outside it, for example in CI.
 
 ## Automatic review
 
