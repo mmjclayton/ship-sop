@@ -25,7 +25,8 @@ project records and the hooks used for automatic review.
 You need Git, Bash, `jq`, and Claude Code or Codex. Codex reviews use an
 authenticated Codex CLI; GitHub release publication also needs `gh`.
 
-Install agent-sop first, then ship-sop into the same existing project:
+Install agent-sop first (commit `0a1e5ee` of 24 September 2026 or later), then
+ship-sop into the same existing project:
 
 ```bash
 git clone https://github.com/mmjclayton/agent-sop.git
@@ -178,14 +179,16 @@ preserved. Shared agent-sop files are maintained through `update-agent-sop`.
 
 ## Contributing
 
-See [project conventions](CLAUDE.md). Run the Codex fixtures with:
+See [project conventions](CLAUDE.md). The fixtures are the `tests/*.sh` scripts;
+`tests/receipt-integration.sh` also needs `AGENT_SOP_SOURCE` set to an agent-sop
+checkout, and `tests/legacy-hook.sh` needs a full clone.
 
-```bash
-bash tests/codex-install.sh
-```
+The [CI workflow](.github/workflows/ci.yml) runs every fixture, checks shell
+scripts and JSON, and runs the cross-package test against agent-sop `main` and
+against the oldest supported agent-sop. Propose changes through a pull request.
 
-The [CI workflow](.github/workflows/ci.yml) also checks shell scripts and JSON.
-Propose changes through a pull request.
+ship-sop is maintained by one person, alongside agent-sop. There is no support
+commitment or release schedule; pin a commit if you depend on it.
 
 ## Evidence and cost diagnostics
 
@@ -193,5 +196,15 @@ Codex reviews retain events, results and usage under `.ship/reviews/`. Unknown
 usage is null, never zero. `SHIP_REVIEW_MODEL` selects an explicit model;
 `SHIP_REVIEW_TIMEOUT_SECONDS` bounds a reviewer run (default 600, maximum 3600).
 The three-reviewer default is unchanged pending measured defect yield and cost.
-Receipt generation needs current Agent SOP hooks. Upgrade both projects together.
+
+`scripts/receipt-totals.sh REPO_ROOT...` totals the receipts in one or more
+projects: receipts, gates that blocked at least once, block rounds, reviewer
+launches and re-checks, and findings by severity (`--json` for raw output). It
+measures what the gates recorded. It does not show what would have happened
+without them; that needs a comparison run.
+
+Receipt generation needs the agent-sop library. `ship-receipt.sh --check-lib`
+reports whether the installed library provides every function ship-sop calls;
+setup runs it and names any missing function and the minimum agent-sop version.
+Upgrade both projects together.
 See `docs/build-plans/review-hardening.md` for the contract and evaluation plan.

@@ -29,9 +29,9 @@ publication requires gh. CI is `.github/workflows/ci.yml`.
 ## Key Commands
 
 ```bash
-bash tests/codex-install.sh && bash tests/claude-install.sh && bash tests/legacy-hook.sh
-AGENT_SOP_SOURCE=../agent-sop bash tests/receipt-integration.sh
-shellcheck -S warning setup.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt}.sh tests/*.sh
+for t in tests/*.sh; do [ "$t" = tests/receipt-integration.sh ] || bash "$t"; done
+AGENT_SOP_SOURCE=../agent-sop bash tests/receipt-integration.sh   # CI also runs it at the minimum agent-sop
+shellcheck -S warning setup.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt,receipt-totals}.sh tests/*.sh
 bash setup.sh /path/to/project --runtime codex
 ```
 

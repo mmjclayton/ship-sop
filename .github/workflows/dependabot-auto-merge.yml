@@ -3,8 +3,8 @@ name: Dependabot auto-merge
 # Queue auto-merge on Dependabot PRs. Branch protection on main requires the
 # "Lint shell and config" check, so a PR merges only once CI is green. This job
 # never checks out or runs PR code, which keeps pull_request_target safe.
-# Dependabot never proposes major bumps here (see dependabot.yml), so only
-# patch and minor updates of SHA-pinned actions reach this job.
+# dependabot.yml ignores major version updates, but security updates bypass
+# that rule, so a major bump can still arrive here and merge on green CI.
 
 on:
   pull_request_target:

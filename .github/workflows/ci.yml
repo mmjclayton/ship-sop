@@ -23,7 +23,7 @@ jobs:
 
       # ship-sop's own bash. Blocking.
       - name: shellcheck (ship-sop scripts)
-        run: shellcheck -S warning setup.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt}.sh tests/*.sh
+        run: shellcheck -S warning setup.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt,receipt-totals}.sh tests/*.sh
 
       - name: bash -n (ship-sop scripts)
         run: |
@@ -60,6 +60,12 @@ jobs:
       - name: Legacy project hook retired
         run: bash tests/legacy-hook.sh
 
+      - name: agent-sop library compatibility check
+        run: bash tests/agent-sop-compat.sh
+
+      - name: Receipt totals
+        run: bash tests/receipt-totals.sh
+
       - name: Receipt assembly contract
         run: bash tests/receipt-contract.sh
 
@@ -80,10 +86,25 @@ jobs:
       - name: Record agent-sop commit
         run: git -C agent-sop rev-parse HEAD
 
-      - name: Cross-package receipt integration
+      - name: Cross-package receipt integration (agent-sop main)
         run: bash tests/receipt-integration.sh
         env:
           AGENT_SOP_SOURCE: ${{ github.workspace }}/agent-sop
+
+      # The oldest agent-sop ship-sop supports (MIN_AGENT_SOP in
+      # scripts/ship-receipt.sh). Raise both together.
+      - name: Check out agent-sop minimum
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: mmjclayton/agent-sop
+          ref: 0a1e5eecbaae8024ba7ff260a76d3e99b30b02b7
+          path: agent-sop-min
+          persist-credentials: false
+
+      - name: Cross-package receipt integration (agent-sop minimum)
+        run: bash tests/receipt-integration.sh
+        env:
+          AGENT_SOP_SOURCE: ${{ github.workspace }}/agent-sop-min
 
       # P25: auto-mode runs from agent-sop's user-scope hooks. No project-scope
       # auto-ship-hook.sh entry, in either shape, may remain in this repository.

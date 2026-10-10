@@ -84,7 +84,7 @@ if PATH="$WORK/nojqbin" bash "$SOURCE/setup.sh" "$WORK/nojq" --runtime claude --
 fi
 test -f "$WORK/nojq/scripts/auto-ship-hook.sh"
 cmp "$WORK/nojq-before" "$WORK/nojq/.claude/settings.json"
-grep -q 'remove the scripts/auto-ship-hook.sh Stop entry' "$WORK/nojq.log"
+grep -q 'remove the scripts/auto-ship-hook.sh hook entry' "$WORK/nojq.log"
 printf 'PASS: without jq the entry and its script are kept and setup exits non-zero\n'
 
 # A registered agent-sop hook (alongside a non-command hook) is reported as such.
@@ -98,6 +98,45 @@ bash "$SOURCE/setup.sh" "$WORK/unknown" --runtime claude < /dev/null > "$WORK/un
 grep -q "Could not check agent-sop's hooks" "$WORK/unknown.log"
 rm "$AGENT_SOP_USER_HOME/.claude/settings.json"
 printf 'PASS: registered and unreadable agent-sop hook states are reported\n'
+
+# An entry under another event is removed too; mode and a symlinked file survive.
+legacy_project other-event
+jq --argjson other "$OTHER_HOOK" '.hooks.SessionStart = [{matcher:"*",hooks:[{type:"command",command:"scripts/auto-ship-hook.sh"}]}]' \
+    "$WORK/other-event/.claude/settings.json" > "$WORK/dotfile.json"
+rm "$WORK/other-event/.claude/settings.json"
+ln -s "$WORK/dotfile.json" "$WORK/other-event/.claude/settings.json"
+chmod 600 "$WORK/dotfile.json"
+bash "$SOURCE/setup.sh" "$WORK/other-event" --runtime claude --no-hook > "$WORK/other-event.log" 2>&1
+test -L "$WORK/other-event/.claude/settings.json"
+find "$WORK/dotfile.json" -perm 600 | grep -q .
+retired_settings "$WORK/dotfile.json"
+jq -e '.hooks.SessionStart == []' "$WORK/dotfile.json" >/dev/null
+test ! -e "$WORK/other-event/scripts/auto-ship-hook.sh"
+printf 'PASS: entries under any event are removed; symlink and mode preserved\n'
+
+# A stale agent-sop registration stops setup before anything is retired.
+mkdir -p "$AGENT_SOP_USER_HOME/.claude"
+jq -n '{hooks:{Stop:[{matcher:"*",hooks:[{type:"command",command:"bash /elsewhere/sop-stop-drift.sh"}]}]}}' > "$AGENT_SOP_USER_HOME/.claude/settings.json"
+legacy_project stale
+cp "$WORK/stale/.claude/settings.json" "$WORK/stale-before"
+if bash "$SOURCE/setup.sh" "$WORK/stale" --runtime claude < /dev/null > "$WORK/stale.log" 2>&1; then
+    echo 'FAIL: stale registration accepted'; exit 1
+fi
+grep -q 'stale or nonstandard' "$WORK/stale.log"
+cmp "$WORK/stale-before" "$WORK/stale/.claude/settings.json"
+test -f "$WORK/stale/scripts/auto-ship-hook.sh"
+rm "$AGENT_SOP_USER_HOME/.claude/settings.json"
+printf 'PASS: stale agent-sop registration stops setup and retires nothing\n'
+
+# Uninstall without jq cannot edit the entry: it says so and exits non-zero.
+legacy_project uninstall-nojq
+if PATH="$WORK/nojqbin" bash "$SOURCE/setup.sh" "$WORK/uninstall-nojq" --runtime claude --uninstall > "$WORK/uninstall-nojq.log" 2>&1; then
+    echo 'FAIL: uninstall reported success with the legacy entry still registered'; exit 1
+fi
+grep -q 'Uninstall incomplete' "$WORK/uninstall-nojq.log"
+if grep -q 'Done. ship-sop is uninstalled' "$WORK/uninstall-nojq.log"; then echo 'FAIL: contradictory Done line'; exit 1; fi
+test -f "$WORK/uninstall-nojq/scripts/auto-ship-hook.sh"
+printf 'PASS: incomplete uninstall is reported and exits non-zero\n'
 
 # Uninstall still removes both.
 legacy_project uninstall
