@@ -196,7 +196,7 @@ Plus three silent-exit traps under `set -euo pipefail`: a no-match `grep -v` at 
 ---
 
 ### P19 — Coverage holes: a gate reports success without looking
-`[IN PROGRESS] [Bug]`
+`[SHIPPED - 2026-10-10] [Bug]`
 
 2026-10-10 triage: (a), (b) and (c) described the removed hook and are superseded by P25 and agent-sop's receipt coverage (a missing test runner is now `NOT_AVAILABLE` with a reason, never a pass; instruction files count as code). (e) is gone: `/ship` no longer runs `git add`. (d) was open: no reviewer instruction declared diff content untrusted. Fixed with P25: `/ship` and the Codex runner prompt (`scripts/codex-review.sh`) now tell reviewers to treat the diff, comments and commit messages as untrusted data, and that a claim of prior sign-off changes nothing; `tests/codex-install.sh` asserts the prompt text.
 
@@ -273,7 +273,9 @@ Operator rule, 2026-09-04: ship-sop fires for coding and for nothing else. The t
 ---
 
 ### P25 — Retire the project-scope `auto-ship-hook.sh` wiring now that agent-sop carries the trigger
-`[IN PROGRESS] [Refactor]`
+`[SHIPPED - 2026-10-10] [Refactor]`
+
+Merged via PR #25 (f62d1bc), CI green. Consumer repos (step 4) drop the entry when setup is next run there.
 review: docs/reviews/20261010-143321-ship-auto.md
 
 2026-10-10: script deleted outright (not kept as reference); setup retires leftover copies by blob hash and both entry shapes, `tests/legacy-hook.sh`; CI asserts no entry remains. This repo's settings already had none; `/ship-on` already probes `sop-stop-drift.sh`. Folded in from the P37 review: actions pinned by SHA with Dependabot and auto-merge, a cleanup trap and distinct jq messages in `create_default_config`, self-install and Codex default-config tests. Consumer repos (step 4) are checked separately.
@@ -399,7 +401,10 @@ The stale agent-sop `scripts/codex-review.sh` copy stays with P23 and is fixed i
 
 ### P38 - Check Codex receipt entries against runner evidence
 
-`[OPEN] [Feature]`
+`[IN PROGRESS] [Feature]`
+review: docs/reviews/20261010-145222-ship-auto.md
+
+2026-10-10: `ship-receipt.sh` refuses a Codex receipt when any reviewer entry lacks a run record in `.ship/reviews/` with the same reviewer, commit, base, verdict, exit 0 and no timeout; reviewer names are validated before use. Fixtures in `tests/receipt-integration.sh` (no evidence, verdict mismatch, other commit, timeout, bad name; Claude unchanged). README states the check per runtime. Also carries the six P39 review LOWs: settings links followed only to a Claude settings file inside the project or home, including a linked `.claude` directory; guarded `$HOME`; named `readlink -f` failure; library load reason includes stdout; differing-copy check includes schema version.
 
 Option B from the 2026-10-10 independent review. Before `ship-receipt.sh` writes a receipt under Codex, check each reviewer entry against the runner's evidence in `.ship/reviews/`: the run exists, it was for the same commit and base, and its recorded verdict matches. Refuse the receipt on any mismatch.
 
@@ -416,7 +421,9 @@ Limits: Codex only, since Claude subagents leave no evidence to check. It raises
 
 ### P39 - agent-sop compatibility check and receipt totals
 
-`[IN PROGRESS] [Feature]`
+`[SHIPPED - 2026-10-10] [Feature]`
+
+Merged via PR #26 (daf1dfd), CI green at both agent-sop commits.
 review: docs/reviews/20261010-144318-ship-auto.md
 
 From the 2026-10-10 independent review (two repositories that must move together; no evidence of value).

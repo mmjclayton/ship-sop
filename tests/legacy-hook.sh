@@ -132,7 +132,27 @@ if HOME="$WORK/home" bash "$SOURCE/setup.sh" "$WORK/outside" --runtime claude --
 fi
 cmp "$WORK/outside-before" "$WORK/elsewhere/settings.json"
 test -f "$WORK/outside/scripts/auto-ship-hook.sh"
-grep -q 'links outside the project and home' "$WORK/outside.log"
+grep -q 'resolves outside the project and home' "$WORK/outside.log"
+# A linked .claude directory gets the same check as a linked file.
+legacy_project dirlink
+mkdir -p "$WORK/elsewhere/claude-dir"
+mv "$WORK/dirlink/.claude/settings.json" "$WORK/elsewhere/claude-dir/settings.json"
+rmdir "$WORK/dirlink/.claude"; ln -s "$WORK/elsewhere/claude-dir" "$WORK/dirlink/.claude"
+cp "$WORK/elsewhere/claude-dir/settings.json" "$WORK/dirlink-before"
+if HOME="$WORK/home" bash "$SOURCE/setup.sh" "$WORK/dirlink" --runtime claude --no-hook > "$WORK/dirlink.log" 2>&1; then
+    echo 'FAIL: setup followed a linked .claude directory outside the project and home'; exit 1
+fi
+cmp "$WORK/dirlink-before" "$WORK/elsewhere/claude-dir/settings.json"
+# A link to a file in home that is not a Claude settings file is not edited.
+legacy_project notsettings
+mv "$WORK/notsettings/.claude/settings.json" "$WORK/home/dotfiles/other.json"
+ln -s "$WORK/home/dotfiles/other.json" "$WORK/notsettings/.claude/settings.json"
+cp "$WORK/home/dotfiles/other.json" "$WORK/notsettings-before"
+if HOME="$WORK/home" bash "$SOURCE/setup.sh" "$WORK/notsettings" --runtime claude --no-hook > "$WORK/notsettings.log" 2>&1; then
+    echo 'FAIL: setup edited a linked file that is not a Claude settings file'; exit 1
+fi
+cmp "$WORK/notsettings-before" "$WORK/home/dotfiles/other.json"
+grep -q 'not a Claude settings file' "$WORK/notsettings.log"
 legacy_project dangling
 rm "$WORK/dangling/.claude/settings.json"
 ln -s "$WORK/nowhere.json" "$WORK/dangling/.claude/settings.json"
@@ -141,7 +161,7 @@ if bash "$SOURCE/setup.sh" "$WORK/dangling" --runtime claude --no-hook > "$WORK/
 fi
 test -f "$WORK/dangling/scripts/auto-ship-hook.sh"
 grep -q 'broken symlink' "$WORK/dangling.log"
-printf 'PASS: links outside the project and home, and broken links, are left alone\n'
+printf 'PASS: links outside the project and home, linked directories, non-settings files and broken links are left alone\n'
 
 # A stale agent-sop registration stops setup before anything is retired.
 mkdir -p "$AGENT_SOP_USER_HOME/.claude"

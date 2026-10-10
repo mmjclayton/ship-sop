@@ -4,3 +4,6 @@
 (2026-10-10): P25 on refactor/p25-retire-legacy-hook (ad0442d), review round 1 running; then agent-sop compatibility check (minimum agent-sop 0a1e5ee), receipt totals script, P38.
 (2026-10-10): P25 merged (PR #25, f62d1bc). P39 on feat/p39-agent-sop-compat-and-totals (5a8566e), review round 1 running. Then P38.
 (2026-10-10): P39 round 1 fixed (76a7957), round 2 running. P38 next.
+(2026-10-10): P39 merged (PR #26, daf1dfd). P38 on feat/p38-codex-evidence-check (38cb15a), review round 1 running.
+(2026-10-10): P38 round 1 fixed (d351352), round 2 running.
+(2026-10-10): P25 and P39 merged; P38 PR pending. Then the operator re-runs the independent review.

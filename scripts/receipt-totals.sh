@@ -49,7 +49,7 @@ for root in "$@"; do
 done
 
 # Same key, different content: the copies disagree, so say which count was kept.
-jq -rs 'group_by(.key)[] | select((map(.reviewers | tojson) | unique | length) > 1)
+jq -rs 'group_by(.key)[] | select((map([.schema, .reviewers] | tojson) | unique | length) > 1)
   | "warn   receipt \(.[0].key) differs between \(map(.root) | unique | join(" and ")); counted under \(.[0].root)"' \
   "$rows" >&2
 
