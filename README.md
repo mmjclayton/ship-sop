@@ -120,18 +120,26 @@ blocking findings. The session gathers reviewer verdicts and test results and
 passes them to `scripts/ship-receipt.sh`. Test results are never checked against
 a test run.
 
-What else is checked depends on the runtime:
+When `scripts/ship-receipt.sh` writes the receipt, what else it checks depends on
+the runtime:
 
 | `--runtime` | Reviewer verdicts checked against | A hand-written `PASS` result file |
 |---|---|---|
-| `codex` | The runner's record in this repository's `.ship/reviews/`: each reviewer needs a run by `codex-review.sh` on the same commit and base, with a clean exit, no timeout and the same final verdict | Refused unless matching run records are also written by hand |
+| `codex` | The runner's record in this repository's `.ship/reviews/`: each reviewer needs a run by `codex-review.sh` on the same commit and base, with a clean exit, no timeout and the same final verdict | Refused by `ship-receipt.sh` unless matching run records are also written by hand |
 | `claude` | Nothing; Claude subagents leave no record ship-sop can read | Produces a receipt that passes validation |
 
-The calling session chooses `--runtime`, and it can write `.ship/` as well, so the
-Codex check makes a false receipt harder to produce, not impossible. ship-sop is a discipline aid for an agent that follows
-the workflow, in line with agent-sop's cooperative hooks. It is not a control
-against a session that chooses to skip review. Enforcing review against such a
-session needs reviewers that run outside it, for example in CI.
+The run-record check happens only in `ship-receipt.sh`. agent-sop's Stop and push
+gates validate the receipt itself (commit, tree, base, policy, reviewers in scope,
+no blocking findings) and do not look at `.ship/reviews/`, so a receipt written
+straight into `docs/reviews/` without `ship-receipt.sh` satisfies the gates under
+either runtime. The calling session also chooses `--runtime` and can write
+`.ship/`. The Codex check makes a false receipt harder to produce through the
+supported tool; it does not stop a session that bypasses the tool.
+
+ship-sop is a discipline aid for an agent that follows the workflow, in line with
+agent-sop's cooperative hooks. It is not a control against a session that chooses
+to skip review. Enforcing review against such a session needs reviewers that run
+outside it, for example in CI.
 
 ## Automatic review
 
