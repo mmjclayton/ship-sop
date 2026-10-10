@@ -151,9 +151,10 @@ or cost advantage over native agent workflows.
 Start Codex in the project root; other installations still need working, trusted hooks.
 
 ship-sop no longer ships a project-scope hook. Re-running setup on a project
-installed before 2026-10-10 removes the old `scripts/auto-ship-hook.sh` (unless
-it was edited locally) and its `.claude/settings.json` entry, keeping any other
-hooks. See [Codex runtime details](docs/sop/codex.md).
+installed before 2026-10-10 removes the old `.claude/settings.json` entry, keeping
+any other hooks, and then the old `scripts/auto-ship-hook.sh` unless it was edited
+locally. Setup stops first if agent-sop's hook registration is stale, and exits
+non-zero if it could not finish the removal. See [Codex runtime details](docs/sop/codex.md).
 
 ## Updates and removal
 

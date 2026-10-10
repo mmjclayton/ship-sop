@@ -13,7 +13,10 @@ jobs:
     name: Lint shell and config
     runs-on: ubuntu-latest
     steps:
+      # Full history: tests/legacy-hook.sh reads the removed hook's shipped blobs.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
 
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
@@ -86,6 +89,7 @@ jobs:
       # auto-ship-hook.sh entry, in either shape, may remain in this repository.
       - name: Reject legacy project hook entries
         run: |
+          jq -e . .claude/settings.json >/dev/null
           if jq -e '[.. | objects | select(.command? == "scripts/auto-ship-hook.sh")] | length > 0' .claude/settings.json >/dev/null; then
             echo "::error::Legacy auto-ship-hook.sh entry in .claude/settings.json"
             exit 1

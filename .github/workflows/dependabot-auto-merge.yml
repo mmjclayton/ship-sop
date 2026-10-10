@@ -3,6 +3,8 @@ name: Dependabot auto-merge
 # Queue auto-merge on Dependabot PRs. Branch protection on main requires the
 # "Lint shell and config" check, so a PR merges only once CI is green. This job
 # never checks out or runs PR code, which keeps pull_request_target safe.
+# Dependabot never proposes major bumps here (see dependabot.yml), so only
+# patch and minor updates of SHA-pinned actions reach this job.
 
 on:
   pull_request_target:
@@ -14,7 +16,9 @@ permissions:
 
 jobs:
   auto-merge:
-    if: github.actor == 'dependabot[bot]'
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge

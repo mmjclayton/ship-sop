@@ -64,7 +64,7 @@ fi
 # it as a Stop hook, in the nested shape or the pre-P14 flat shape. Install and
 # uninstall both retire them, so both read these constants.
 
-LEGACY_HOOK_PROBE='[.. | objects | select(.command? == "scripts/auto-ship-hook.sh")] | length > 0'
+LEGACY_HOOK_PROBE='[.hooks.Stop[]? | .. | objects | select(.command? == "scripts/auto-ship-hook.sh")] | length > 0'
 
 # Git blob hashes of every shipped auto-ship-hook.sh. A project copy matching one
 # is unmodified and safe to delete; anything else is a local edit and is kept.
@@ -94,7 +94,7 @@ usage() {
     echo ""
     echo "Install options:"
     echo "  --runtime claude|codex|both  (default: claude)"
-    echo "  --no-hook         Skip the SessionStop hook wiring (manual /ship only)"
+    echo "  --no-hook         Skip the agent-sop hook check (manual /ship only)"
     echo "  --force           Overwrite existing files (install) / remove locally-modified files (uninstall)"
     echo ""
     echo "Uninstall options:"
@@ -228,6 +228,9 @@ remove_if_unmodified() {
     fi
 }
 
+# Set when a legacy file or entry could not be retired; setup then exits non-zero.
+LEGACY_PENDING=false
+
 # Remove a project copy of the legacy hook script when it matches a shipped version.
 remove_legacy_hook_script() {
     local dest="$1/scripts/auto-ship-hook.sh" blob
@@ -235,24 +238,39 @@ remove_legacy_hook_script() {
     if [ "$FORCE" = true ]; then
         rm -f "$dest"; echo "  remove scripts/auto-ship-hook.sh (--force)"; return 0
     fi
-    blob=$(git hash-object "$dest" 2>/dev/null) || blob=''
-    if [ -n "$blob" ] && printf '%s\n' "$LEGACY_HOOK_BLOBS" | grep -qx "$blob"; then
-        rm -f "$dest"; echo "  remove scripts/auto-ship-hook.sh (retired, auto-mode runs from agent-sop)"
+    if ! blob=$(git hash-object --no-filters "$dest" 2>&1); then
+        echo "  warn   could not hash scripts/auto-ship-hook.sh ($blob); kept" >&2
+        LEGACY_PENDING=true; return 0
+    fi
+    if printf '%s\n' "$LEGACY_HOOK_BLOBS" | grep -qx "$blob"; then
+        rm -f "$dest"; echo "  remove scripts/auto-ship-hook.sh (retired: it never ran live; auto-mode runs from agent-sop)"
     else
         echo "  skip   scripts/auto-ship-hook.sh (locally modified, use --force to remove)"
     fi
 }
 
 # Remove the legacy Stop hook entry in either shape, keeping other hooks.
+# Returns 0 when no legacy entry remains, 1 when one is still registered.
 retire_legacy_hook_entry() {
-    local settings="$1/.claude/settings.json" tmp
+    local settings="$1/.claude/settings.json" tmp rc=0
     [ -f "$settings" ] || return 0
     if ! command -v jq >/dev/null 2>&1; then
-        echo "  warn   jq not installed; manually remove the entry where .hooks.Stop[].command == 'scripts/auto-ship-hook.sh' from $settings"
+        if grep -q 'scripts/auto-ship-hook.sh' "$settings"; then
+            echo "  warn   jq not installed; remove the scripts/auto-ship-hook.sh Stop entry from $settings by hand" >&2
+            LEGACY_PENDING=true; return 1
+        fi
         return 0
     fi
-    jq -e "$LEGACY_HOOK_PROBE" "$settings" >/dev/null 2>&1 || return 0
-    tmp=$(mktemp "$settings.XXXXXX") || return 1
+    jq -e "$LEGACY_HOOK_PROBE" "$settings" >/dev/null 2>&1 || rc=$?
+    [ "$rc" = 1 ] && return 0
+    if [ "$rc" != 0 ]; then
+        echo "  warn   could not read $settings as JSON; check it for a scripts/auto-ship-hook.sh entry" >&2
+        LEGACY_PENDING=true; return 1
+    fi
+    if ! tmp=$(mktemp "$settings.XXXXXX"); then
+        echo "  warn   cannot create a temporary file beside $settings" >&2
+        LEGACY_PENDING=true; return 1
+    fi
     # Drop flat entries, strip our command out of nested entries, then drop a
     # nested entry only when OUR removal emptied it. An entry that already had
     # "hooks": [] is inert but not ours to delete (P15). Other hooks stay (P14).
@@ -261,13 +279,24 @@ retire_legacy_hook_entry() {
           | if (has("hooks") and ([.hooks[]?.command] | index("scripts/auto-ship-hook.sh")))
             then (.hooks |= map(select((.command? // "") != "scripts/auto-ship-hook.sh")))
                | select((.hooks | length) > 0)
-            else . end ]' "$settings" > "$tmp"; then
-        cat "$tmp" > "$settings"; rm -f "$tmp"
+            else . end ]' "$settings" > "$tmp" \
+       && ! jq -e "$LEGACY_HOOK_PROBE" "$tmp" >/dev/null 2>&1 \
+       && chmod 644 "$tmp" && mv "$tmp" "$settings"; then
         echo "  update .claude/settings.json (removed legacy auto-ship-hook.sh entry)"
-    else
-        rm -f "$tmp"
-        echo "  warn   could not edit $settings; remove the auto-ship-hook.sh entry by hand" >&2
-        return 1
+        return 0
+    fi
+    rm -f "$tmp"
+    echo "  warn   could not edit $settings; remove the scripts/auto-ship-hook.sh Stop entry by hand" >&2
+    LEGACY_PENDING=true; return 1
+}
+
+# Entry first: deleting the script while an entry still points at it would make
+# every session's Stop hook fail.
+retire_legacy_hook() {
+    if retire_legacy_hook_entry "$1"; then
+        remove_legacy_hook_script "$1"
+    elif [ -f "$1/scripts/auto-ship-hook.sh" ]; then
+        echo "  keep   scripts/auto-ship-hook.sh (its settings entry is still registered)"
     fi
 }
 
@@ -315,8 +344,6 @@ uninstall_mode() {
         echo ""
         echo "Removing project files from $target"
 
-        remove_legacy_hook_script "$target"
-
         remove_if_unmodified \
             "$SCRIPT_DIR/docs/templates/ship-sop.schema.json" \
             "$target/docs/templates/ship-sop.schema.json"
@@ -330,9 +357,13 @@ uninstall_mode() {
         fi
     fi
 
-    # Legacy Stop hook entry in .claude/settings.json
+    # Legacy Stop hook entry and script (entry first)
     echo ""
-    retire_legacy_hook_entry "$target"
+    if [ "$SELF_INSTALL" = true ]; then
+        retire_legacy_hook_entry "$target" || true
+    else
+        retire_legacy_hook "$target"
+    fi
 
     # .gitignore block
     if [ "$KEEP_ARTIFACTS" = false ] && [ -f "$target/.gitignore" ] && grep -q "^# ship-sop runtime artifacts$" "$target/.gitignore"; then
@@ -400,6 +431,10 @@ if [ "$UNINSTALL" = true ]; then
         KEEP_CONFIG=true; KEEP_ARTIFACTS=true
     fi
     uninstall_mode "$TARGET"
+    if [ "$LEGACY_PENDING" = true ]; then
+        echo "Uninstall finished, but a legacy hook file or entry could not be removed; see the warnings above." >&2
+        exit 1
+    fi
     exit 0
 fi
 
@@ -493,7 +528,6 @@ create_default_config() {
         return 1
     fi
     tmp=$(mktemp "$config.XXXXXX") || { echo "Cannot create a temporary file in $TARGET" >&2; return 1; }
-    trap 'rm -f "$tmp"' INT TERM
     if [ "$filter" = '.' ]; then
         cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$tmp" || { rm -f "$tmp"; return 1; }
     elif ! jq "$filter" "$SCRIPT_DIR/docs/templates/ship-sop.config.json" > "$tmp"; then
@@ -503,7 +537,6 @@ create_default_config() {
     fi
     if ! chmod 644 "$tmp"; then rm -f "$tmp"; echo "Could not set permissions on $config" >&2; return 1; fi
     if ! mv "$tmp" "$config"; then rm -f "$tmp"; echo "Could not move the new config into $config" >&2; return 1; fi
-    trap - INT TERM
     if [ "$filter" != '.' ]; then
         echo "  note   silent-failure-hunter disabled: no profile in ~/.claude/agents/ or .claude/agents/"
     fi
@@ -545,12 +578,23 @@ fi
 
 UNIFIED_SETTINGS="${AGENT_SOP_USER_HOME:-$HOME}/.claude/settings.json"
 UNIFIED_STOP="${AGENT_SOP_USER_HOME:-$HOME}/.claude/scripts/hooks/agent-sop/sop-stop-drift.sh"
+# absent: no agent-sop Stop hook; wired: registered and present; stale: registered
+# but not at the standard path; unknown: jq missing or settings unreadable.
 UNIFIED_STATE=absent
-if command -v jq >/dev/null 2>&1 &&
-   jq -e '[.hooks.Stop[]?.hooks[]?.command | select(contains("sop-stop-drift.sh"))] | length > 0' "$UNIFIED_SETTINGS" >/dev/null 2>&1; then
-    UNIFIED_STATE=wired
-    if [ ! -f "$UNIFIED_STOP" ] || ! jq -e --arg command "bash \"$UNIFIED_STOP\"" '[.hooks.Stop[]?.hooks[]?.command | select(. == $command)] | length > 0' "$UNIFIED_SETTINGS" >/dev/null; then
-        UNIFIED_STATE=stale
+if [ -f "$UNIFIED_SETTINGS" ]; then
+    if ! command -v jq >/dev/null 2>&1; then
+        UNIFIED_STATE=unknown
+    else
+        rc=0
+        jq -e '[.hooks.Stop[]?.hooks[]? | (.command? // "") | strings | select(contains("sop-stop-drift.sh"))] | length > 0' "$UNIFIED_SETTINGS" >/dev/null 2>&1 || rc=$?
+        if [ "$rc" = 0 ]; then
+            UNIFIED_STATE=wired
+            if [ ! -f "$UNIFIED_STOP" ] || ! jq -e --arg command "bash \"$UNIFIED_STOP\"" '[.hooks.Stop[]?.hooks[]? | (.command? // "") | select(. == $command)] | length > 0' "$UNIFIED_SETTINGS" >/dev/null; then
+                UNIFIED_STATE=stale
+            fi
+        elif [ "$rc" != 1 ]; then
+            UNIFIED_STATE=unknown
+        fi
     fi
 fi
 if [ "$NO_HOOK" = false ] && [ "$UNIFIED_STATE" = stale ]; then
@@ -559,14 +603,19 @@ if [ "$NO_HOOK" = false ] && [ "$UNIFIED_STATE" = stale ]; then
 fi
 
 echo ""
-if [ "$SELF_INSTALL" = false ]; then remove_legacy_hook_script "$TARGET"; fi
-retire_legacy_hook_entry "$TARGET"
+if [ "$SELF_INSTALL" = true ]; then
+    retire_legacy_hook_entry "$TARGET" || true
+else
+    retire_legacy_hook "$TARGET"
+fi
 
 echo ""
 if [ "$NO_HOOK" = true ]; then
     echo "Skipping the agent-sop hook check (--no-hook). Use /ship and /release manually."
 elif [ "$UNIFIED_STATE" = wired ]; then
     echo "Auto-mode uses agent-sop's user-scope hooks: registered."
+elif [ "$UNIFIED_STATE" = unknown ]; then
+    echo "Could not check agent-sop's hooks in $UNIFIED_SETTINGS (jq missing or the file is not valid JSON)." >&2
 else
     echo "Auto-mode needs agent-sop's user-scope hooks, which are not registered."
     echo "Install agent-sop (its setup.sh), then /ship-on. /ship works manually meanwhile."
@@ -608,3 +657,9 @@ echo "  6. To remove ship-sop later:"
 echo "     ./setup.sh $TARGET --uninstall"
 echo "     (add --keep-config to preserve your tuning, --force to remove locally-modified files)"
 echo ""
+
+if [ "$LEGACY_PENDING" = true ]; then
+    echo "" >&2
+    echo "Setup finished, but a legacy hook file or entry could not be retired; see the warnings above." >&2
+    exit 1
+fi
