@@ -35,6 +35,8 @@ if [ "$NO_HOOK" = false ]; then
         echo 'Codex auto-mode requires agent-sop setup.sh <project> --runtime codex first; or use --no-hook for manual mode.' >&2
         exit 1
     fi
+    # Receipts need the agent-sop library functions; refuse an older install.
+    bash "$SOURCE/scripts/ship-receipt.sh" --check-lib --runtime codex >/dev/null || exit 1
 fi
 bash "$SOURCE/scripts/install-codex.sh" ${ARGS[@]+"${ARGS[@]}"}
 mkdir -p "$TARGET/scripts" "$TARGET/docs/reviews" "$TARGET/docs/templates" "$TARGET/.ship"

@@ -64,7 +64,7 @@ fi
 # it as a Stop hook, in the nested shape or the pre-P14 flat shape. Install and
 # uninstall both retire them, so both read these constants.
 
-LEGACY_HOOK_PROBE='[.hooks.Stop[]? | .. | objects | select(.command? == "scripts/auto-ship-hook.sh")] | length > 0'
+LEGACY_HOOK_PROBE='[(.hooks // {}) | .. | objects | select(.command? == "scripts/auto-ship-hook.sh")] | length > 0'
 
 # Git blob hashes of every shipped auto-ship-hook.sh. A project copy matching one
 # is unmodified and safe to delete; anything else is a local edit and is kept.
@@ -249,14 +249,18 @@ remove_legacy_hook_script() {
     fi
 }
 
-# Remove the legacy Stop hook entry in either shape, keeping other hooks.
+# Remove the legacy hook entry in either shape, under any event, keeping other hooks.
 # Returns 0 when no legacy entry remains, 1 when one is still registered.
 retire_legacy_hook_entry() {
-    local settings="$1/.claude/settings.json" tmp rc=0
+    local settings="$1/.claude/settings.json" target tmp rc=0
+    if [ -L "$settings" ] && [ ! -e "$settings" ]; then
+        echo "  warn   $settings is a broken symlink; check its target for a scripts/auto-ship-hook.sh entry" >&2
+        LEGACY_PENDING=true; return 1
+    fi
     [ -f "$settings" ] || return 0
     if ! command -v jq >/dev/null 2>&1; then
         if grep -q 'scripts/auto-ship-hook.sh' "$settings"; then
-            echo "  warn   jq not installed; remove the scripts/auto-ship-hook.sh Stop entry from $settings by hand" >&2
+            echo "  warn   jq not installed; remove the scripts/auto-ship-hook.sh hook entry from $settings by hand" >&2
             LEGACY_PENDING=true; return 1
         fi
         return 0
@@ -267,26 +271,46 @@ retire_legacy_hook_entry() {
         echo "  warn   could not read $settings as JSON; check it for a scripts/auto-ship-hook.sh entry" >&2
         LEGACY_PENDING=true; return 1
     fi
-    if ! tmp=$(mktemp "$settings.XXXXXX"); then
-        echo "  warn   cannot create a temporary file beside $settings" >&2
+    # Edit the real file. A symlinked settings file (dotfile managers) is followed,
+    # but only to a target inside the project or the user's home.
+    target=$settings
+    if [ -L "$settings" ]; then
+        if ! target=$(readlink -f "$settings" 2>/dev/null) || [ -z "$target" ]; then
+            echo "  warn   cannot resolve the symlink $settings; remove the scripts/auto-ship-hook.sh hook entry by hand" >&2
+            LEGACY_PENDING=true; return 1
+        fi
+        case "$target" in
+            "$(cd "$1" && pwd -P)"/*|"$(cd "$HOME" && pwd -P)"/*) ;;
+            *) echo "  warn   $settings links outside the project and home ($target); remove the scripts/auto-ship-hook.sh hook entry by hand" >&2
+               LEGACY_PENDING=true; return 1 ;;
+        esac
+    fi
+    if ! tmp=$(mktemp "$target.XXXXXX"); then
+        echo "  warn   cannot create a temporary file beside $target" >&2
         LEGACY_PENDING=true; return 1
     fi
     # Drop flat entries, strip our command out of nested entries, then drop a
     # nested entry only when OUR removal emptied it. An entry that already had
     # "hooks": [] is inert but not ours to delete (P15). Other hooks stay (P14).
-    if jq '.hooks.Stop = [ .hooks.Stop[]?
+    # cp -p first so the rewritten file keeps the original's mode; the rename is
+    # atomic because the temporary file sits beside the target.
+    if ! cp -p "$target" "$tmp"; then
+        rm -f "$tmp"; echo "  warn   could not copy $target to edit it" >&2
+        LEGACY_PENDING=true; return 1
+    fi
+    if jq '.hooks |= with_entries(if (.value | type) == "array" then .value |= [ .[]
           | select((.command? // "") != "scripts/auto-ship-hook.sh")
-          | if (has("hooks") and ([.hooks[]?.command] | index("scripts/auto-ship-hook.sh")))
+          | if (type == "object" and has("hooks") and ([.hooks[]?.command] | index("scripts/auto-ship-hook.sh")))
             then (.hooks |= map(select((.command? // "") != "scripts/auto-ship-hook.sh")))
                | select((.hooks | length) > 0)
-            else . end ]' "$settings" > "$tmp" \
+            else . end ] else . end)' "$target" > "$tmp" \
        && ! jq -e "$LEGACY_HOOK_PROBE" "$tmp" >/dev/null 2>&1 \
-       && chmod 644 "$tmp" && mv "$tmp" "$settings"; then
+       && mv "$tmp" "$target"; then
         echo "  update .claude/settings.json (removed legacy auto-ship-hook.sh entry)"
         return 0
     fi
     rm -f "$tmp"
-    echo "  warn   could not edit $settings; remove the scripts/auto-ship-hook.sh Stop entry by hand" >&2
+    echo "  warn   could not edit $settings; remove the scripts/auto-ship-hook.sh hook entry by hand" >&2
     LEGACY_PENDING=true; return 1
 }
 
@@ -399,7 +423,11 @@ uninstall_mode() {
 
     # Summary
     echo ""
-    echo "Done. ship-sop is uninstalled."
+    if [ "$LEGACY_PENDING" = true ]; then
+        echo "Uninstall incomplete: a legacy hook file or entry remains (see warnings above)."
+    else
+        echo "Done. ship-sop is uninstalled."
+    fi
     echo ""
     echo "Files NOT touched (manage these manually):"
     echo "  - docs/reviews/         (audit trail; remove only if you're certain)"
@@ -619,6 +647,10 @@ elif [ "$UNIFIED_STATE" = unknown ]; then
 else
     echo "Auto-mode needs agent-sop's user-scope hooks, which are not registered."
     echo "Install agent-sop (its setup.sh), then /ship-on. /ship works manually meanwhile."
+fi
+# Receipts need the agent-sop library; /ship cannot finish a review without it.
+if ! bash "$SCRIPT_DIR/scripts/ship-receipt.sh" --check-lib --runtime claude; then
+    echo "  warn   /ship cannot write receipts until the agent-sop library problem above is fixed" >&2
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────

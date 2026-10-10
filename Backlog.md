@@ -414,6 +414,28 @@ Limits: Codex only, since Claude subagents leave no evidence to check. It raises
 
 ---
 
+### P39 - agent-sop compatibility check and receipt totals
+
+`[IN PROGRESS] [Feature]`
+review: docs/reviews/20261010-144318-ship-auto.md
+
+From the 2026-10-10 independent review (two repositories that must move together; no evidence of value).
+
+- `ship-receipt.sh --check-lib` checks the installed agent-sop library for every function ship-sop calls and names any missing one with the minimum agent-sop (`0a1e5ee`, P112, 2026-09-24, the first with receipt schema version 2; its parent fails the cross-package test, verified locally 2026-10-10). Claude setup warns; Codex auto-mode setup refuses. CI runs the cross-package test at that commit and at agent-sop `main`. Fixture: `tests/agent-sop-compat.sh`.
+- `scripts/receipt-totals.sh` totals receipts across projects (deduped across clones). Fixture: `tests/receipt-totals.sh`.
+- README: minimum agent-sop, the totals tool and what it cannot show, a one-maintainer statement.
+- P25 review LOWs: legacy entries removed under any hook event; settings mode and symlinks preserved; incomplete uninstall reported; Dependabot comment corrected; stale-registration path tested.
+
+A version constant exported by agent-sop's library would replace the function list; that belongs in agent-sop.
+
+**Acceptance criteria:**
+- `tests/agent-sop-compat.sh` fails on the previous `ship-receipt.sh`
+- CI green against agent-sop `main` and `0a1e5ee`
+
+**Source:** operator instruction, 2026-10-10.
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*
