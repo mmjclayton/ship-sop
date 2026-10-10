@@ -417,6 +417,7 @@ Limits: Codex only, since Claude subagents leave no evidence to check. It raises
 ### P39 - agent-sop compatibility check and receipt totals
 
 `[IN PROGRESS] [Feature]`
+review: docs/reviews/20261010-144318-ship-auto.md
 
 From the 2026-10-10 independent review (two repositories that must move together; no evidence of value).
 

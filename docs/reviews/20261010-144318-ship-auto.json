@@ -1,0 +1,133 @@
+{
+  "schema_version": 2,
+  "base": "f62d1bcee36240a24359b912eb90438aa00789a0",
+  "head": "76a79573bace1348112094fe4f4c22e55fc11eff",
+  "tree": "8f2b94a985652a5872e29c706d64295db79d3bfd",
+  "policy_sha256": "b7b6afd9bb0ee123aeec892b91291324b9c37ade2febd5035e685c0051eff352",
+  "tests": {
+    "status": "PASS",
+    "evidence": "At 76a7957 on macOS: codex-install PASS; claude-install PASS; legacy-hook PASS; receipt-contract PASS; codex-usage PASS; agent-sop-compat PASS; receipt-totals PASS; receipt-integration PASS at agent-sop main 6578ac0; and at minimum 0a1e5ee; shellcheck clean. Linux confirmed by CI."
+  },
+  "reviewers": [
+    {
+      "name": "security-reviewer",
+      "version": "0f8a59958459703fc4108ecf1977f4638b6a4565",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "setup.sh",
+          "line": 274,
+          "message": "symlink guard runs only when settings.json itself is a link; a symlinked .claude directory bypasses the target check"
+        },
+        {
+          "severity": "INFO",
+          "file": "setup.sh",
+          "line": 289,
+          "message": "fixed in 76a7957: write-through to any symlink target; now resolved and limited to project or home"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/receipt-totals.sh",
+          "line": 22,
+          "message": "fixed in 76a7957: printf %q for file names, cd --, reviewer entries must be objects"
+        }
+      ]
+    },
+    {
+      "name": "code-reviewer",
+      "version": "01027637966b1e741c49018f071b91b0cad528f6",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "setup.sh",
+          "line": 281,
+          "message": "symlink target allow-list covers all of HOME, not only dotfile locations"
+        },
+        {
+          "severity": "LOW",
+          "file": "setup.sh",
+          "line": 276,
+          "message": "readlink -f missing on macOS before 12.3; fails safe with a generic message"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/receipt-totals.sh",
+          "line": 62,
+          "message": "a root with no receipts makes the exit status 1 though totals are valid (documented)"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/ship-receipt.sh",
+          "line": 12,
+          "message": "fixed in 76a7957: --check-lib accepted in any position"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/receipt-totals.sh",
+          "line": 28,
+          "message": "fixed in 76a7957: rows keyed by resolved root; schema >= 2 counted"
+        }
+      ]
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "46bcbfc7adb8b13d1e0f0d9bcdf16d512b165d89",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 1,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/ship-receipt.sh",
+          "line": 33,
+          "message": "library load reason drops the library's stdout"
+        },
+        {
+          "severity": "LOW",
+          "file": "setup.sh",
+          "line": 285,
+          "message": "cd HOME in the target check is unguarded"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/receipt-totals.sh",
+          "line": 70,
+          "message": "differing-copy check ignores schema_version"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/ship-receipt.sh",
+          "line": 31,
+          "message": "fixed in 76a7957: HIGH, a library failing to load exited silently; now loaded in a throwaway shell and reported"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/receipt-totals.sh",
+          "line": 127,
+          "message": "fixed in 76a7957: skipped files and empty roots now exit 1"
+        },
+        {
+          "severity": "INFO",
+          "file": "setup.sh",
+          "line": 291,
+          "message": "fixed in 76a7957: truncating write-through replaced by temp beside target and mv"
+        }
+      ]
+    }
+  ]
+}
