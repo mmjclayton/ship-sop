@@ -24,3 +24,5 @@ Rejected: keeping a project-scope hook here and telling the operator to launch f
 
 ---
 *Supersedes:* `2026-08-03_solo_sessionstart-hook-is-the-automation-path.md` (same intent, wrong scope), P16.
+
+*Superseded in part by:* `2026-10-10_solo_p25-legacy-hook-removed.md` (the script is deleted, not kept as reference).
