@@ -20,7 +20,7 @@ jobs:
 
       # ship-sop's own bash. Blocking.
       - name: shellcheck (ship-sop scripts)
-        run: shellcheck -S warning setup.sh scripts/auto-ship-hook.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt}.sh tests/codex-install.sh
+        run: shellcheck -S warning setup.sh scripts/auto-ship-hook.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt}.sh tests/{codex-install,claude-install}.sh
 
       - name: bash -n (ship-sop scripts)
         run: |
@@ -51,11 +51,27 @@ jobs:
       - name: Codex install and isolation fixtures
         run: bash tests/codex-install.sh
 
+      - name: Claude install defaults
+        run: bash tests/claude-install.sh
+
       - name: Receipt assembly contract
         run: bash tests/receipt-contract.sh
 
       - name: Codex usage helper
         run: bash tests/codex-usage.sh
+
+      # The one suite that exercises both repositories together. agent-sop's
+      # validator decides whether a receipt qualifies, so test against its main.
+      - name: Check out agent-sop
+        uses: actions/checkout@v4
+        with:
+          repository: mmjclayton/agent-sop
+          path: agent-sop
+
+      - name: Cross-package receipt integration
+        run: bash tests/receipt-integration.sh
+        env:
+          AGENT_SOP_SOURCE: ${{ github.workspace }}/agent-sop
 
       - name: Reject legacy flat hook entries
         run: |

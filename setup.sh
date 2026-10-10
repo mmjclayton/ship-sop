@@ -477,6 +477,25 @@ done
 
 # ── Install hook script and config (project-scope) ────────────────────────────
 
+# Default config, only created if missing. Claude ships no silent-failure-hunter
+# profile, and an enabled reviewer that cannot launch makes every run INCOMPLETE,
+# so a new Claude-only config disables it until the user supplies one.
+create_default_config() {
+    local config="$TARGET/ship-sop.config.json" tmp
+    [ -f "$config" ] && return 0
+    cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$config"
+    [ "$RUNTIME" = claude ] || return 0
+    [ -f "$USER_CLAUDE_DIR/agents/silent-failure-hunter.md" ] && return 0
+    tmp=$(mktemp)
+    if jq '.agents["silent-failure-hunter"].enabled = false' "$config" > "$tmp"; then
+        mv "$tmp" "$config"
+        echo "  note   silent-failure-hunter disabled: no profile in ~/.claude/agents/"
+    else
+        rm -f "$tmp"
+        echo "  warn   could not disable silent-failure-hunter; supply its profile or disable it in ship-sop.config.json" >&2
+    fi
+}
+
 echo ""
 if [ "$SELF_INSTALL" = true ]; then
     echo "Self-install — project-side files already present in source repo"
@@ -484,9 +503,7 @@ if [ "$SELF_INSTALL" = true ]; then
     # Skip copying scripts/auto-ship-hook.sh and docs/templates/ship-sop.schema.json
     # since they live in the source repo. Still create the user-facing config
     # at the project root (different from the template under docs/templates/).
-    if [ ! -f "$TARGET/ship-sop.config.json" ]; then
-        cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json"
-    fi
+    create_default_config
 else
     echo "Installing hook script + config in $TARGET"
     mkdir -p "$TARGET/scripts" "$TARGET/docs/reviews" "$TARGET/.ship"
@@ -495,10 +512,7 @@ else
         chmod +x "$TARGET/scripts/auto-ship-hook.sh"
     fi
 
-    # Default config — only created if missing
-    if [ ! -f "$TARGET/ship-sop.config.json" ]; then
-        cp "$SCRIPT_DIR/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json"
-    fi
+    create_default_config
     copy_if_missing "$SCRIPT_DIR/docs/templates/ship-sop.schema.json" "$TARGET/docs/templates/ship-sop.schema.json" || true
 fi
 
