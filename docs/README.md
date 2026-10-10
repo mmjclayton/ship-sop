@@ -35,6 +35,6 @@ Written by `/update-sop` on session-end. Browse for project history; the rollup 
 | Pattern | Origin | Lifecycle |
 |---|---|---|
 | `YYYY-MM-DD_<agent-id>_P<n>.md` | agent-sop's `/update-sop` Step 2c | **Permanent audit trail; never auto-pruned** |
-| `YYYYMMDD-HHMMSS-<gate>.md` (and `<stamp>-ship-auto.md`) | ship-sop's gate artifacts | Prunable via `artifacts.retain_ship_artifact_days` in `ship-sop.config.json` |
+| `YYYYMMDD-HHMMSS-<gate>.md` (and `<stamp>-ship-auto.md`) | ship-sop's gate artifacts | Not pruned automatically; delete old reports by hand if needed |
 
-The retention prune in `scripts/auto-ship-hook.sh` filters strictly to ship-sop's stamp format using a precise digit-count glob, so agent-sop's permanent reviews are never affected.
+Automatic pruning went with the retired project hook (P25); `artifacts.retain_ship_artifact_days` is a deprecated schema key and is not read.

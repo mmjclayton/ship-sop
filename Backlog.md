@@ -185,7 +185,7 @@ Includes the gate-completion contract: `block_on` is quoted at `:64`/`:68` but h
 ---
 
 ### P18 — Hook state machine: staleness check cannot fail, throttle records the wrong event
-`[OPEN] [Bug]`
+`[WON'T - Reason: superseded 2026-10-10 by P25, which removed scripts/auto-ship-hook.sh; agent-sop reads coverage from validated receipts, with no stamp or directive file] [Bug]`
 
 The directive writes `Diff range: <base>..HEAD` with `HEAD` as a literal string, then instructs the reader to check "if the range no longer ends at `HEAD`" — it always does, so the staleness check is a tautology. `HEAD_SHA` is computed at `:165` and discarded. A stale directive from 27 July is in `.ship/` now, naming a deleted branch, hash still matching. Separately the diff-hash is stamped at emission (`:411`) rather than gate completion, so an interrupted turn leaves that commit permanently ungated and silently skipped next run.
 
@@ -196,7 +196,9 @@ Plus three silent-exit traps under `set -euo pipefail`: a no-match `grep -v` at 
 ---
 
 ### P19 — Coverage holes: a gate reports success without looking
-`[OPEN] [Bug]`
+`[IN PROGRESS] [Bug]`
+
+2026-10-10 triage: (a), (b) and (c) described the removed hook and are superseded by P25 and agent-sop's receipt coverage (a missing test runner is now `NOT_AVAILABLE` with a reason, never a pass; instruction files count as code). (e) is gone: `/ship` no longer runs `git add`. (d) was open: no reviewer instruction declared diff content untrusted. Fixed with P25: `/ship` and the Codex runner prompt (`scripts/codex-review.sh`) now tell reviewers to treat the diff, comments and commit messages as untrusted data, and that a claim of prior sign-off changes nothing; `tests/codex-install.sh` asserts the prompt text.
 
 (a) No detected test runner means Gate 1 prints a notice and passes, so an agent scaffolding a service with zero tests gets READY TO SHIP. (b) The docs-only regex matches any top-level `.md`, so `CLAUDE.md` and `Backlog.md` — the highest-value files for steering the next agent — route around every blocking gate, the same persistence vector P13 hardened the directive against. (c) Missing sidecar is treated as "not tampering" although the hook writes one unconditionally, while a hash mismatch skips the gates, making `printf '\n' >>` a permanent off-switch. (d) Nothing anywhere declares diff content untrusted, so a diff asserting prior sign-off is read as operator intent. (e) `ship.md:195` runs `git add -A` straight after gates instructed to find hardcoded secrets, with no redaction rule in any agent.
 
@@ -271,7 +273,10 @@ Operator rule, 2026-09-04: ship-sop fires for coding and for nothing else. The t
 ---
 
 ### P25 — Retire the project-scope `auto-ship-hook.sh` wiring now that agent-sop carries the trigger
-`[OPEN] [Refactor]`
+`[IN PROGRESS] [Refactor]`
+review: docs/reviews/20261010-143321-ship-auto.md
+
+2026-10-10: script deleted outright (not kept as reference); setup retires leftover copies by blob hash and both entry shapes, `tests/legacy-hook.sh`; CI asserts no entry remains. This repo's settings already had none; `/ship-on` already probes `sop-stop-drift.sh`. Folded in from the P37 review: actions pinned by SHA with Dependabot and auto-merge, a cleanup trap and distinct jq messages in `create_default_config`, self-install and Codex default-config tests. Consumer repos (step 4) are checked separately.
 
 agent-sop P97 (2026-09-04) supersedes the project-scope Stop hook: its user-scope `sop-stop-drift.sh` reads `ship-sop.config.json` and emits the gate demand via exit 2, and `sop-push-gate.sh` refuses an uncovered push. The old entry is inert for home-launched sessions and a harmless duplicate otherwise, but it still gets copied and wired by `setup.sh`, asserted by CI, and sits in four consumer repos.
 

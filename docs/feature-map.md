@@ -16,7 +16,7 @@ Last updated: 2026-09-08 (P28, P30)
 | P1 | `/ship` slash command | `.claude/commands/ship.md` | 2026-04-25 (`bd05f40`) |
 | P1 | `/release` slash command | `.claude/commands/release.md` | 2026-04-25 (`bd05f40`) |
 | P1 | `/ship-on` and `/ship-off` toggles | `.claude/commands/ship-{on,off}.md` | 2026-04-25 (`bd05f40`) |
-| P1 | SessionStop hook script | `scripts/auto-ship-hook.sh` | 2026-04-25 (`bd05f40`) |
+| P1 | SessionStop hook script | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-04-25 (`bd05f40`) |
 | P1 | Setup installer with consent prompt | `setup.sh` | 2026-04-25 (`bd05f40`) |
 | P1 | Default config + JSON schema | `docs/templates/ship-sop.{config,schema}.json` | 2026-04-25 (`bd05f40`) |
 | P1 | Public README + spec doc + LICENSE | `README.md`, `docs/ship-sop.md`, `LICENSE` | 2026-04-25 (`bd05f40`) |
@@ -24,8 +24,8 @@ Last updated: 2026-09-08 (P28, P30)
 | P2 | Hook flow documented (next-turn pattern) | `docs/ship-sop.md` | 2026-04-25 (`e82ccd5`) |
 | P3 | README Uninstall section | `README.md` | 2026-04-25 (`7db908e`) |
 | P3 | End-to-end dogfood of auto-mode | `docs/reviews/20260425-154239-*.md` | 2026-04-25 (`31f984e`) |
-| P3 | Leftover-rename fix in directive header | `scripts/auto-ship-hook.sh` | 2026-04-25 (`31f984e`) |
-| P4 | Docs-only detection in hook | `scripts/auto-ship-hook.sh` | 2026-04-25 (`bc2e9d7`) |
+| P3 | Leftover-rename fix in directive header | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-04-25 (`31f984e`) |
+| P4 | Docs-only detection in hook | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-04-25 (`bc2e9d7`) |
 | P5 | agent-sop install (retrospective record) | `CLAUDE.md`, `Backlog.md`, `docs/agent-memory*` | 2026-04-25 |
 | P6 | Multi-tenant isolation scan in compliance-reviewer | `.claude/agents/compliance-reviewer.md` (Section 7) | 2026-04-25 (`3b679e0`) |
 | P6 | Lawful-basis severity bump LOW → MEDIUM | `.claude/agents/compliance-reviewer.md` (GDPR rights scan) | 2026-04-25 (`3b679e0`) |
@@ -40,10 +40,10 @@ Last updated: 2026-09-08 (P28, P30)
 | P10 | `setup.sh --uninstall` (with `--keep-config`, `--keep-artifacts`, hash-based modification check) | `setup.sh` | 2026-04-26 |
 | P10 | README Uninstall section rewritten — `--uninstall` is canonical, manual `rm` fallback retained | `README.md` | 2026-04-26 |
 | P10 | Drive-by fix: install Next-Steps + manual-uninstall lists now include `audit.md` | `setup.sh`, `README.md` | 2026-04-26 |
-| P11 | `SHIP_SOP_DEBUG=1` env var: stderr diagnostics on every silent-exit path in the SessionStop hook | `scripts/auto-ship-hook.sh` | 2026-05-02 |
-| P11 | Config schema sanity check: warn on unknown keys at hook load (catches `enabld`-style typos) | `scripts/auto-ship-hook.sh` | 2026-05-02 |
+| P11 | `SHIP_SOP_DEBUG=1` env var: stderr diagnostics on every silent-exit path in the SessionStop hook | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-05-02 |
+| P11 | Config schema sanity check: warn on unknown keys at hook load (catches `enabld`-style typos) | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-05-02 |
 | P11 | Opt-in artifact retention: `artifacts.retain_ship_artifact_days` (precise digit-count glob preserves agent-sop's `YYYY-MM-DD_*.md` reviews) | `scripts/auto-ship-hook.sh`, `docs/templates/ship-sop.{config,schema}.json` | 2026-05-02 |
-| P11 | Hook edge fixes: `sha256sum` fallback, tightened docs-only regex, cached `git diff` | `scripts/auto-ship-hook.sh` | 2026-05-02 |
+| P11 | Hook edge fixes: `sha256sum` fallback, tightened docs-only regex, cached `git diff` | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-05-02 |
 | P11 | CLAUDE.md drift fixed: rollup refreshed (now includes P10), stale "future candidates" list removed | `CLAUDE.md` | 2026-05-02 |
 | P11 | `docs/ship-sop.md` folded into README; original file replaced with redirect stub | `README.md`, `docs/ship-sop.md` | 2026-05-02 |
 | P11 | README uninstall fallback wrapped in `<details>`; `/audit` added to quick start; new troubleshooting section | `README.md` | 2026-05-02 |
@@ -58,6 +58,8 @@ Last updated: 2026-09-08 (P28, P30)
 | P15 | `pwd -P` + `-ef` source guard: a symlinked clone can no longer delete ship-sop's own files | `setup.sh` | 2026-08-03 |
 | P15 | `/ship-on` hook check is read-only; the destructive wiring snippet removed | `.claude/commands/ship-on.md` | 2026-08-03 |
 | P15 | First CI: shellcheck + `bash -n` + JSON validation + P14 nested-shape regression guard | `.github/workflows/ci.yml` | 2026-08-03 |
+| P37 | README states what a receipt proves; CI runs the cross-package receipt test; new Claude-only configs disable `silent-failure-hunter` without a profile | `README.md`, `.github/workflows/ci.yml`, `setup.sh` | 2026-10-10 ([PR #23](https://github.com/mmjclayton/ship-sop/pull/23)) |
+| P25 | Project-scope `auto-ship-hook.sh` removed; setup retires leftover copies and settings entries; actions pinned by SHA with Dependabot | `setup.sh`, `.github/` | 2026-10-10 |
 
 > P12 and P13 are absent from this table — tracker drift filed as P23, not backfilled here to keep this batch's diff to its own item.
 
@@ -83,4 +85,4 @@ ship-sop is at "released, working, no immediate roadmap." Items below are likely
 | `pm-reviewer` agent | Dropped from initial scope (2026-04-25). |
 | Auto-publish on `/release` | Releases stay deliberate. For pre-push automation, use GitHub Actions on tag push. |
 | `doc-builder` (codemaps + INDEX) | Renamed to `diagram-builder` and trimmed to avoid overlap with `doc-updater`. |
-| `auto-ship-hook.sh` as the auto-mode trigger (P1, P2, P11, P14 rows above) | Superseded 2026-09-04 by agent-sop P97: project-scope hooks never load for a home-launched session and Stop stdout never reaches the model, so the next-turn directive pattern could not fire live. Trigger is now agent-sop's user-scope `sop-stop-drift.sh` + `sop-push-gate.sh`. Retirement of the wiring is P25. |
+| `auto-ship-hook.sh` as the auto-mode trigger (P1, P2, P11, P14 rows above) | Superseded 2026-09-04 by agent-sop P97: project-scope hooks never load for a home-launched session and Stop stdout never reaches the model, so the next-turn directive pattern could not fire live. Trigger is now agent-sop's user-scope `sop-stop-drift.sh` + `sop-push-gate.sh`. Script and wiring removed 2026-10-10 (P25); setup retires leftover copies and entries. |

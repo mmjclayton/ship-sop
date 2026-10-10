@@ -46,7 +46,27 @@ printf '#!/bin/sh\nexit 1\n' > "$WORK/bin/jq"; chmod +x "$WORK/bin/jq"
 if PATH="$WORK/bin:$PATH" bash "$SOURCE/setup.sh" "$WORK/nojq" --runtime claude --no-hook > "$WORK/nojq.log" 2>&1; then
     echo 'FAIL: setup succeeded without a working jq'; exit 1
 fi
-grep -q 'jq is required' "$WORK/nojq.log"
+grep -q 'jq failed to edit' "$WORK/nojq.log"
 test ! -e "$WORK/nojq/ship-sop.config.json"
 [ -z "$(find "$WORK/nojq" -maxdepth 1 -name 'ship-sop.config.json.*')" ]
-printf 'PASS: failed edit leaves no config and names jq\n'
+printf 'PASS: failed edit leaves no config\n'
+
+# Without jq at all, setup says jq is required and writes nothing.
+mkdir -p "$WORK/nojqbin" "$WORK/absent"
+for tool in bash git cp mv rm mkdir chmod mktemp cat grep sed dirname basename find sort head tr cut wc date; do
+    path=$(command -v "$tool") && ln -sf "$path" "$WORK/nojqbin/$tool"
+done
+if PATH="$WORK/nojqbin" bash "$SOURCE/setup.sh" "$WORK/absent" --runtime claude --no-hook > "$WORK/absent.log" 2>&1; then
+    echo 'FAIL: setup succeeded without jq'; exit 1
+fi
+grep -q 'jq is required' "$WORK/absent.log"
+test ! -e "$WORK/absent/ship-sop.config.json"
+printf 'PASS: absent jq is named and leaves no config\n'
+
+# Self-install: setup run on a copy of the source creates the config there too.
+mkdir -p "$WORK/self"
+git -C "$SOURCE" ls-files -z | (cd "$SOURCE" && xargs -0 tar cf -) | tar xf - -C "$WORK/self"
+rm -f "$WORK/self/ship-sop.config.json"
+bash "$WORK/self/setup.sh" "$WORK/self" --runtime claude --no-hook > "$WORK/self.log" 2>&1
+jq -e '.agents["silent-failure-hunter"].enabled == false' "$WORK/self/ship-sop.config.json" >/dev/null
+printf 'PASS: self-install creates the same default config\n'

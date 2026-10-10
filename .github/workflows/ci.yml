@@ -13,19 +13,21 @@ jobs:
     name: Lint shell and config
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Full history: tests/legacy-hook.sh reads the removed hook's shipped blobs.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
 
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
       # ship-sop's own bash. Blocking.
       - name: shellcheck (ship-sop scripts)
-        run: shellcheck -S warning setup.sh scripts/auto-ship-hook.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt}.sh tests/{codex-install,claude-install,receipt-integration}.sh
+        run: shellcheck -S warning setup.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt}.sh tests/*.sh
 
       - name: bash -n (ship-sop scripts)
         run: |
           bash -n setup.sh
-          bash -n scripts/auto-ship-hook.sh
           for t in tests/*.sh; do bash -n "$t"; done
 
       # agent-sop pristine replicas. Advisory only — fixes belong upstream in
@@ -55,6 +57,9 @@ jobs:
       - name: Claude install defaults
         run: bash tests/claude-install.sh
 
+      - name: Legacy project hook retired
+        run: bash tests/legacy-hook.sh
+
       - name: Receipt assembly contract
         run: bash tests/receipt-contract.sh
 
@@ -66,7 +71,7 @@ jobs:
       # deliberate: the projects upgrade together, so an upstream change that
       # breaks ship-sop should turn this red. The SHA is logged for reruns.
       - name: Check out agent-sop
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: mmjclayton/agent-sop
           path: agent-sop
@@ -80,9 +85,12 @@ jobs:
         env:
           AGENT_SOP_SOURCE: ${{ github.workspace }}/agent-sop
 
-      - name: Reject legacy flat hook entries
+      # P25: auto-mode runs from agent-sop's user-scope hooks. No project-scope
+      # auto-ship-hook.sh entry, in either shape, may remain in this repository.
+      - name: Reject legacy project hook entries
         run: |
-          if jq -e '.hooks.Stop[]? | select((.command? // "") == "scripts/auto-ship-hook.sh")' .claude/settings.json >/dev/null; then
-            echo "::error::Legacy flat hook entry cannot execute"
+          jq -e . .claude/settings.json >/dev/null
+          if jq -e '[.. | objects | select(.command? == "scripts/auto-ship-hook.sh")] | length > 0' .claude/settings.json >/dev/null; then
+            echo "::error::Legacy auto-ship-hook.sh entry in .claude/settings.json"
             exit 1
           fi
