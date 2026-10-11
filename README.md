@@ -199,8 +199,8 @@ shellcheck -S warning setup.sh scripts/*.sh scripts/hooks/*.sh tests/*.sh
 
 The [CI workflow](.github/workflows/ci.yml) runs every fixture and checks the
 shell scripts and JSON. Propose changes through a pull request. When you change a
-reviewer agent in `.claude/agents/`, add its new blob to
-`scripts/shipped-agents.txt` so installed copies of it keep updating.
+reviewer agent, a slash command or `scripts/ship-receipt.sh`, add its new blob to
+`scripts/shipped-user-files.txt` so installed copies of it keep updating.
 
 ship-sop is maintained by one person. There is no support commitment or release
 schedule; pin a commit if you depend on it.

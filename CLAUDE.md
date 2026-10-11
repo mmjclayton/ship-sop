@@ -25,7 +25,7 @@ on project details.
 | Change Codex execution | `scripts/codex-review.sh` | Independent read-only clones; retains local evidence |
 | Change a workflow | `.agents/skills/ship/SKILL.md`, `.claude/commands/ship.md` | Both runtimes share the receipt contract |
 | Change installation | `setup.sh`, `scripts/install-hooks.sh`, `scripts/install-codex.sh` | Preserve customisations and self-install protection |
-| Change a reviewer agent | `.claude/agents/`, `.codex/agents/` | Add the new blob to `scripts/shipped-agents.txt` |
+| Change a reviewer agent, a slash command or the receipt tool | `.claude/agents/`, `.codex/agents/`, `.claude/commands/`, `scripts/ship-receipt.sh` | Add the new blob to `scripts/shipped-user-files.txt` |
 | Change policy | `docs/templates/ship-sop.config.json` | Validated by `sop_policy_valid` in `sop-lib.sh` |
 | Recover project knowledge | `docs/agent-memory/` | Decisions and gotchas, as reference reading |
 | Review current architecture work | `docs/build-plans/review-hardening.md` | Older phase plans are historical |
