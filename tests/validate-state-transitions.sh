@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/validate-state-transitions.sh: the Backlog state graph, the review
 # citation on a shipped Feature/Refactor, trigger (b) for executable instruction
-# paths, and the --assert-review substance check /ship relies on.
+# paths, and the --assert-review substance check for review artifacts.
 set -euo pipefail
 SOURCE="$(cd "$(dirname "$0")/.." && pwd -P)"
 V="$SOURCE/scripts/validate-state-transitions.sh"

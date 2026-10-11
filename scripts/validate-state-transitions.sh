@@ -21,7 +21,7 @@
 #     Fixture mode - no git required. Used by the test harness.
 #
 #   bash scripts/validate-state-transitions.sh --assert-review <path>
-#     Substance-assertion helper, used by /ship. Checks a review artifact has
+#     Substance-assertion helper. Checks a review artifact has
 #     the three required sections (diff summary, severity, finding).
 #
 # Bash 3.2 (macOS default); no associative arrays.
