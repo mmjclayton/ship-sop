@@ -604,6 +604,11 @@ if allowed; then ok "missing-library-allows-non-push"; else bad "missing-library
 MISSFN="$TMP/miss-sop_field"
 run_hook "$MISSFN/sop-push-gate.sh" "$CODE_T" "$(push_json 'ls -la')"
 if allowed; then ok "incomplete-library-allows-non-push"; else bad "incomplete-library-allows-non-push" "exit $HOOK_EXIT"; fi
+# The fallback match sees through quoting and escapes, as the full matcher does.
+for cmd in "git p'u'sh origin main" 'git pu\\sh origin main' "g'i't push" 'git p""ush' "gh pr cre'ate'" 'git \u0070ush origin main'; do
+    run_hook "$MISSLIB/sop-push-gate.sh" "$CODE_T" "$(push_json "$cmd")"
+    if [ "$HOOK_EXIT" = 2 ]; then ok "missing-library-refuses-obfuscated-push: $cmd"; else bad "missing-library-refuses-obfuscated-push: $cmd" "exit $HOOK_EXIT"; fi
+done
 # A gate check that fails (non-zero, no output) is a refusal, not "no demand".
 FAILGATE="$TMP/failgate"; mkdir -p "$FAILGATE"; cp "$PUSH" "$HOOKS_DIR/sop-lib.sh" "$FAILGATE/"
 printf '\nsop_shipsop_gate() { return 3; }\n' >> "$FAILGATE/sop-lib.sh"
