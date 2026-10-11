@@ -203,7 +203,7 @@ fi
 # ── Install scripts ───────────────────────────────────────────────────────────
 if [ "$DRY_RUN" = false ]; then
     mkdir -p "$DEST" || exit 1
-    NEXT_MANIFEST=$(mktemp) || exit 1
+    NEXT_MANIFEST=$(mktemp "$MANIFEST.XXXXXX") || exit 1
     for f in $FILES; do
         want=$(blob "$SRC/$f") || { rm -f "$NEXT_MANIFEST"; echo "install-hooks: cannot hash $SRC/$f" >&2; exit 1; }
         if [ "$SRC/$f" -ef "$DEST/$f" ]; then printf '%s %s\n' "$want" "$f" >> "$NEXT_MANIFEST"; continue; fi
