@@ -21,6 +21,7 @@ grep -qF 'recorded as INFO with the fix' "$SHIP" || fail '/ship does not say how
 grep -qF -- '--block-on <block_on>' "$SKILL" || fail 'the Codex skill does not pass each threshold'
 grep -qF "Fix only findings at or above their reviewer's threshold" "$SKILL" || fail 'the Codex skill does not limit fixes to the threshold'
 grep -qF "finding at or above that reviewer's block_on" "$SKILL" || fail 'the Codex skill block_rounds not tied to the threshold'
+tr '\n' ' ' < "$SKILL" | tr -s ' ' | grep -qF 'Count a block round only when a finding met the threshold' || fail 'the Codex skill does not limit block rounds to the threshold'
 grep -qF 'Record a fixed' "$SKILL" || fail 'the Codex skill does not say how a fixed threshold finding is recorded'
 grep -qF -- 'each with --block-on set to its block_on' "$LIB" || fail 'the Codex push-gate demand does not ask for --block-on'
 grep -qF 'give each reviewer its block_on above and the severity rule from /ship' "$LIB" || fail 'the Claude push-gate demand does not hand over the threshold'

@@ -14,7 +14,7 @@
   "agents": {
     "security-reviewer": {
       "enabled": true,
-      "block_on": "CRITICAL",
+      "block_on": "HIGH",
       "paths": [
         "^scripts/",
         "\\.(sh|bash|zsh|py|rb)$",
