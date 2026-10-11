@@ -5,7 +5,9 @@
 set -euo pipefail
 SOURCE="$(cd "$(dirname "$0")/.." && pwd -P)"
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+SUITE_DONE=0
+suite_trap() { local rc=$?; [ "$SUITE_DONE" = 1 ] || { echo "FAIL: suite stopped before its last check" >&2; rc=1; }; rm -rf "$WORK"; exit "$rc"; }
+trap suite_trap EXIT
 export AGENT_SOP_USER_HOME="$WORK/user"
 unset CODEX_HOME
 OTHER_HOOK='{"type":"command","command":"scripts/other-stop.sh"}'
@@ -34,21 +36,14 @@ retired_settings() {
         ([.. | objects | select(.command? == "scripts/auto-ship-hook.sh")] | length == 0)
         and ([.hooks.Stop[].hooks[]?] == [$other])' "$1" >/dev/null
 }
-register_agent_sop() {
-    mkdir -p "$AGENT_SOP_USER_HOME/.claude/scripts/hooks/agent-sop"
-    touch "$AGENT_SOP_USER_HOME/.claude/scripts/hooks/agent-sop/sop-push-gate.sh"
-    jq -n --arg c "bash \"$AGENT_SOP_USER_HOME/.claude/scripts/hooks/agent-sop/sop-push-gate.sh\"" \
-        '{hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:$c}]}],Stop:[{matcher:"*",hooks:[{type:"prompt",prompt:"x"}]}]}}' \
-        > "$AGENT_SOP_USER_HOME/.claude/settings.json"
-}
 
-# Fresh install, no agent-sop hooks: nothing legacy is written.
+# Fresh install: nothing legacy is written, and the user-scope push gate is registered.
 mkdir -p "$WORK/fresh"
 bash "$SOURCE/setup.sh" "$WORK/fresh" --runtime claude < /dev/null > "$WORK/fresh.log" 2>&1
 test ! -e "$WORK/fresh/scripts/auto-ship-hook.sh"
 test ! -e "$WORK/fresh/.claude/settings.json"
-grep -q "user-scope hooks, which are not registered" "$WORK/fresh.log"
-printf 'PASS: fresh install wires no project Stop hook and reports agent-sop hooks absent\n'
+grep -q "Push gate registered" "$WORK/fresh.log"
+printf 'PASS: fresh install wires no project Stop hook and registers the user-scope push gate\n'
 
 # Upgrade of an earlier install: both entry shapes removed, other hook kept,
 # unmodified script removed.
@@ -87,17 +82,20 @@ cmp "$WORK/nojq-before" "$WORK/nojq/.claude/settings.json"
 grep -q 'remove the scripts/auto-ship-hook.sh hook entry' "$WORK/nojq.log"
 printf 'PASS: without jq the entry and its script are kept and setup exits non-zero\n'
 
-# A registered agent-sop hook (alongside a non-command hook) is reported as such.
-register_agent_sop
-mkdir -p "$WORK/wired"
-bash "$SOURCE/setup.sh" "$WORK/wired" --runtime claude < /dev/null > "$WORK/wired.log" 2>&1
-grep -q "user-scope hooks: registered" "$WORK/wired.log"
+# Unreadable user settings: the gate cannot be registered, setup says so and exits
+# non-zero, and the user's file is left as it was.
+mkdir -p "$AGENT_SOP_USER_HOME/.claude"
 printf '{not json\n' > "$AGENT_SOP_USER_HOME/.claude/settings.json"
-mkdir -p "$WORK/unknown"
-bash "$SOURCE/setup.sh" "$WORK/unknown" --runtime claude < /dev/null > "$WORK/unknown.log" 2>&1
-grep -q "Could not check agent-sop's hooks" "$WORK/unknown.log"
+cp "$AGENT_SOP_USER_HOME/.claude/settings.json" "$WORK/bad-settings-before"
+mkdir -p "$WORK/badsettings"
+if bash "$SOURCE/setup.sh" "$WORK/badsettings" --runtime claude < /dev/null > "$WORK/badsettings.log" 2>&1; then
+    echo 'FAIL: setup reported success without registering the gate'; exit 1
+fi
+grep -q 'could not parse' "$WORK/badsettings.log"
+grep -q 'push gate could not be installed' "$WORK/badsettings.log"
+cmp "$WORK/bad-settings-before" "$AGENT_SOP_USER_HOME/.claude/settings.json"
 rm "$AGENT_SOP_USER_HOME/.claude/settings.json"
-printf 'PASS: registered and unreadable agent-sop hook states are reported\n'
+printf 'PASS: unreadable user settings are reported and left untouched\n'
 
 # An entry under another event is removed too, and a regular file keeps its mode.
 legacy_project other-event
@@ -163,20 +161,6 @@ test -f "$WORK/dangling/scripts/auto-ship-hook.sh"
 grep -q 'broken symlink' "$WORK/dangling.log"
 printf 'PASS: links outside the project and home, linked directories, non-settings files and broken links are left alone\n'
 
-# A stale agent-sop registration stops setup before anything is retired.
-mkdir -p "$AGENT_SOP_USER_HOME/.claude"
-jq -n '{hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:"bash /elsewhere/sop-push-gate.sh"}]}]}}' > "$AGENT_SOP_USER_HOME/.claude/settings.json"
-legacy_project stale
-cp "$WORK/stale/.claude/settings.json" "$WORK/stale-before"
-if bash "$SOURCE/setup.sh" "$WORK/stale" --runtime claude < /dev/null > "$WORK/stale.log" 2>&1; then
-    echo 'FAIL: stale registration accepted'; exit 1
-fi
-grep -q 'stale or nonstandard' "$WORK/stale.log"
-cmp "$WORK/stale-before" "$WORK/stale/.claude/settings.json"
-test -f "$WORK/stale/scripts/auto-ship-hook.sh"
-rm "$AGENT_SOP_USER_HOME/.claude/settings.json"
-printf 'PASS: stale agent-sop registration stops setup and retires nothing\n'
-
 # Uninstall without jq cannot edit the entry: it says so and exits non-zero.
 legacy_project uninstall-nojq
 if PATH="$WORK/nojqbin" bash "$SOURCE/setup.sh" "$WORK/uninstall-nojq" --runtime claude --uninstall > "$WORK/uninstall-nojq.log" 2>&1; then
@@ -193,3 +177,4 @@ bash "$SOURCE/setup.sh" "$WORK/uninstall" --runtime claude --uninstall > "$WORK/
 test ! -e "$WORK/uninstall/scripts/auto-ship-hook.sh"
 retired_settings "$WORK/uninstall/.claude/settings.json"
 printf 'PASS: uninstall removes the legacy script and entries\n'
+SUITE_DONE=1

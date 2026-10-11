@@ -22,7 +22,7 @@ In priority order:
 1. **`Backlog.md`** — `[SHIPPED - YYYY-MM-DD]` items since the last release tag are the primary source. They reflect deliberate, human-curated descriptions.
 2. **`docs/build-plans/phase-N.md`** — Batch Log entries since the last release tag. Catch ships that didn't get a Backlog status update.
 3. **`docs/feature-map.md`** — confirms what shipped publicly vs. internal-only.
-4. **`docs/recent-work/`** — per-session summaries (agent-sop convention). Optional; supplements the above.
+4. **`docs/recent-work/`** — per-session summaries, where the project keeps them. Optional; supplements the above.
 5. **Conventional commits** — `git log <last-tag>..HEAD --format='%s%n%b'`. Last resort, and used to fill gaps the markdown trackers missed.
 
 The agent works without any of items 1-4 — pure-commits mode. But the output is materially better when the Backlog is curated.

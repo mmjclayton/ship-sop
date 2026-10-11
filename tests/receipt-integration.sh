@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
-# Cross-package smoke test; point AGENT_SOP_SOURCE at the companion checkout.
+# Receipt assembly against the real library. SOP_LIB may name another sop-lib.sh
+# (tests/receipt-contract.sh passes a stub); the default is the one ship-sop ships.
 set -euo pipefail
 SOURCE=$(cd "$(dirname "$0")/.." && pwd)
-: "${AGENT_SOP_SOURCE:?Set AGENT_SOP_SOURCE to the current agent-sop checkout}"
+SOP_LIB=${SOP_LIB:-$SOURCE/scripts/hooks/sop-lib.sh}
+[ -f "$SOP_LIB" ] || { echo "FAIL: no library at $SOP_LIB"; exit 1; }
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+SUITE_DONE=0
+suite_trap() { local rc=$?; [ "$SUITE_DONE" = 1 ] || { echo "FAIL: suite stopped before its last check" >&2; rc=1; }; rm -rf "$WORK"; exit "$rc"; }
+trap suite_trap EXIT
+unset AGENT_SOP_USER_HOME AGENT_SOP_RUNTIME AGENT_SOP_CONFIG_HOME
 export CODEX_HOME="$WORK/codex"
-mkdir -p "$CODEX_HOME/scripts/hooks/agent-sop"
-cp "$AGENT_SOP_SOURCE/scripts/hooks/sop-lib.sh" "$CODEX_HOME/scripts/hooks/agent-sop/"
+mkdir -p "$CODEX_HOME/scripts/hooks/ship-sop"
+cp "$SOP_LIB" "$CODEX_HOME/scripts/hooks/ship-sop/sop-lib.sh"
 git init -q -b main "$WORK/repo"
 cd "$WORK/repo"
 git config user.name Test
@@ -79,7 +84,7 @@ cp "$WORK/results-kept.json" "$WORK/results.json"
 # A genuine record qualifies, trailing whitespace on the verdict line included.
 evidence security-reviewer 'Verdict: PASS   ' "$HEAD_SHA" >/dev/null
 run_receipt docs/reviews/valid-ship-auto.json
-. "$CODEX_HOME/scripts/hooks/agent-sop/sop-lib.sh"
+. "$CODEX_HOME/scripts/hooks/ship-sop/sop-lib.sh"
 sop_shipsop_covered "$PWD" "$(git rev-parse HEAD)"
 if run_receipt docs/reviews/valid-ship-auto.json 2>/dev/null; then echo 'FAIL: overwrote evidence'; exit 1; fi
 cp "$WORK/tests.json" "$WORK/tests-original.json"
@@ -117,12 +122,13 @@ jq 'map(select(.name != "code-reviewer"))' "$WORK/results-original.json" > "$WOR
 if run_receipt docs/reviews/scoped-missing-ship-auto.json 2>/dev/null; then echo 'FAIL: accepted a receipt missing an in-scope reviewer'; exit 1; fi
 test ! -e docs/reviews/scoped-missing-ship-auto.json
 # Claude subagents leave no runner evidence; that runtime is unchanged.
-mkdir -p "$WORK/user/.claude/scripts/hooks/agent-sop"
-cp "$AGENT_SOP_SOURCE/scripts/hooks/sop-lib.sh" "$WORK/user/.claude/scripts/hooks/agent-sop/"
+mkdir -p "$WORK/user/.claude/scripts/hooks/ship-sop"
+cp "$SOP_LIB" "$WORK/user/.claude/scripts/hooks/ship-sop/sop-lib.sh"
 rm -rf .ship/reviews
 jq 'map(select(.name != "security-reviewer"))' "$WORK/results-original.json" > "$WORK/results.json"
 AGENT_SOP_USER_HOME="$WORK/user" bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --base "$BASE" \
     --results "$WORK/results.json" --tests "$WORK/tests.json" --output docs/reviews/claude-ship-auto.json
-echo 'PASS: real cross-package receipts qualify, reject BLOCK, preserve existing evidence, honour reviewer scope and require run counts'
+echo 'PASS: real receipts qualify, reject BLOCK, preserve existing evidence, honour reviewer scope and require run counts'
 echo 'PASS: Codex receipts need matching runner evidence (commit, base, clean exit, verdict); Claude unchanged'
 
+SUITE_DONE=1

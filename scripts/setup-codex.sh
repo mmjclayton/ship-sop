@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Native Codex installation; auto-mode composes with agent-sop's shared gates.
+# Native Codex installation: skills, reviewer agents, the reviewer runner and the
+# user-scope push gate (registered in $CODEX_HOME/hooks.json unless --no-hook).
 set -euo pipefail
 SOURCE="$(cd "$(dirname "$0")/.." && pwd -P)"
 TARGET=''; NO_HOOK=false; REMOVE=false; FORCE=false
@@ -14,31 +15,22 @@ for arg in "$@"; do
 done
 [ -n "$TARGET" ] || { echo 'A target project is required' >&2; exit 2; }
 TARGET=$(cd "$TARGET" && pwd -P)
-CODEX_DIR="${CODEX_HOME:-${AGENT_SOP_USER_HOME:-$HOME}/.codex}"
+command -v jq >/dev/null || { echo 'setup-codex: jq is required' >&2; exit 1; }
 ARGS=(); [ "$FORCE" = false ] || ARGS+=(--force)
 if [ "$REMOVE" = true ]; then
+    bash "$SOURCE/scripts/install-hooks.sh" --runtime codex --uninstall
     bash "$SOURCE/scripts/install-codex.sh" --uninstall ${ARGS[@]+"${ARGS[@]}"}
     if [ "$SOURCE" != "$TARGET" ] && [ -f "$TARGET/scripts/codex-review.sh" ]; then
         if [ "$FORCE" = true ] || cmp -s "$SOURCE/scripts/codex-review.sh" "$TARGET/scripts/codex-review.sh"; then rm "$TARGET/scripts/codex-review.sh"; fi
     fi
-    echo 'Shared config, AGENTS.md, reviews, records and agent-sop hooks retained. Set trigger.mode to manual to disable shared auto-mode.'
+    echo 'Shared config, AGENTS.md, reviews and records retained.'
     exit 0
 fi
-# Validate the dependency before installing any ship-sop assets.
-if [ "$NO_HOOK" = false ]; then
-    if [ ! -f "$TARGET/Backlog.md" ]; then
-        echo 'Auto-mode needs agent-sop scaffolding in this target. Run agent-sop setup.sh <project> --runtime codex first.' >&2
-        exit 1
-    fi
-    if [ ! -f "$CODEX_DIR/scripts/hooks/agent-sop/sop-codex-hook.sh" ] ||
-       ! jq -e --arg wrapper "bash \"$CODEX_DIR/scripts/hooks/agent-sop/sop-codex-hook.sh\"" '[.hooks.PreToolUse[]?.hooks[]?.command | select(. == ($wrapper + " PreToolUse"))] | length > 0' "$CODEX_DIR/hooks.json" >/dev/null 2>&1; then
-        echo 'Codex auto-mode requires agent-sop setup.sh <project> --runtime codex first; or use --no-hook for manual mode.' >&2
-        exit 1
-    fi
-    # Receipts need the agent-sop library functions; refuse an older install.
-    bash "$SOURCE/scripts/ship-receipt.sh" --check-lib --runtime codex >/dev/null || exit 1
-fi
 bash "$SOURCE/scripts/install-codex.sh" ${ARGS[@]+"${ARGS[@]}"}
+HOOK_ARGS=(--runtime codex); [ "$NO_HOOK" = false ] || HOOK_ARGS+=(--no-register)
+bash "$SOURCE/scripts/install-hooks.sh" "${HOOK_ARGS[@]}"
+# Receipts need the installed library; refuse to report success without it.
+bash "$SOURCE/scripts/ship-receipt.sh" --check-lib --runtime codex >/dev/null
 mkdir -p "$TARGET/scripts" "$TARGET/docs/reviews" "$TARGET/docs/templates" "$TARGET/.ship"
 for path in scripts/codex-review.sh docs/templates/ship-sop.schema.json; do
     [ "$SOURCE" != "$TARGET" ] || continue
@@ -52,7 +44,11 @@ if [ ! -f "$TARGET/ship-sop.config.json" ]; then
     else cp "$SOURCE/docs/templates/ship-sop.config.json" "$TARGET/ship-sop.config.json"; fi
 fi
 if [ ! -f "$TARGET/AGENTS.md" ]; then
-    printf '# ship-sop\n\nUse $ship to review changes and $release for deliberate releases.\nRead CLAUDE.md for project conventions when present.\nAuto-mode uses agent-sop user hooks; reviewers use the installed user-scope ship-sop runner.\n' > "$TARGET/AGENTS.md"
+    printf '# ship-sop\n\nUse $ship to review changes and $release for deliberate releases.\nRead CLAUDE.md for project conventions when present.\nAuto-mode uses the user-scope ship-sop push gate; reviewers use the installed user-scope ship-sop runner.\n' > "$TARGET/AGENTS.md"
 fi
 if ! grep -q '^\.ship/' "$TARGET/.gitignore" 2>/dev/null; then printf '\n# ship-sop runtime artifacts\n.ship/\n' >> "$TARGET/.gitignore"; fi
-echo 'Codex ship-sop installed. Use $ship; auto-mode uses agent-sop hooks. Reload the session for new skills/agents.'
+if [ "$NO_HOOK" = true ]; then
+    echo 'Codex ship-sop installed in manual mode (push gate not registered). Use $ship. Reload the session for new skills/agents.'
+else
+    echo 'Codex ship-sop installed. Use $ship; the push gate is registered in hooks.json. Reload the session for new skills/agents.'
+fi

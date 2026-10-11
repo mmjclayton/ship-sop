@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Test assembly and IPC with a policy stub; semantic policy fixtures live in Agent SOP.
+# Test assembly and IPC with a policy stub. The real policy rules are pinned by
+# tests/push-gate.sh and exercised end to end by tests/receipt-integration.sh.
 set -euo pipefail
 SOURCE=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-mkdir -p "$WORK/companion/scripts/hooks"
-cat > "$WORK/companion/scripts/hooks/sop-lib.sh" <<'STUB'
+mkdir -p "$WORK/stub"
+cat > "$WORK/stub/sop-lib.sh" <<'STUB'
 sop_effective_config() {
     if [ -f "$1/ship-sop.config.json" ]; then printf '%s/ship-sop.config.json' "$1"
     else printf '%s/ship-sop.config.json' "$CODEX_HOME"; fi
@@ -33,4 +34,4 @@ sop_receipt_valid() {
 }
 sop_shipsop_covered() { sop_receipt_valid "$1" "$1/docs/reviews/valid-ship-auto.json"; }
 STUB
-AGENT_SOP_SOURCE="$WORK/companion" bash "$SOURCE/tests/receipt-integration.sh"
+SOP_LIB="$WORK/stub/sop-lib.sh" bash "$SOURCE/tests/receipt-integration.sh"

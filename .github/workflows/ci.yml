@@ -13,7 +13,8 @@ jobs:
     name: Lint shell and config
     runs-on: ubuntu-latest
     steps:
-      # Full history: tests/legacy-hook.sh reads the removed hook's shipped blobs.
+      # Full history: tests/legacy-hook.sh and tests/install-agents.sh read
+      # shipped versions that exist only as blobs in it.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
@@ -21,34 +22,39 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
-      # ship-sop's own bash. Blocking.
-      - name: shellcheck (ship-sop scripts)
-        run: shellcheck -S warning setup.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt,receipt-totals}.sh tests/*.sh
+      # Every script ship-sop ships or tests with, the push gate included. Blocking.
+      - name: shellcheck
+        run: shellcheck -S warning setup.sh scripts/*.sh scripts/hooks/*.sh tests/*.sh
 
-      - name: bash -n (ship-sop scripts)
+      - name: bash -n
         run: |
-          bash -n setup.sh
-          for t in tests/*.sh; do bash -n "$t"; done
-
-      # agent-sop pristine replicas. Advisory only — fixes belong upstream in
-      # the agent-sop repo and are re-synced via /update-agent-sop, so a finding
-      # here must not block a ship-sop PR (CLAUDE.md rule 8).
-      - name: shellcheck (agent-sop replicas, advisory)
-        continue-on-error: true
-        run: |
-          shellcheck -S warning \
-            scripts/validate-state-transitions.sh \
-            scripts/detect-trackers.sh
+          for f in setup.sh scripts/*.sh scripts/hooks/*.sh tests/*.sh; do bash -n "$f"; done
 
       - name: Validate JSON
         run: |
           for f in ship-sop.config.json \
                    docs/templates/ship-sop.config.json \
                    docs/templates/ship-sop.schema.json \
-                   .claude/settings.json \
-                   .claude/agent-sop.config.json; do
+                   .claude/settings.json; do
             jq empty "$f" || { echo "::error file=$f::invalid JSON"; exit 1; }
           done
+
+      # ship-sop stands alone: nothing here may need another checkout.
+      - name: No external checkout dependency
+        run: |
+          if grep -rnE 'AGENT_SOP_SOURCE|Projects/agent-sop' setup.sh scripts tests; then
+            echo "::error::a script or test depends on an external checkout"
+            exit 1
+          fi
+
+      - name: Push gate, project type and receipt rules
+        run: bash tests/push-gate.sh
+
+      - name: Push gate installer and migration
+        run: bash tests/install-hooks.sh
+
+      - name: Claude agents and gate install
+        run: bash tests/install-agents.sh
 
       - name: Codex install and isolation fixtures
         run: bash tests/codex-install.sh
@@ -59,8 +65,8 @@ jobs:
       - name: Legacy project hook retired
         run: bash tests/legacy-hook.sh
 
-      - name: agent-sop library compatibility check
-        run: bash tests/agent-sop-compat.sh
+      - name: Receipt library check
+        run: bash tests/receipt-lib-check.sh
 
       - name: Receipt totals
         run: bash tests/receipt-totals.sh
@@ -68,45 +74,17 @@ jobs:
       - name: Receipt assembly contract
         run: bash tests/receipt-contract.sh
 
+      - name: Receipt integration with the shipped library
+        run: bash tests/receipt-integration.sh
+
+      - name: Backlog state transitions
+        run: bash tests/validate-state-transitions.sh
+
       - name: Codex usage helper
         run: bash tests/codex-usage.sh
 
-      # The one suite that exercises both repositories together. agent-sop's
-      # validator decides whether a receipt qualifies. Tracking agent-sop main is
-      # deliberate: the projects upgrade together, so an upstream change that
-      # breaks ship-sop should turn this red. The SHA is logged for reruns.
-      - name: Check out agent-sop
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          repository: mmjclayton/agent-sop
-          path: agent-sop
-          persist-credentials: false
-
-      - name: Record agent-sop commit
-        run: git -C agent-sop rev-parse HEAD
-
-      - name: Cross-package receipt integration (agent-sop main)
-        run: bash tests/receipt-integration.sh
-        env:
-          AGENT_SOP_SOURCE: ${{ github.workspace }}/agent-sop
-
-      # The oldest agent-sop ship-sop supports (MIN_AGENT_SOP in
-      # scripts/ship-receipt.sh). Raise both together.
-      - name: Check out agent-sop minimum
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          repository: mmjclayton/agent-sop
-          ref: 0a1e5eecbaae8024ba7ff260a76d3e99b30b02b7
-          path: agent-sop-min
-          persist-credentials: false
-
-      - name: Cross-package receipt integration (agent-sop minimum)
-        run: bash tests/receipt-integration.sh
-        env:
-          AGENT_SOP_SOURCE: ${{ github.workspace }}/agent-sop-min
-
-      # P25: auto-mode runs from agent-sop's user-scope hooks. No project-scope
-      # auto-ship-hook.sh entry, in either shape, may remain in this repository.
+      # P25: no project-scope auto-ship-hook.sh entry, in either shape, may
+      # remain in this repository.
       - name: Reject legacy project hook entries
         run: |
           jq -e . .claude/settings.json >/dev/null

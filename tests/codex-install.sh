@@ -2,13 +2,31 @@
 set -euo pipefail
 SOURCE="$(cd "$(dirname "$0")/.." && pwd -P)"
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+SUITE_DONE=0
+suite_trap() { local rc=$?; [ "$SUITE_DONE" = 1 ] || { echo "FAIL: suite stopped before its last check" >&2; rc=1; }; rm -rf "$WORK"; exit "$rc"; }
+trap suite_trap EXIT
 export AGENT_SOP_USER_HOME="$WORK/user"
 unset CODEX_HOME
-mkdir -p "$WORK/project"
-if bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex > "$WORK/missing" 2>&1; then echo 'FAIL: missing agent-sop accepted'; exit 1; fi
-test ! -f "$WORK/project/ship-sop.config.json"
+mkdir -p "$WORK/project" "$WORK/auto"
+# Auto mode needs nothing installed beforehand: setup installs and registers the gate.
+bash "$SOURCE/setup.sh" "$WORK/auto" --runtime codex > "$WORK/auto.log"
+jq -e --arg c "bash \"$AGENT_SOP_USER_HOME/.codex/scripts/hooks/ship-sop/sop-codex-hook.sh\" PreToolUse" \
+    '.hooks | keys == ["PreToolUse"] and ([.PreToolUse[].hooks[].command] == [$c])' "$AGENT_SOP_USER_HOME/.codex/hooks.json" >/dev/null
+test -x "$AGENT_SOP_USER_HOME/.codex/scripts/hooks/ship-sop/sop-push-gate.sh"
+jq -e '.trigger.mode == "auto"' "$WORK/auto/ship-sop.config.json" >/dev/null
+test -f "$AGENT_SOP_USER_HOME/.codex/agents/security-reviewer.toml"
+test -f "$AGENT_SOP_USER_HOME/.codex/agents/code-reviewer.toml"
+bash "$SOURCE/setup.sh" "$WORK/auto" --runtime codex > "$WORK/auto2.log"
+jq -e '[.hooks[][].hooks[]] | length == 1' "$AGENT_SOP_USER_HOME/.codex/hooks.json" >/dev/null
+test ! -e "$AGENT_SOP_USER_HOME/.claude"
+printf 'PASS: Codex auto install registers one push gate and both gate reviewers, idempotently\n'
+bash "$SOURCE/setup.sh" "$WORK/auto" --runtime codex --uninstall > "$WORK/auto-uninstall"
+jq -e '[.hooks[]?[]?.hooks[]?] | length == 0' "$AGENT_SOP_USER_HOME/.codex/hooks.json" >/dev/null
+test ! -e "$AGENT_SOP_USER_HOME/.codex/scripts/hooks/ship-sop"
+printf 'PASS: Codex uninstall removes the push gate registration and scripts\n'
 bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex --no-hook > "$WORK/install"
+jq -e '[.hooks[]?[]?.hooks[]?] | length == 0' "$AGENT_SOP_USER_HOME/.codex/hooks.json" >/dev/null
+test -x "$AGENT_SOP_USER_HOME/.codex/scripts/hooks/ship-sop/sop-lib.sh"
 test ! -e "$AGENT_SOP_USER_HOME/.claude"
 jq -e '.trigger.mode == "manual"' "$WORK/project/ship-sop.config.json" >/dev/null
 test -f "$WORK/project/scripts/codex-review.sh"
@@ -120,23 +138,18 @@ test ! -f "$AGENT_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
 test ! -f "$AGENT_SOP_USER_HOME/.codex/scripts/ship-sop/codex-usage.sh"
 printf 'PASS: missing reviewers fail and uninstall preserves project data\n'
 
-# A wrapper on disk does not validate registrations pointing elsewhere.
-mkdir -p "$WORK/project/docs/sop" "$AGENT_SOP_USER_HOME/.codex/scripts/hooks/agent-sop"
-# P124: auto-mode needs only Backlog.md and the push-gate hook, no docs/sop.
-printf '# Backlog\n' > "$WORK/project/Backlog.md"
-printf '#!/bin/sh\n' > "$AGENT_SOP_USER_HOME/.codex/scripts/hooks/agent-sop/sop-codex-hook.sh"
-printf '{"hooks":{"Stop":[{"hooks":[{"command":"bash /missing/sop-codex-hook.sh Stop"}]}],"PreToolUse":[{"hooks":[{"command":"bash /missing/sop-codex-hook.sh PreToolUse"}]}]}}\n' > "$AGENT_SOP_USER_HOME/.codex/hooks.json"
-if bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex > "$WORK/stale-hooks" 2>&1; then
-    echo 'FAIL: stale hook registrations accepted'; exit 1
-fi
-printf 'PASS: stale registered hook paths rejected\n'
 
+# Other tools' hooks are left alone; ours is added beside them, in both runtimes.
+printf '{"hooks":{"PreToolUse":[{"hooks":[{"command":"bash /elsewhere/other-hook.sh PreToolUse"}]}]}}\n' > "$AGENT_SOP_USER_HOME/.codex/hooks.json"
+bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex > "$WORK/foreign-codex"
+jq -e '[.hooks.PreToolUse[].hooks[].command] | length == 2 and any(test("other-hook")) and any(test("ship-sop/sop-codex-hook"))' "$AGENT_SOP_USER_HOME/.codex/hooks.json" >/dev/null
 mkdir -p "$AGENT_SOP_USER_HOME/.claude" "$WORK/project/.claude"
-printf '{"hooks":{"PreToolUse":[{"hooks":[{"command":"bash /missing/sop-push-gate.sh"}]}]}}\n' > "$AGENT_SOP_USER_HOME/.claude/settings.json"
+printf '{"hooks":{"PreToolUse":[{"hooks":[{"command":"bash /elsewhere/other-gate.sh"}]}]}}\n' > "$AGENT_SOP_USER_HOME/.claude/settings.json"
 printf '{"hooks":{"Stop":[{"hooks":[{"command":"scripts/auto-ship-hook.sh"}]}]}}\n' > "$WORK/project/.claude/settings.json"
-cp "$WORK/project/.claude/settings.json" "$WORK/legacy-before"
-if bash "$SOURCE/setup.sh" "$WORK/project" --runtime claude > "$WORK/stale-claude-hooks" 2>&1; then
-    echo 'FAIL: stale Claude registration accepted'; exit 1
+bash "$SOURCE/setup.sh" "$WORK/project" --runtime claude > "$WORK/foreign-claude" 2>&1
+jq -e '[.hooks.PreToolUse[].hooks[].command] | length == 2 and any(test("other-gate")) and any(test("ship-sop/sop-push-gate"))' "$AGENT_SOP_USER_HOME/.claude/settings.json" >/dev/null
+if jq -e '[.. | objects | select(.command? == "scripts/auto-ship-hook.sh")] | length > 0' "$WORK/project/.claude/settings.json" >/dev/null; then
+    echo 'FAIL: legacy project hook entry left in place'; exit 1
 fi
-cmp "$WORK/legacy-before" "$WORK/project/.claude/settings.json"
-printf 'PASS: stale unified hooks cannot retire the legacy handler\n'
+printf 'PASS: foreign hooks kept beside the push gate; the legacy project handler retired\n'
+SUITE_DONE=1

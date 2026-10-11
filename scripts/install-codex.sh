@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# Install/update owned Codex assets; shared verbatim by agent-sop and ship-sop.
+# Install/update ship-sop's owned Codex assets: skills, reviewer agents and the
+# reviewer runner. The push gate is installed separately by install-hooks.sh.
 # --force replaces locally modified owned assets; uninstall preserves them by default.
 set -euo pipefail
 SOURCE="$(cd "$(dirname "$0")/.." && pwd -P)"
-PACKAGE="$(basename "$SOURCE")"
-# Clones can have arbitrary names. Identify the package by its source assets.
-if [ -f "$SOURCE/.agents/skills/update-agent-sop/SKILL.md" ]; then PACKAGE=agent-sop; else PACKAGE=ship-sop; fi
 USER_ROOT="${AGENT_SOP_USER_HOME:-$HOME}"
 CODEX_DIR="${CODEX_HOME:-$USER_ROOT/.codex}"
 FORCE=false; REMOVE=false
@@ -14,9 +12,8 @@ for arg in "$@"; do
 done
 command -v jq >/dev/null || { echo 'install-codex: jq is required' >&2; exit 1; }
 mkdir -p "$CODEX_DIR"
-MANIFEST="$CODEX_DIR/$PACKAGE.install.json"
-CONFIG="$CODEX_DIR/$PACKAGE.config.json"
-if [ "$PACKAGE" = ship-sop ]; then CONFIG="$CODEX_DIR/ship-sop.source.json"; fi
+MANIFEST="$CODEX_DIR/ship-sop.install.json"
+CONFIG="$CODEX_DIR/ship-sop.source.json"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 if [ -f "$MANIFEST" ]; then jq -e 'type == "object"' "$MANIFEST" >/dev/null; cp "$MANIFEST" "$WORK/manifest"; else echo '{}' > "$WORK/manifest"; fi
@@ -34,10 +31,8 @@ asset_target() {
 # Check discovery before the first asset mutation; process substitution loses failures.
 [ -d "$SOURCE/.agents/skills" ] && [ -d "$SOURCE/.codex/agents" ] || { echo 'Missing Codex asset directories' >&2; exit 1; }
 (cd "$SOURCE" && find .agents/skills .codex/agents -type f | LC_ALL=C sort) > "$WORK/assets" || { echo 'Codex asset discovery failed' >&2; exit 1; }
-if [ "$PACKAGE" = ship-sop ]; then
-    [ -f "$SOURCE/scripts/codex-review.sh" ] || { echo 'Missing reviewer runner' >&2; exit 1; }
-    printf 'scripts/codex-review.sh\nscripts/ship-receipt.sh\nscripts/codex-usage.sh\n' >> "$WORK/assets"
-fi
+[ -f "$SOURCE/scripts/codex-review.sh" ] || { echo 'Missing reviewer runner' >&2; exit 1; }
+printf 'scripts/codex-review.sh\nscripts/ship-receipt.sh\nscripts/codex-usage.sh\n' >> "$WORK/assets"
 [ -s "$WORK/assets" ] || { echo 'No Codex assets found' >&2; exit 1; }
 while IFS= read -r src; do
     case "$src" in *.md|*.toml|*.yaml|*.sh) ;; *) continue ;; esac
@@ -68,8 +63,7 @@ while IFS= read -r src; do
     fi
     jq --arg p "$src" --arg sha "$wanted" '.[$p]=$sha' "$WORK/manifest" > "$WORK/next"; mv "$WORK/next" "$WORK/manifest"
 done < "$WORK/assets"
-# Assets this package no longer ships (P124: retired skills) go when unedited; an edited
-# copy is kept and named.
+# Assets this package no longer ships go when unedited; an edited copy is kept and named.
 if [ "$REMOVE" = false ]; then
     while IFS= read -r src; do
         grep -qxF -- "$src" "$WORK/assets" && continue
@@ -86,10 +80,10 @@ fi
 # Write through symlinks to preserve dotfiles-managed configuration.
 cat "$WORK/manifest" > "$MANIFEST"
 if [ "$REMOVE" = false ] && [ ! -f "$CONFIG" ]; then
-    jq -n --arg path "$SOURCE" '{local_path:$path,exclude:[],baseline_shas:{},update_reminder:"weekly"}' > "$CONFIG"
+    jq -n --arg path "$SOURCE" '{local_path:$path}' > "$CONFIG"
 fi
 
-if [ "$PACKAGE" = ship-sop ] && [ "$REMOVE" = false ]; then
+if [ "$REMOVE" = false ]; then
     FALLBACK="$CODEX_DIR/ship-sop.config.json"
     # Migrate metadata written into the runtime config by the initial Codex port.
     if [ -f "$FALLBACK" ] && jq -e --arg src "$SOURCE" '.local_path == $src and .trigger == null and .agents == null' "$FALLBACK" >/dev/null; then
