@@ -137,8 +137,11 @@ claude_receipt() { # output [extra args...]
     SHIP_SOP_USER_HOME="$WORK/user" bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --base "$BASE" \
         --results "$WORK/results.json" --tests "$WORK/tests.json" --output "$out" "$@"
 }
-jq 'map(select(.name != "security-reviewer") | .rechecks = 1 | .block_rounds = 1
-      | .usage = {source: "claude-task-notification", runs: [{tokens: 1200, duration_ms: 3000}, {tokens: 800, duration_ms: 1000}]})' \
+# One launch and two re-checks of one agent instance: subagent_tokens is
+# cumulative (the last figure, 2000, counts, not the sum), duration_ms is per run.
+jq 'map(select(.name != "security-reviewer") | .rechecks = 2 | .block_rounds = 1
+      | .usage = {source: "claude-task-notification", runs: [{instance: 1, tokens: 1200, duration_ms: 3000},
+          {instance: 1, tokens: 1800, duration_ms: 600}, {instance: 1, tokens: 2000, duration_ms: 400}]})' \
     "$WORK/results-original.json" > "$WORK/results.json"
 printf '[{"commit":"%s","result":"PASS","evidence":"bash tests/run.sh: 4 passed"}]\n' "$(git rev-parse HEAD)" > "$WORK/block-tests.json"
 claude_receipt docs/reviews/usage-ship-auto.json --block-tests "$WORK/block-tests.json" 2> "$WORK/usage.err"

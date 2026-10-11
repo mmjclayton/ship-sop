@@ -5,8 +5,9 @@ set -euo pipefail
 # Optional --block-tests FILE (P44): a JSON array of {commit, result, evidence},
 # one entry per blocked review round, recording the project's tests run at the
 # blocked commit before its fix. It becomes the receipt's block_tests field.
-# A Claude reviewer's usage may carry only its runs; the totals are added here
-# from them, so nobody sums by hand. Every receipt records written_at (UTC).
+# A Claude reviewer's usage may carry only its runs ({instance, tokens,
+# duration_ms} per notification); the totals are added here from them, so nobody
+# adds them up by hand. Every receipt records written_at (UTC).
 BASE=''; HEAD_REF=HEAD; RESULTS=''; TESTS=''; OUTPUT=''; BLOCK_TESTS=''
 RUNTIME=${SHIP_SOP_RUNTIME:-codex}
 CHECK_LIB=false
@@ -119,14 +120,17 @@ TMP=$(mktemp "${OUTPUT}.XXXXXX")
 trap 'rm -f "$TMP"' EXIT
 BLOCK_TESTS_JSON=null
 [ -z "$BLOCK_TESTS" ] || BLOCK_TESTS_JSON=$(jq -c . "$BLOCK_TESTS")
-# Claude usage totals are derived from the runs when every run carries both
-# figures as numbers; anything else is left as given for the validator to judge.
+# Claude usage totals are derived from the runs when every run carries an
+# instance and both figures as numbers; anything else is left as given for the
+# validator to judge. subagent_tokens is cumulative per agent instance, so an
+# instance counts its last figure once; duration_ms is per run, so it is summed.
 jq -n --arg base "$BASE" --arg head "$HEAD_SHA" --arg tree "$TREE" \
     --arg policy "$(sop_policy_digest "$CONFIG")" --arg written "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --slurpfile results "$RESULTS" --slurpfile tests "$TESTS" --argjson block_tests "$BLOCK_TESTS_JSON" \
     'def totals: if type == "object" and .source == "claude-task-notification"
-          and (.runs | type == "array" and length > 0 and all(.[]; type == "object" and (.tokens | type == "number") and (.duration_ms | type == "number")))
-        then (if has("tokens") then . else . + {tokens: {total_tokens: ([.runs[].tokens] | add)}} end)
+          and (.runs | type == "array" and length > 0 and all(.[]; type == "object" and (.instance | type == "number")
+               and (.tokens | type == "number") and (.duration_ms | type == "number")))
+        then (if has("tokens") then . else . + {tokens: {total_tokens: ([.runs | group_by(.instance)[] | .[-1].tokens] | add)}} end)
            | (if has("duration_ms") then . else . + {duration_ms: ([.runs[].duration_ms] | add)} end)
         else . end;
      {schema_version:2,base:$base,head:$head,tree:$tree,policy_sha256:$policy,written_at:$written,

@@ -18,7 +18,7 @@
 
 ### Cost: from the receipts
 
-- Each reviewer's `usage` in the receipt: Claude records the tokens and duration that each task-completion notification reports; Codex records its runner telemetry. A missing figure is null, never estimated.
+- Each reviewer's `usage` in the receipt: Claude records the tokens and duration that each task-completion notification reports (tokens are a running total per agent, so each agent's last figure counts once); Codex records its runner telemetry. A missing figure is null, never estimated.
 - `scripts/receipt-totals.sh --json` over the window's receipts gives, per change: tokens, reviewer minutes and block rounds; and per project: totals, medians and ranges. A change with any unknown usage is left out of the cost figures and counted separately.
 - Reviewer minutes add each reviewer's own run time. Reviewers run in parallel, so this is not wall-clock time.
 - Claude and Codex count tokens differently, so their figures are reported separately.

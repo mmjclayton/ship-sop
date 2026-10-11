@@ -405,10 +405,15 @@ sop_agents_in_scope() {
 # supplies no figure. Usage has one of two shapes (P44):
 #   Codex:  {source: "codex-review", runs, turns, elapsed_seconds, tokens: {kind: n}, evidence}
 #           (scripts/codex-usage.sh writes it from the runner's telemetry)
-#   Claude: {source: "claude-task-notification", runs: [{tokens, duration_ms}, ...],
-#            tokens: {total_tokens}, duration_ms}
-#           one runs entry per task-completion notification (launch or re-check),
-#           the totals equal to the sums of the runs.
+#   Claude: {source: "claude-task-notification",
+#            runs: [{instance, tokens, duration_ms}, ...], tokens: {total_tokens}, duration_ms}
+#           one runs entry per task-completion notification, in the order they
+#           arrived. instance numbers the agent: a fresh launch starts a new one,
+#           a re-check (SendMessage) continues the same one. tokens is the
+#           notification's subagent_tokens, which is cumulative for the instance,
+#           so it never falls within one; duration_ms is per run. total_tokens is
+#           the sum over instances of each one's last tokens; duration_ms is the
+#           sum over all runs. No more instances than launches.
 # An optional top-level block_tests array (P44) records the test suite run at each
 # blocked commit before its fix: [{commit, result: PASS|FAIL|NOT_AVAILABLE, evidence}].
 # Receipts without it stay valid.
@@ -426,12 +431,16 @@ sop_receipt_valid() {
       def rank: {CRITICAL:4,HIGH:3,MEDIUM:2,LOW:1,INFO:0,never:99}[.];
       def text: type == "string" and length > 0;
       def nat: type == "number" and . >= 0 and floor == .;
-      def usage_ok($runs):
+      def usage_ok($launches; $runs):
         . == null or (type == "object" and . as $u |
           if .source == "claude-task-notification" then
             (.runs | type == "array" and length >= 1 and length <= $runs and
-              all(.[]; type == "object" and (.tokens | nat) and (.duration_ms | nat))) and
-            (.tokens | type == "object") and .tokens.total_tokens == ([$u.runs[].tokens] | add) and
+              all(.[]; type == "object" and (.instance | nat and . >= 1) and
+                (.tokens | nat) and (.duration_ms | nat))) and
+            ($u.runs | group_by(.instance)) as $inst |
+            ($inst | length <= $launches) and
+            all($inst[]; . as $g | all(range(1; $g | length); $g[.].tokens >= $g[. - 1].tokens)) and
+            (.tokens | type == "object") and .tokens.total_tokens == ([$inst[] | .[-1].tokens] | add) and
             .duration_ms == ([$u.runs[].duration_ms] | add)
           elif .source == "codex-review" then
             (.runs | nat and . >= 1) and (.elapsed_seconds | type == "number" and . >= 0) and
@@ -454,7 +463,8 @@ sop_receipt_valid() {
            (.rechecks | type == "number" and . >= 0 and floor == .) and
            (.block_rounds | type == "number" and . >= 0 and floor == .) and
            (.block_rounds <= .launches + .rechecks) and
-           ((.launches + .rechecks) as $runs | (.usage // null) | usage_ok($runs))
+           (.launches as $review_launches | (.launches + .rechecks) as $review_runs
+             | (.usage // null) | usage_ok($review_launches; $review_runs))
          else true end) and
         (.findings | type == "array" and all(.[];
           (.severity | IN("CRITICAL","HIGH","MEDIUM","LOW","INFO")) and

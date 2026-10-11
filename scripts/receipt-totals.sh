@@ -14,7 +14,8 @@
 # Cost (P44). Each receipt is one change. A change's tokens and reviewer minutes
 # are known only when every reviewer in it recorded usage; one null makes the
 # change's figure null, so a partial sum never reads as a total. Tokens are
-# Claude's total_tokens, or Codex's input_tokens + output_tokens. The runtimes
+# Claude's total_tokens (the sum over agent instances of each one's last,
+# cumulative figure), or Codex's input_tokens + output_tokens. The runtimes
 # count differently, so tokens are also given per source. Reviewer minutes add
 # up each reviewer's own run time; reviewers run in parallel, so this is not
 # wall-clock time.
@@ -38,8 +39,11 @@ ROW_FILTER='
   def num: if type == "number" and . >= 0 then . else null end;
   def cost: try (
       if type == "object" and .source == "claude-task-notification" then
-        {source, tokens: (.tokens.total_tokens | num),
-         seconds: ((.duration_ms | num) as $ms | if $ms == null then null else $ms / 1000 end)}
+        # Totals as written, else from the runs: tokens are cumulative per
+        # instance (its last figure counts once), duration_ms is per run.
+        {source,
+         tokens: ((.tokens.total_tokens // ([.runs | group_by(.instance)[] | .[-1].tokens] | add)) | num),
+         seconds: ((.duration_ms // ([.runs[].duration_ms] | add)) | num | if . == null then null else . / 1000 end)}
       elif type == "object" and .source == "codex-review" then
         {source,
          tokens: (if (.tokens.input_tokens | num) != null and (.tokens.output_tokens | num) != null

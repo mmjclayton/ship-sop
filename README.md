@@ -163,7 +163,9 @@ Reports go in `docs/reviews/<timestamp>-ship-auto.md`, with a companion
 records each reviewer's verdict, findings, launches, re-checks and blocking rounds,
 and its usage: under Codex, tokens and run time from the runner's telemetry;
 under Claude, the tokens and duration each task-completion notification reports,
-one entry per launch or re-check, with totals the receipt tool adds. Usage is null
+one entry per launch or re-check, with totals the receipt tool adds. Claude's
+token figure is a running total for each agent, so a re-checked reviewer counts
+its last figure once; durations are per run and are added. Usage is null
 when a figure is unknown, never zero or estimated. When a review round blocks,
 the session runs the project's tests at the blocked commit before fixing it, and
 the optional `block_tests` field records each result (PASS, FAIL or

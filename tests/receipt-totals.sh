@@ -38,7 +38,7 @@ printf 'PASS: table output\n'
 # results are counted.
 claude_usage() { # tokens duration_ms
     jq -n --argjson t "$1" --argjson d "$2" \
-        '{source:"claude-task-notification",runs:[{tokens:$t,duration_ms:$d}],tokens:{total_tokens:$t},duration_ms:$d}'
+        '{source:"claude-task-notification",runs:[{instance:1,tokens:$t,duration_ms:$d}],tokens:{total_tokens:$t},duration_ms:$d}'
 }
 codex_usage='{"source":"codex-review","runs":1,"turns":2,"elapsed_seconds":60,"tokens":{"input_tokens":1000,"cached_input_tokens":400,"output_tokens":200},"evidence":["x"]}'
 with_usage() { jq --argjson u "$2" '. + {usage: $u}' <<< "$1"; }
@@ -65,6 +65,16 @@ bash "$SOURCE/scripts/receipt-totals.sh" "$WORK/gamma" > "$WORK/table"
 grep -q '^| gamma | 4 | 4 | 2 | 3 | 7 | 2 | 0 | 0 | 0 | 0 | 1 | 2 | 41200 | 4 | 1 / 1 / 1 |$' "$WORK/table" \
     || { echo 'FAIL: cost table row'; cat "$WORK/table"; exit 1; }
 printf 'PASS: tokens, reviewer minutes and block-test results per change and in total\n'
+
+# Runs without totals: one launch and two re-checks of one instance report
+# cumulative tokens (the last counts, not the sum); a second launch adds its own.
+receipt "$WORK/delta" 20261017-000000 d1 2 "[$(with_usage "$(reviewer code 2 2 0)" '{"source":"claude-task-notification","runs":[
+  {"instance":1,"tokens":116735,"duration_ms":35522},{"instance":1,"tokens":123830,"duration_ms":16202},
+  {"instance":1,"tokens":125807,"duration_ms":5082},{"instance":2,"tokens":78636,"duration_ms":3194}]}')]"
+bash "$SOURCE/scripts/receipt-totals.sh" --json "$WORK/delta" > "$WORK/delta.json"
+jq -e '.[0].tokens == 204443 and .[0].changes[0].reviewer_minutes == 1' "$WORK/delta.json" >/dev/null \
+    || { echo 'FAIL: cumulative tokens were summed, or durations were not'; cat "$WORK/delta.json"; exit 1; }
+printf 'PASS: cumulative instance tokens count once; per-run durations add up\n'
 
 # Unreadable receipts and empty roots are reported and fail the run; the
 # totals for the rest still print.

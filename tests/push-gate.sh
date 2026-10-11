@@ -482,13 +482,26 @@ v2_case() {
     run_hook "$PUSH" "$V2" "$(push_json 'git push origin feat/counted')"
     if { [ "$2" = covers ] && allowed; } || { [ "$2" = refused ] && refused; }; then ok "receipt-$1"; else bad "receipt-$1" "exit $HOOK_EXIT"; fi
 }
-CLAUDE_USAGE='{source: "claude-task-notification", runs: [{tokens: 1000, duration_ms: 5000}, {tokens: 500, duration_ms: 2000}], tokens: {total_tokens: 1500}, duration_ms: 7000}'
+# Claude: subagent_tokens is cumulative per agent instance (a re-check continues
+# the instance), duration_ms is per run. One launch and one re-check here.
+CLAUDE_USAGE='{source: "claude-task-notification", runs: [{instance: 1, tokens: 1000, duration_ms: 5000}, {instance: 1, tokens: 1500, duration_ms: 2000}], tokens: {total_tokens: 1500}, duration_ms: 7000}'
 CODEX_USAGE='{source: "codex-review", runs: 2, turns: 3, elapsed_seconds: 12.5, tokens: {input_tokens: 10, cached_input_tokens: 4, output_tokens: 3}, evidence: ["a", "b"]}'
 v2_case claude-usage-accepted covers ".reviewers |= map(.usage = $CLAUDE_USAGE)"
 v2_case claude-usage-wrong-total-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .tokens.total_tokens = 1499))"
+v2_case claude-usage-cumulative-summed-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .tokens.total_tokens = 2500))"
 v2_case claude-usage-wrong-duration-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .duration_ms = 1))"
-v2_case claude-usage-more-runs-than-launches-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs += [{tokens: 0, duration_ms: 0}] | .tokens.total_tokens = 1500 | .duration_ms = 7000))"
-v2_case claude-usage-negative-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs[0].tokens = -1000 | .tokens.total_tokens = -500))"
+v2_case claude-usage-more-runs-than-launches-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs += [{instance: 1, tokens: 1500, duration_ms: 0}]))"
+v2_case claude-usage-more-instances-than-launches-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs[1].instance = 2 | .tokens.total_tokens = 2500))"
+v2_case claude-usage-falling-cumulative-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs[1].tokens = 900 | .tokens.total_tokens = 900))"
+v2_case claude-usage-no-instance-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs |= map(del(.instance))))"
+v2_case claude-usage-negative-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs[0].tokens = -1000))"
+# One launch plus two re-checks: 116735, 123830, 125807 are one instance's
+# running totals, so the reviewer used 125807 tokens, not their sum.
+LAUNCH_TWO_RECHECKS='{source: "claude-task-notification", runs: [{instance: 1, tokens: 116735, duration_ms: 35522}, {instance: 1, tokens: 123830, duration_ms: 16202}, {instance: 1, tokens: 125807, duration_ms: 5082}], tokens: {total_tokens: 125807}, duration_ms: 56806}'
+v2_case claude-usage-launch-two-rechecks-accepted covers ".reviewers |= map(.rechecks = 2 | .usage = $LAUNCH_TWO_RECHECKS)"
+v2_case claude-usage-launch-two-rechecks-summed-rejected refused ".reviewers |= map(.rechecks = 2 | .usage = ($LAUNCH_TWO_RECHECKS | .tokens.total_tokens = 366372))"
+# Two launches: each instance's last figure counts.
+v2_case claude-usage-two-instances-accepted covers ".reviewers |= map(.launches = 2 | .rechecks = 0 | .usage = {source: \"claude-task-notification\", runs: [{instance: 1, tokens: 1000, duration_ms: 5}, {instance: 2, tokens: 700, duration_ms: 6}], tokens: {total_tokens: 1700}, duration_ms: 11})"
 v2_case claude-usage-no-runs-rejected refused ".reviewers |= map(.usage = {source: \"claude-task-notification\", runs: [], tokens: {total_tokens: 0}, duration_ms: 0})"
 v2_case codex-usage-accepted covers ".reviewers |= map(.usage = $CODEX_USAGE)"
 v2_case codex-usage-string-tokens-rejected refused ".reviewers |= map(.usage = ($CODEX_USAGE | .tokens.input_tokens = \"10\"))"
