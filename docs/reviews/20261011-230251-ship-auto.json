@@ -1,0 +1,103 @@
+{
+  "schema_version": 2,
+  "base": "84b9f49e0fed1c8ddf11efbc5cd9b23b8ff85af5",
+  "head": "8076c51e1c278bdf2881debd2c2a0dad1d635f0a",
+  "tree": "42bb723c46891681630408385a8e5fed87261279",
+  "policy_sha256": "b7b6afd9bb0ee123aeec892b91291324b9c37ade2febd5035e685c0051eff352",
+  "tests": {
+    "status": "PASS",
+    "evidence": "At 8076c51 on macOS, AGENT_SOP_SOURCE unset: claude-install PASS; codex-install PASS; codex-usage PASS; install-agents PASS; install-hooks PASS; legacy-hook PASS; push-gate PASS; receipt-contract PASS; receipt-integration PASS; receipt-lib-check PASS; receipt-totals PASS; validate-state-transitions PASS; shellcheck clean. Linux CI failure (manifest mktemp honouring an unwritable TMPDIR) fixed in 8076c51."
+  },
+  "reviewers": [
+    {
+      "name": "security-reviewer",
+      "version": "0f8a59958459703fc4108ecf1977f4638b6a4565",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 4,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/hooks/sop-push-gate.sh",
+          "line": 101,
+          "message": "a bypass on one unquoted push also covers a push inside a quoted bash -c on another segment; logged, low impact"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/install-hooks.sh",
+          "line": 282,
+          "message": "stray-registration check runs after the settings write, so a stray gate and the new one coexist until the user cleans up; the message says so"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/hooks/sop-push-gate.sh",
+          "line": 55,
+          "message": "fixed: MEDIUM gate fail-open on unreadable cwd, HEAD or range; MEDIUM GNU stat mode; MEDIUM fallback match evaded by quoting"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/install-hooks.sh",
+          "line": 206,
+          "message": "fixed: manifest temp file used the system TMPDIR; failed on Linux CI"
+        }
+      ]
+    },
+    {
+      "name": "code-reviewer",
+      "version": "01027637966b1e741c49018f071b91b0cad528f6",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 3,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/hooks/sop-push-gate.sh",
+          "line": 66,
+          "message": "library load error is discarded; the refusal says failed to load without the cause"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/install-hooks.sh",
+          "line": 282,
+          "message": "stray-registration pattern also matches a user wrapper that mentions the gate script names"
+        },
+        {
+          "severity": "INFO",
+          "file": "tests/install-agents.sh",
+          "line": 30,
+          "message": "fixed: MEDIUM installed gate not tested end to end; MEDIUM code-reviewer agent named retired files"
+        }
+      ]
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "46bcbfc7adb8b13d1e0f0d9bcdf16d512b165d89",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 4,
+      "block_rounds": 1,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/hooks/sop-push-gate.sh",
+          "line": 120,
+          "message": "bypass.log write failure warns and still allows the bypassed push"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/hooks/sop-push-gate.sh",
+          "line": 44,
+          "message": "fixed: HIGH a missing library function let a push through; MEDIUM installer altered unrelated hook entries; MEDIUM stale agent-sop registrations survived migration"
+        }
+      ]
+    }
+  ]
+}

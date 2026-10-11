@@ -500,7 +500,7 @@ Since agent-sop P124 (11 Oct 2026), the only parts of agent-sop that do anything
 
 **Outcome:** ship-sop installs and registers the push gate and the two gate reviewers itself; CI and every suite run without agent-sop. Review took one blocking round (silent-failure: a missing library function let a push through) and three fix commits; the gate now refuses on any check it cannot complete.
 
-review: docs/reviews/20261011-225814-ship-auto.md
+review: docs/reviews/20261011-230251-ship-auto.md
 
 ---
 
