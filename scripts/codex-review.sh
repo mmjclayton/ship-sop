@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # One reviewer, one independent clone, enforced read-only Codex sandbox.
 set -euo pipefail
-BASE=''; HEAD_REF=HEAD; AGENT=''; AUDIT=false
+BASE=''; HEAD_REF=HEAD; AGENT=''; AUDIT=false; BLOCK_ON=''
 while [ $# -gt 0 ]; do
     case "$1" in
-        --base|--head|--agent)
+        --base|--head|--agent|--block-on)
             [ $# -ge 2 ] || { echo "$1 needs a value" >&2; exit 2; }
-            case "$1" in --base) BASE="$2" ;; --head) HEAD_REF="$2" ;; --agent) AGENT="$2" ;; esac; shift ;;
+            case "$1" in --base) BASE="$2" ;; --head) HEAD_REF="$2" ;; --agent) AGENT="$2" ;; --block-on) BLOCK_ON="$2" ;; esac; shift ;;
         --audit) AUDIT=true ;;
         *) echo "Unknown option $1" >&2; exit 2 ;;
     esac; shift
 done
 [[ "$AGENT" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo 'Invalid/missing agent name' >&2; exit 2; }
+case "$BLOCK_ON" in ''|CRITICAL|HIGH|MEDIUM|never) ;; *) echo "Invalid --block-on $BLOCK_ON (CRITICAL, HIGH, MEDIUM or never)" >&2; exit 2 ;; esac
 ROOT=$(git rev-parse --show-toplevel)
 HEAD_SHA=$(git rev-parse --verify "$HEAD_REF^{commit}")
 if [ "$AUDIT" = false ]; then
@@ -50,6 +51,8 @@ if [ "$AUDIT" = false ]; then git -C "$WORK/repo" cat-file -e "$BASE^{commit}"; 
     printf 'Reviewer definition:\n'; cat "$ROLE"
     if [ "$AUDIT" = true ]; then printf '\nScope: whole repository at %s.\n' "$HEAD_SHA"
     else printf '\nScope: git diff %s..%s. Read surrounding code as needed.\n' "$BASE" "$HEAD_SHA"; fi
+    printf '%s\n' 'Severity rule for this gate: CRITICAL or HIGH only when the finding has user or data impact - wrong output shown to users, data loss or corruption, exposure of private data, a security weakness, a failure on a user-facing path, or a silent failure that hides one of these. Everything else, including style, maintainability, correctness with no user or data impact, missing tests and documentation, is MEDIUM or LOW. Return Verdict: BLOCK only when a finding is at or above your blocking threshold.'
+    if [ -n "$BLOCK_ON" ]; then printf 'Your blocking threshold is %s.\n' "$BLOCK_ON"; fi
     printf 'Finish with exactly Verdict: PASS, Verdict: BLOCK or Verdict: INCOMPLETE on its own line without trailing punctuation. Include severity, file:line, evidence and suggested fix for each finding. Missing tools are not passes.\n'
 } > "$WORK/prompt"
 # Keep normal authentication, but exclude operator MCP/plugin configuration.

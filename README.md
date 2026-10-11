@@ -123,6 +123,10 @@ Edit `ship-sop.config.json` in the project. The defaults:
 | `diagram-builder` | No | Advisory | any code |
 
 - `enabled` and `block_on` set each reviewer; `block_on: "never"` makes it advisory.
+  Only findings at or above a reviewer's `block_on` block and get fixed in that
+  ship; the rest are recorded as notes. Reviewers rate a finding CRITICAL or HIGH
+  only when it has user or data impact, so the default thresholds (security at
+  CRITICAL, code and silent-failure at HIGH) block on impact, not style.
 - `paths` (an array of regular expressions) scopes a reviewer: it joins only when
   a changed path matches. Without `paths` it runs on every code diff; an empty
   array never runs it. The push gate, the receipt check and `ship` read the same

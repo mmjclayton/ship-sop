@@ -22,7 +22,7 @@ code signal. Non-code projects stop with an explanation.
    when a path changed in the range matches one of its patterns; without
    `paths` it always is. Add --with (it joins regardless of scope). A missing
    library is INCOMPLETE. Do not silently omit an unavailable reviewer. Invoke each using:
-   `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/codex-review.sh" --base <BASE> --head <HEAD_SHA> --agent <name>`
+   `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/codex-review.sh" --base <BASE> --head <HEAD_SHA> --agent <name> --block-on <block_on>`
    This launches a separate read-only Codex process in an independent clone.
    Concurrent processes are permitted; wait for every result. Use the script,
    not same-workspace writable subagents or Claude's isolation tool argument.
@@ -60,7 +60,9 @@ code signal. Non-code projects stop with an explanation.
 5. Small fixes may be applied in scope, but a new code commit needs a fresh review
    of that HEAD. Do not stamp an old review with a newer SHA. Do not commit, push,
    tag or publish as part of ship. Do not file findings into Backlog automatically.
-   Report HIGH/CRITICAL findings first. Cite the same report from the Backlog
+   Fix only findings at or above their reviewer's threshold; list the rest in the
+   report as notes, unfixed, so they never trigger a re-review. Count a block
+   round only when a finding met the threshold. Report blocking findings first. Cite the same report from the Backlog
    entry's `review:` line.
 
 The review script requires a committed snapshot. If the intended scope includes
