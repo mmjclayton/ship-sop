@@ -2,12 +2,11 @@
 
 **Project type:** code
 
-Read `CLAUDE.md` for shared project conventions and document dispatch.
-Read `docs/sop/codex.md` for the Codex runtime adapter. Both runtimes use
-one Backlog, SOP, memory, validators and review reports.
+Read `CLAUDE.md` for shared project conventions, working rules and document
+dispatch. Both runtimes use one Backlog, memory, validators and review reports.
 
 Codex workflows live in `.agents/skills/`, reviewers in `.codex/agents/`.
-Use `restart-sop`, `update-sop` and `ship` for the corresponding workflows.
+Use `ship` for the review workflow.
 Reviewers use a separate checkout and read-only sandbox, return findings,
 and never write into the working checkout. The parent writes reports.
 

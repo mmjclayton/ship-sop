@@ -170,6 +170,10 @@ fi
 # declared P-number AND no ## Scope Change block exists in the resume file,
 # hard-block — the agent drifted and hasn't declared it.
 # ---------------------------------------------------------------------------
+if [ "$MODE" = "check-drift" ] && [ -z "$DRIFT_RESUME_FILE" ] && [ ! -f "$(dirname "$0")/resolve-resume-path.sh" ]; then
+    echo "check-drift: retired with the resume layer (P124, 11 Oct 2026); nothing to check." >&2
+    exit 0
+fi
 if [ "$MODE" = "check-drift" ]; then
   # Resolve resume file
   resume_file="$DRIFT_RESUME_FILE"

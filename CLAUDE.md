@@ -2,10 +2,15 @@
 
 **Project type:** code
 
-Code review execution and evidence for Claude Code and Codex. Agent SOP owns
-session context and the lifecycle hooks; ship-sop owns the review workflow.
-Shared session start/end: `docs/sop/claude-agent-sop.md`. Runtime bindings:
-`docs/sop/codex.md`. Project conventions here take precedence on project details.
+Code review execution and evidence for Claude Code and Codex. ship-sop owns the
+review workflow. Project conventions here take precedence on project details.
+
+## Working rules
+
+- `Backlog.md` is the list of work and its status. Update an item's status tag when its state changes.
+- Ask only when the answer would materially change the result; otherwise make the call, state the assumption, and carry on.
+- Pushes go through the review gate (ship-sop) where the project has `ship-sop.config.json`.
+- When files disagree, code and git win, then this file, then `Backlog.md`.
 
 ## Key Documents & Dispatch
 
@@ -18,7 +23,7 @@ Shared session start/end: `docs/sop/claude-agent-sop.md`. Runtime bindings:
 | Change a workflow | `.agents/skills/ship/SKILL.md`, `.claude/commands/ship.md` | Both runtimes share the receipt contract |
 | Change installation | `setup.sh`, `scripts/install-codex.sh` | Preserve customisations and self-install protection |
 | Change policy | `docs/templates/ship-sop.config.json` | Shared validation is upstream in Agent SOP |
-| Recover project knowledge | `docs/agent-memory/` | Relevant decisions, gotchas and handoffs |
+| Recover project knowledge | `docs/agent-memory/` | Decisions and gotchas, as reference reading |
 | Review current architecture work | `docs/build-plans/review-hardening.md` | Older phase plans are historical |
 
 ## Stack
@@ -55,10 +60,11 @@ confirmation where it runs. A branch awaiting merge remains `[IN PROGRESS]`.
 ## Change and verification rules
 
 Read the work item and implementation, add a discriminating fixture for behaviour
-changes, run the checks above, and follow the shared session-close workflow once.
+changes and run the checks above.
 The coordinating session owns records; specialists return findings.
 Ship via a branch and PR; main is protected. Publication needs user authorisation.
 Do not edit upstream Agent SOP replicas directly: fix them in agent-sop and sync.
-New non-obvious decisions belong in `docs/agent-memory/`; session records in
-`docs/recent-work/`. Feature inventory changes when work merges. Build plans are
-planning context, not a second mandatory session log.
+New non-obvious decisions belong in `docs/agent-memory/`. Earlier session records
+stay in `docs/recent-work/` as history and are no longer written; status is in
+`Backlog.md`. Feature inventory changes when work merges. Build plans are
+planning context.
