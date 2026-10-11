@@ -25,11 +25,11 @@
   },
   {
     "id": "S04",
-    "reviewed_commit": "84df86b604343613dd3d06757602c69fba55b199",
+    "reviewed_commit": "fbdd9d2",
     "severity": "HIGH",
     "file": "src/web (company switcher, home list, conversation view)",
     "line": null,
-    "claim": "[Round two, fbdd9d2] Company names in the switcher and home list, and a conversation's insight origin, render without the record marking, so the guard flags or misses them."
+    "claim": "Company names in the switcher and home list, and a conversation's insight origin, render without the record marking, so the guard flags or misses them."
   },
   {
     "id": "S05",
