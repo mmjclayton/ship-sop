@@ -1,0 +1,79 @@
+{
+  "schema_version": 2,
+  "base": "154730225c03c493880842caa24b8590ec3c3edf",
+  "head": "7e7d59b0a60921549b3a4b8912c6cb0ddf9e2299",
+  "tree": "fe98fc6f256cc5a6614cf6d0415e05545d92d7eb",
+  "policy_sha256": "b7b6afd9bb0ee123aeec892b91291324b9c37ade2febd5035e685c0051eff352",
+  "tests": {
+    "status": "PASS",
+    "evidence": "Data and report only (docs/benchmark/p40, Backlog.md); no script changed. Both reviewers recomputed every figure in report.md and the Backlog P40 Result from the committed grade files, selected.json, frame.tsv and edward's receipts (frame 231 rows / 124 receipts; cost 174 receipts, 636 launches, 824 rechecks, 277 block rounds); the README draw code reproduces sample.tsv and all 29 selections."
+  },
+  "reviewers": [
+    {
+      "name": "code-reviewer",
+      "version": "f6420e5df2c684f2da46628e1c1c264dbb865ac3130701ff8025111b392bd677",
+      "model": "sonnet",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 1,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "INFO",
+          "file": "docs/benchmark/p40/report.md",
+          "line": 7,
+          "message": "Fixed (was HIGH): claim that every block followed a passing suite; receipts record tests only at the final commit. Now stated as unknown."
+        },
+        {
+          "severity": "MEDIUM",
+          "file": "docs/benchmark/p40/report.md",
+          "line": 1,
+          "message": "Schema-2 date range, disagreement wording, per-receipt unit, README reproducibility; fixed in d0124d9."
+        },
+        {
+          "severity": "LOW",
+          "file": "docs/benchmark/p40/README.md",
+          "line": 30,
+          "message": "Snippet variable and S04 prefix note; fixed in 7e7d59b."
+        }
+      ]
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "004ce0389356e0666d80c89cef39ad895ab326b3f7d19d34d23c70ab249a795d",
+      "model": "sonnet",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 1,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "INFO",
+          "file": "docs/benchmark/p40/report.md",
+          "line": 46,
+          "message": "Fixed (was HIGH): same tests claim; withdrawn."
+        },
+        {
+          "severity": "MEDIUM",
+          "file": "docs/benchmark/p40/grading-packet.json",
+          "line": 1,
+          "message": "S22 claim leaked a later round; disclosed and isolated in the sensitivity table (grades not redone)."
+        },
+        {
+          "severity": "MEDIUM",
+          "file": "docs/benchmark/p40/grading-packet.json",
+          "line": 1,
+          "message": "S12/S29 severity strings primed graders; S12 attribution uncertain; disclosed and isolated in sensitivity."
+        },
+        {
+          "severity": "LOW",
+          "file": "docs/benchmark/p40/report.md",
+          "line": 7,
+          "message": "Headline now gives the either-grader false-positive rate and both grader framings (e3b2528)."
+        }
+      ]
+    }
+  ]
+}
