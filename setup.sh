@@ -3,12 +3,15 @@
 # ship-sop Setup Script
 #
 # Installs ship-sop into a target project:
-#   - Three reference agents into ~/.claude/agents/
+#   - Five reviewer agents into ~/.claude/agents/
 #   - Five slash commands into ~/.claude/commands/
+#   - The push gate into ~/.claude/scripts/hooks/ship-sop/, registered as a
+#     user-scope PreToolUse hook in ~/.claude/settings.json
 #   - ship-sop.config.json at the project root (with defaults)
 #
-# Automatic review runs from agent-sop's user-scope hooks. Setup retires the
-# project-scope auto-ship-hook.sh and its settings entry left by older installs.
+# Setup also retires the project-scope auto-ship-hook.sh and its settings entry
+# left by older installs, and moves an older user-scope push-gate install
+# (see scripts/install-hooks.sh) to the ship-sop path.
 #
 # Or removes the same install footprint when --uninstall is passed.
 #
@@ -17,11 +20,12 @@
 #   ./setup.sh /path/to/your/project --uninstall [--force] [--keep-config] [--keep-artifacts]
 #
 # Install options:
-#   --no-hook         Skip the agent-sop hook check (manual /ship and /release only)
+#   --no-hook         Install the gate scripts but do not register the push gate
+#                     (manual /ship and /release only)
 #   --force           Overwrite existing files (install) / remove locally-modified files (uninstall)
 #
 # Uninstall options:
-#   --uninstall       Reverse the install — remove agents, commands, config, gitignore entry and any legacy hook script or settings entry
+#   --uninstall       Reverse the install — remove agents, commands, the push gate, config, gitignore entry and any legacy hook script or settings entry
 #   --keep-config     Keep ship-sop.config.json (project-scope; useful to preserve per-project tuning across re-installs)
 #   --keep-artifacts  Keep .ship/ runtime artifacts directory (cooldown stamps, pending directives)
 #
@@ -94,7 +98,7 @@ usage() {
     echo ""
     echo "Install options:"
     echo "  --runtime claude|codex|both  (default: claude)"
-    echo "  --no-hook         Skip the agent-sop hook check (manual /ship only)"
+    echo "  --no-hook         Do not register the push gate (manual /ship only)"
     echo "  --force           Overwrite existing files (install) / remove locally-modified files (uninstall)"
     echo ""
     echo "Uninstall options:"
@@ -228,6 +232,50 @@ remove_if_unmodified() {
     fi
 }
 
+# ── Reviewer agents (user-scope) ──────────────────────────────────────────────
+#
+# scripts/shipped-agents.txt lists the git blob of every shipped version of each
+# agent. An installed copy that matches one is unedited: install updates it and
+# uninstall removes it. Anything else is a local edit and is kept unless --force.
+
+SHIPPED_AGENTS="$SCRIPT_DIR/scripts/shipped-agents.txt"
+
+is_shipped_agent() { # <installed-path>
+    local b
+    b=$(git hash-object --no-filters "$1" 2>/dev/null) || return 1
+    grep -qx "$b $(basename "$1")" "$SHIPPED_AGENTS"
+}
+
+install_agent() { # <src> <dest>
+    local src="$1" dest="$2" name
+    name=$(basename "$dest")
+    if [ "$src" -ef "$dest" ]; then
+        echo "  skip   $name (source and target are the same file)"
+    elif [ ! -f "$dest" ]; then
+        cp "$src" "$dest" || return 1
+        echo "  create $name"
+    elif cmp -s "$src" "$dest"; then
+        echo "  skip   $name (up to date)"
+    elif [ "$FORCE" = true ]; then
+        cp "$src" "$dest" || return 1
+        echo "  update $name (--force)"
+    elif is_shipped_agent "$dest"; then
+        cp "$src" "$dest" || return 1
+        echo "  update $name"
+    else
+        echo "  keep   $name (edited locally, use --force to replace)"
+    fi
+}
+
+remove_agent() { # <src> <dest>
+    if [ -f "$2" ] && [ ! "$1" -ef "$2" ] && [ "$FORCE" = false ] && is_shipped_agent "$2"; then
+        rm -f "$2"
+        echo "  remove $(basename "$2")"
+        return 0
+    fi
+    remove_if_unmodified "$1" "$2"
+}
+
 # Set when a legacy file or entry could not be retired; setup then exits non-zero.
 LEGACY_PENDING=false
 
@@ -243,7 +291,7 @@ remove_legacy_hook_script() {
         LEGACY_PENDING=true; return 0
     fi
     if printf '%s\n' "$LEGACY_HOOK_BLOBS" | grep -qx "$blob"; then
-        rm -f "$dest"; echo "  remove scripts/auto-ship-hook.sh (retired: it never ran live; auto-mode runs from agent-sop)"
+        rm -f "$dest"; echo "  remove scripts/auto-ship-hook.sh (retired: it never ran live; auto-mode runs from the user-scope push gate)"
     else
         echo "  skip   scripts/auto-ship-hook.sh (locally modified, use --force to remove)"
     fi
@@ -356,15 +404,24 @@ uninstall_mode() {
     fi
     echo ""
 
-    local user_claude_dir="${AGENT_SOP_USER_HOME:-$HOME}/.claude"
+    local user_claude_dir="${SHIP_SOP_USER_HOME:-$HOME}/.claude"
 
     remove_if_unmodified "$SCRIPT_DIR/scripts/ship-receipt.sh" "$user_claude_dir/scripts/ship-sop/ship-receipt.sh"
+    rmdir "$user_claude_dir/scripts/ship-sop" 2>/dev/null || true
+
+    # User-scope push gate: registration first, then the scripts.
+    echo "Removing the push gate"
+    if ! bash "$SCRIPT_DIR/scripts/install-hooks.sh" --runtime claude --uninstall | sed 's/^/  /'; then
+        echo "  warn   could not remove the push gate; check $user_claude_dir/settings.json" >&2
+        LEGACY_PENDING=true
+    fi
 
     # User-scope agents
+    echo ""
     echo "Removing agents from $user_claude_dir/agents/"
     for src in "$SCRIPT_DIR"/.claude/agents/*.md; do
         [ -f "$src" ] || continue
-        remove_if_unmodified "$src" "$user_claude_dir/agents/$(basename "$src")"
+        remove_agent "$src" "$user_claude_dir/agents/$(basename "$src")"
     done
 
     # User-scope commands
@@ -439,7 +496,7 @@ uninstall_mode() {
     # Summary
     echo ""
     if [ "$LEGACY_PENDING" = true ]; then
-        echo "Uninstall incomplete: a legacy hook file or entry remains (see warnings above)."
+        echo "Uninstall incomplete: a hook file or entry remains (see warnings above)."
     else
         echo "Done. ship-sop is uninstalled."
     fi
@@ -470,12 +527,12 @@ if [ "$UNINSTALL" = true ]; then
         echo ""
     fi
     # Removing Claude integration must not remove shared Codex configuration.
-    if [ "$RUNTIME" = claude ] && [ -f "${CODEX_HOME:-${AGENT_SOP_USER_HOME:-$HOME}/.codex}/ship-sop.install.json" ]; then
+    if [ "$RUNTIME" = claude ] && [ -f "${CODEX_HOME:-${SHIP_SOP_USER_HOME:-$HOME}/.codex}/ship-sop.install.json" ]; then
         KEEP_CONFIG=true; KEEP_ARTIFACTS=true
     fi
     uninstall_mode "$TARGET"
     if [ "$LEGACY_PENDING" = true ]; then
-        echo "Uninstall finished, but a legacy hook file or entry could not be removed; see the warnings above." >&2
+        echo "Uninstall finished, but a hook file or entry could not be removed; see the warnings above." >&2
         exit 1
     fi
     exit 0
@@ -517,7 +574,7 @@ fi
 
 # ── Install reference agents (user-scope) ─────────────────────────────────────
 
-USER_CLAUDE_DIR="${AGENT_SOP_USER_HOME:-$HOME}/.claude"
+USER_CLAUDE_DIR="${SHIP_SOP_USER_HOME:-$HOME}/.claude"
 mkdir -p "$USER_CLAUDE_DIR/agents" "$USER_CLAUDE_DIR/commands"
 
 mkdir -p "$USER_CLAUDE_DIR/scripts/ship-sop"
@@ -526,13 +583,7 @@ else result=$?; [ "$result" = 1 ] || { echo 'Receipt tool installation failed' >
 echo "Installing agents to ~/.claude/agents/"
 for src in "$SCRIPT_DIR"/.claude/agents/*.md; do
     [ -f "$src" ] || continue
-    dest="$USER_CLAUDE_DIR/agents/$(basename "$src")"
-    if [ -f "$dest" ] && [ "$FORCE" = false ]; then
-        echo "  skip   $(basename "$src") (already exists, use --force)"
-    else
-        cp "$src" "$dest"
-        echo "  create $(basename "$src")"
-    fi
+    install_agent "$src" "$USER_CLAUDE_DIR/agents/$(basename "$src")"
 done
 
 # ── Install slash commands (user-scope) ───────────────────────────────────────
@@ -617,56 +668,50 @@ EOF
     echo "  create .gitignore"
 fi
 
-# ── Automatic review hooks (agent-sop) ────────────────────────────────────────
+# ── Push gate (user-scope) ────────────────────────────────────────────────────
+#
+# The gate scripts are always installed: receipt validation loads sop-lib.sh.
+# --no-hook leaves the hook settings alone, so the gate is not registered.
 
-UNIFIED_SETTINGS="${AGENT_SOP_USER_HOME:-$HOME}/.claude/settings.json"
-UNIFIED_STOP="${AGENT_SOP_USER_HOME:-$HOME}/.claude/scripts/hooks/agent-sop/sop-push-gate.sh"
-# P124: agent-sop registers only its PreToolUse push gate.
-# absent: no agent-sop push-gate hook; wired: registered and present; stale: registered
-# but not at the standard path; unknown: jq missing or settings unreadable.
-UNIFIED_STATE=absent
-if [ -f "$UNIFIED_SETTINGS" ]; then
-    if ! command -v jq >/dev/null 2>&1; then
-        UNIFIED_STATE=unknown
-    else
-        rc=0
-        jq -e '[.hooks.PreToolUse[]?.hooks[]? | (.command? // "") | strings | select(contains("sop-push-gate.sh"))] | length > 0' "$UNIFIED_SETTINGS" >/dev/null 2>&1 || rc=$?
-        if [ "$rc" = 0 ]; then
-            UNIFIED_STATE=wired
-            if [ ! -f "$UNIFIED_STOP" ] || ! jq -e --arg command "bash \"$UNIFIED_STOP\"" '[.hooks.PreToolUse[]?.hooks[]? | (.command? // "") | select(. == $command)] | length > 0' "$UNIFIED_SETTINGS" >/dev/null; then
-                UNIFIED_STATE=stale
-            fi
-        elif [ "$rc" != 1 ]; then
-            UNIFIED_STATE=unknown
-        fi
-    fi
-fi
-if [ "$NO_HOOK" = false ] && [ "$UNIFIED_STATE" = stale ]; then
-    echo 'Auto-mode registration is stale or nonstandard; repair agent-sop hooks before retiring the project handler.' >&2
-    exit 1
+echo ""
+echo "Installing the push gate to ~/.claude/scripts/hooks/ship-sop/"
+HOOK_ARGS=(--runtime claude)
+[ "$NO_HOOK" = false ] || HOOK_ARGS+=(--no-register)
+GATE_STATE=ok
+if ! bash "$SCRIPT_DIR/scripts/install-hooks.sh" "${HOOK_ARGS[@]}" | sed 's/^/  /'; then
+    GATE_STATE=failed
+    echo "  warn   the push gate installer reported a problem; see above" >&2
 fi
 
 echo ""
-if [ "$SELF_INSTALL" = true ]; then
+if [ "$GATE_STATE" = failed ] && [ "$NO_HOOK" = false ]; then
+    # The old project-scope handler stays until the gate that replaces it is in place.
+    echo "  keep   legacy project hook (if any): the push gate is not in place yet"
+elif [ "$SELF_INSTALL" = true ]; then
     retire_legacy_hook_entry "$TARGET" || true
 else
     retire_legacy_hook "$TARGET"
 fi
 
 echo ""
-if [ "$NO_HOOK" = true ]; then
-    echo "Skipping the agent-sop hook check (--no-hook). Use /ship and /release manually."
-elif [ "$UNIFIED_STATE" = wired ]; then
-    echo "Auto-mode uses agent-sop's user-scope hooks: registered."
-elif [ "$UNIFIED_STATE" = unknown ]; then
-    echo "Could not check agent-sop's hooks in $UNIFIED_SETTINGS (jq missing or the file is not valid JSON)." >&2
+if [ "$GATE_STATE" = failed ]; then
+    echo "Auto-mode is not active as installed: the push gate installer reported a problem (see above). /ship works manually meanwhile." >&2
+elif [ "$NO_HOOK" = true ]; then
+    SETTINGS_FILE="$USER_CLAUDE_DIR/settings.json"
+    REGISTERED=''
+    if [ -f "$SETTINGS_FILE" ] && command -v jq >/dev/null 2>&1; then
+        REGISTERED=$(jq -r '[.hooks[]?[]? | .hooks[]? | (.command? // "") | strings | select(test("sop-push-gate|sop-codex-hook"))] | .[]' "$SETTINGS_FILE" 2>/dev/null || echo "(could not read $SETTINGS_FILE)")
+    fi
+    echo "--no-hook: hook settings left unchanged. Push-gate registrations now in $SETTINGS_FILE:"
+    if [ -n "$REGISTERED" ]; then printf '%s\n' "$REGISTERED" | sed 's/^/  /'; else echo "  none (use /ship and /release manually)"; fi
 else
-    echo "Auto-mode needs agent-sop's user-scope hooks, which are not registered."
-    echo "Install agent-sop (its setup.sh), then /ship-on. /ship works manually meanwhile."
+    echo "Push gate registered. It applies while trigger.mode in ship-sop.config.json is \"auto\" (the default); /ship-off turns it off."
 fi
-# Receipts need the agent-sop library; /ship cannot finish a review without it.
+# Receipts and the gate need the installed library; /ship cannot finish a review without it.
+LIB_STATE=ok
 if ! bash "$SCRIPT_DIR/scripts/ship-receipt.sh" --check-lib --runtime claude; then
-    echo "  warn   /ship cannot write receipts until the agent-sop library problem above is fixed" >&2
+    LIB_STATE=failed
+    echo "  error  the installed library check failed; /ship cannot write receipts and the push gate refuses every push until it is fixed" >&2
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
@@ -688,13 +733,14 @@ echo "     (per-agent toggles, throttle, release branch). Edit before committing
 echo "     if the defaults aren't what you want."
 echo ""
 echo "  3. Verify the install:"
-echo "     - ~/.claude/agents/{compliance-reviewer,diagram-builder,release-notes-writer}.md"
+echo "     - ~/.claude/agents/{security-reviewer,code-reviewer,compliance-reviewer,diagram-builder,release-notes-writer}.md"
 echo "     - ~/.claude/commands/{ship,release,ship-on,ship-off,audit}.md"
+echo "     - ~/.claude/scripts/hooks/ship-sop/sop-push-gate.sh, registered in ~/.claude/settings.json"
 echo ""
 echo "  4. Try a dry run:"
 echo "     - Make a small commit, then in a Claude Code session in this project,"
 echo "       run /ship to see the manual pipeline."
-echo "     - With agent-sop's push gate and auto-mode on, a push or PR with an"
+echo "     - With the push gate and auto-mode on, a push or PR with an"
 echo "       unreviewed code diff is refused until the configured review has run."
 echo ""
 echo "  5. Toggle modes any time:"
@@ -709,5 +755,13 @@ echo ""
 if [ "$LEGACY_PENDING" = true ]; then
     echo "" >&2
     echo "Setup finished, but a legacy hook file or entry could not be retired; see the warnings above." >&2
+    exit 1
+fi
+if [ "$GATE_STATE" = failed ]; then
+    echo "Setup finished, but the push gate installer reported a problem; see the warnings above." >&2
+    exit 1
+fi
+if [ "$LIB_STATE" = failed ]; then
+    echo "Setup finished, but the installed library check failed; see the error above." >&2
     exit 1
 fi

@@ -19,7 +19,7 @@ if [ "$AUDIT" = false ]; then
     BASE=$(git rev-parse --verify "$BASE^{commit}")
 fi
 # Reviewer policy comes from the operator's installation, never the reviewed tree.
-ROLE="${CODEX_HOME:-${AGENT_SOP_USER_HOME:-$HOME}/.codex}/agents/$AGENT.toml"
+ROLE="${CODEX_HOME:-${SHIP_SOP_USER_HOME:-$HOME}/.codex}/agents/$AGENT.toml"
 [ -f "$ROLE" ] || { echo "INCOMPLETE: reviewer $AGENT is not installed" >&2; exit 1; }
 command -v codex >/dev/null || { echo 'INCOMPLETE: codex CLI is required' >&2; exit 1; }
 TIMEOUT=${SHIP_REVIEW_TIMEOUT_SECONDS:-600}

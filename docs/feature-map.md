@@ -26,7 +26,7 @@ Last updated: 2026-09-08 (P28, P30)
 | P3 | End-to-end dogfood of auto-mode | `docs/reviews/20260425-154239-*.md` | 2026-04-25 (`31f984e`) |
 | P3 | Leftover-rename fix in directive header | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-04-25 (`31f984e`) |
 | P4 | Docs-only detection in hook | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-04-25 (`bc2e9d7`) |
-| P5 | agent-sop install (retrospective record) | `CLAUDE.md`, `Backlog.md`, `docs/agent-memory*` | 2026-04-25 |
+| P5 | Session-process install (retrospective record) | `CLAUDE.md`, `Backlog.md`, `docs/agent-memory*` | 2026-04-25 |
 | P6 | Multi-tenant isolation scan in compliance-reviewer | `.claude/agents/compliance-reviewer.md` (Section 7) | 2026-04-25 (`3b679e0`) |
 | P6 | Lawful-basis severity bump LOW → MEDIUM | `.claude/agents/compliance-reviewer.md` (GDPR rights scan) | 2026-04-25 (`3b679e0`) |
 | P7 | `/audit` slash command (whole-codebase compliance audit) | `.claude/commands/audit.md` | 2026-04-25 |
@@ -42,13 +42,13 @@ Last updated: 2026-09-08 (P28, P30)
 | P10 | Drive-by fix: install Next-Steps + manual-uninstall lists now include `audit.md` | `setup.sh`, `README.md` | 2026-04-26 |
 | P11 | `SHIP_SOP_DEBUG=1` env var: stderr diagnostics on every silent-exit path in the SessionStop hook | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-05-02 |
 | P11 | Config schema sanity check: warn on unknown keys at hook load (catches `enabld`-style typos) | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-05-02 |
-| P11 | Opt-in artifact retention: `artifacts.retain_ship_artifact_days` (precise digit-count glob preserves agent-sop's `YYYY-MM-DD_*.md` reviews) | `scripts/auto-ship-hook.sh`, `docs/templates/ship-sop.{config,schema}.json` | 2026-05-02 |
+| P11 | Opt-in artifact retention: `artifacts.retain_ship_artifact_days` (precise digit-count glob preserves the `YYYY-MM-DD_*.md` review records) | `scripts/auto-ship-hook.sh`, `docs/templates/ship-sop.{config,schema}.json` | 2026-05-02 |
 | P11 | Hook edge fixes: `sha256sum` fallback, tightened docs-only regex, cached `git diff` | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-05-02 |
 | P11 | CLAUDE.md drift fixed: rollup refreshed (now includes P10), stale "future candidates" list removed | `CLAUDE.md` | 2026-05-02 |
 | P11 | `docs/ship-sop.md` folded into README; original file replaced with redirect stub | `README.md`, `docs/ship-sop.md` | 2026-05-02 |
 | P11 | README uninstall fallback wrapped in `<details>`; `/audit` added to quick start; new troubleshooting section | `README.md` | 2026-05-02 |
 | P11 | `setup.sh prompt_yn()` non-interactive timeout (`read -t 30` with default fallthrough) | `setup.sh` | 2026-05-02 |
-| P11 | `docs/README.md` orientation note (ship-sop surface vs agent-sop pristine replicas vs SOP-generated history) | `docs/README.md` | 2026-05-02 |
+| P11 | `docs/README.md` orientation note (product surface vs history) | `docs/README.md` | 2026-05-02 |
 | P11 | P10 retroactive `docs/recent-work/` entry filed; rollup re-runs cleanly | `docs/recent-work/2026-04-26_solo_p10-uninstall.md` | 2026-05-02 |
 | P14 | SessionStop hook wired in the nested shape Claude Code actually executes — auto-mode fires for the first time since P1 | `setup.sh`, `.claude/settings.json` | 2026-08-03 |
 | P14 | Shared hook selectors (`HOOK_NESTED_PROBE`, `HOOK_LEGACY_PROBE`, `HOOK_ENTRY_EXAMPLE`) so install and uninstall cannot drift apart | `setup.sh` | 2026-08-03 |
@@ -75,7 +75,6 @@ ship-sop is at "released, working, no immediate roadmap." Items below are likely
 |-----------|-------|
 | `/release` end-to-end dogfood | Cut a real GitHub Release on ship-sop using the agent. Validates `release-notes-writer` against actual Backlog + commits. |
 | CI workflow for the gates | Run security + compliance + diagrams without a Claude Code session. Useful for PRs from contributors who don't run Claude. |
-| Composition test with agent-sop | Verify that with both installed, `compliance-reviewer` auto-files Backlog entries with proper P-numbers (documented, not tested). |
 
 ### Not on the table
 
@@ -85,4 +84,4 @@ ship-sop is at "released, working, no immediate roadmap." Items below are likely
 | `pm-reviewer` agent | Dropped from initial scope (2026-04-25). |
 | Auto-publish on `/release` | Releases stay deliberate. For pre-push automation, use GitHub Actions on tag push. |
 | `doc-builder` (codemaps + INDEX) | Renamed to `diagram-builder` and trimmed to avoid overlap with `doc-updater`. |
-| `auto-ship-hook.sh` as the auto-mode trigger (P1, P2, P11, P14 rows above) | Superseded 2026-09-04 by agent-sop P97: project-scope hooks never load for a home-launched session and Stop stdout never reaches the model, so the next-turn directive pattern could not fire live. Trigger is now agent-sop's user-scope `sop-stop-drift.sh` + `sop-push-gate.sh`. Script and wiring removed 2026-10-10 (P25); setup retires leftover copies and entries. |
+| `auto-ship-hook.sh` as the auto-mode trigger (P1, P2, P11, P14 rows above) | Superseded 2026-09-04: project-scope hooks never load for a home-launched session and Stop stdout never reaches the model, so the next-turn directive pattern could not fire live. The trigger is now the user-scope push gate, `scripts/hooks/sop-push-gate.sh`. Script and wiring removed 2026-10-10 (P25); setup retires leftover copies and entries. |

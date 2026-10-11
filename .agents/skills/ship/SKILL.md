@@ -5,7 +5,7 @@ description: Run configured ship-sop reviewers on a code diff in isolated read-o
 
 Read AGENTS.md and ship-sop.config.json (project first, else
 ${CODEX_HOME:-$HOME/.codex}/ship-sop.config.json). Support --base <ref> and
---with <agent>. Resolve project type using the installed agent-sop
+--with <agent>. Resolve project type using the installed ship-sop
 sop-project-type.sh. If that helper is missing in a manual-only installation,
 read the explicit project type in AGENTS.md, then CLAUDE.md; otherwise use the
 presence of package.json, Cargo.toml, pyproject.toml, go.mod or Gemfile as the
@@ -17,7 +17,7 @@ code signal. Non-code projects stop with an explanation.
    failures block shipping. Missing tests are noted, never a pass.
 2. Read the in-scope reviewer set from the installed library, never from
    `enabled` alone:
-   `AGENT_SOP_RUNTIME=codex bash -c '. "${CODEX_HOME:-$HOME/.codex}/scripts/hooks/agent-sop/sop-lib.sh"; CFG=$(sop_effective_config .); sop_agents_in_scope "$CFG" "$(sop_changed_files_json . <BASE> <HEAD_SHA>)"'`
+   `SHIP_SOP_RUNTIME=codex bash -c '. "${CODEX_HOME:-$HOME/.codex}/scripts/hooks/ship-sop/sop-lib.sh"; CFG=$(sop_effective_config .); sop_agents_in_scope "$CFG" "$(sop_changed_files_json . <BASE> <HEAD_SHA>)"'`
    prints `[{key, block_on}]`. An enabled agent with `paths` is included only
    when a path changed in the range matches one of its patterns; without
    `paths` it always is. Add --with (it joins regardless of scope). A missing

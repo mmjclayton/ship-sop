@@ -254,7 +254,7 @@ The operator should review findings and decide which to file as P-numbered Backl
 
 ## Backlog Auto-File Rules
 
-For HIGH and MEDIUM findings, append entries to `Backlog.md` using the project's existing tag taxonomy. If the project follows agent-sop conventions, format as:
+For HIGH and MEDIUM findings, append entries to `Backlog.md` using the project's existing tag taxonomy. If the project uses status-then-type tags, format as:
 
 ```markdown
 ### P<next-number> [OPEN] [Bug] [needs-triage] <one-line title>
@@ -270,7 +270,7 @@ Regulation: <GDPR Art. 5 / HIPAA §164.502 / etc.>
 
 P-number: read the largest existing `P<N>` from `Backlog.md`, increment by 1. If the project uses a different anchor convention, append at the bottom of the file with a clear `auto-filed by ship-sop` marker so a human can renumber.
 
-If `Backlog.md` does not exist, write findings only to `docs/reviews/<P-or-stamp>-compliance.md` and surface "Backlog.md not found — consider adopting agent-sop or pass `--no-backlog` to silence this notice".
+If `Backlog.md` does not exist, write findings only to `docs/reviews/<P-or-stamp>-compliance.md` and surface "Backlog.md not found - pass `--no-backlog` to silence this notice".
 
 ## Project Configuration
 

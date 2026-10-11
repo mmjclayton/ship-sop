@@ -2,42 +2,31 @@
 #
 # Validate Backlog.md state-tag transitions against the allowed graph.
 #
-# Runs at /update-sop Step 2c. Rejects illegal transitions like [OPEN] →
-# [SHIPPED] with no [IN PROGRESS] intermediate, terminal-state revivals,
-# and [SHIPPED] Feature/Refactor entries with no review citation. Exit code:
-# 0 if all transitions legal, 1 if any illegal.
+# Run before committing a Backlog.md change. Rejects illegal transitions like
+# [OPEN] -> [SHIPPED] with no [IN PROGRESS] intermediate, terminal-state
+# revivals, and [SHIPPED] Feature/Refactor entries with no review citation.
+# Exit code: 0 if all transitions legal, 1 if any illegal.
 #
 # Usage:
 #   bash scripts/validate-state-transitions.sh
-#     Default: compares HEAD's Backlog.md against working tree. Validates
-#     exactly the changes /update-sop is about to commit. No-ops when there
+#     Default: compares HEAD's Backlog.md against the working tree, so it
+#     validates exactly the changes about to be committed. No-ops when there
 #     is no working-tree diff (nothing to validate).
 #
 #   bash scripts/validate-state-transitions.sh --before <ref>
 #     Compares working-tree Backlog.md against <ref>:Backlog.md. Use with
-#     merge-base to replay a whole session's transitions.
+#     merge-base to replay a whole branch's transitions.
 #
 #   bash scripts/validate-state-transitions.sh --before-file <path> --after-file <path>
-#     Fixture mode — no git required. Used by the test harness.
+#     Fixture mode - no git required. Used by the test harness.
 #
 #   bash scripts/validate-state-transitions.sh --assert-review <path>
-#     P44 substance-assertion helper. Checks a review artifact file has
+#     Substance-assertion helper. Checks a review artifact has
 #     the three required sections (diff summary, severity, finding).
 #
-#   bash scripts/validate-state-transitions.sh --check-replication
-#     P75 replication gate. Intersects this session's changed files with the
-#     baseline_shas manifest in agent-sop.config.json. For each hit under
-#     .claude/, compares the repo file against its user-scope mirror — the
-#     copy that actually executes. Upstream only, also reports stale baseline
-#     SHAs. Silent no-op when the session touched no manifest file.
-#
-# Bash 3.2 (macOS default). Replication checks require jq; no associative arrays.
+# Bash 3.2 (macOS default); no associative arrays.
 
 set -euo pipefail
-SOP_RUNTIME="${AGENT_SOP_RUNTIME:-claude}"
-SOP_CONFIG_HOME="${AGENT_SOP_USER_HOME:-$HOME}/.claude"
-if [ "$SOP_RUNTIME" = codex ]; then SOP_CONFIG_HOME="${CODEX_HOME:-${AGENT_SOP_USER_HOME:-$HOME}/.codex}"; fi
-
 
 MODE="validate"
 BEFORE_REF=""
@@ -45,15 +34,6 @@ BEFORE_FILE=""
 AFTER_FILE="Backlog.md"
 TRACKED_PATH="Backlog.md"   # path used with `git show <ref>:<path>`
 ASSERT_REVIEW_FILE=""
-DRIFT_RESUME_FILE=""        # override for --check-drift fixture mode
-DRIFT_COMMITS_FILE=""       # override: file with commit messages (P-numbers extracted via grep)
-DRIFT_SESSION_LOC=""        # fixture: set the session LOC count directly
-DRIFT_SESSION_FILES=""      # fixture: set the session files count directly
-DRIFT_THRESHOLD_LOC=""      # override the LOC threshold (skip config lookup)
-DRIFT_THRESHOLD_FILES=""    # override the files threshold (skip config lookup)
-REPL_CONFIG_FILE=""         # override for --check-replication fixture mode
-REPL_CHANGED_FILE=""        # fixture: file listing this session's changed paths
-REPL_HOME=""                # fixture: stand-in for $HOME when resolving mirrors
 SELF_MOD_CHANGED_FILE=""    # fixture: file listing changed paths for the review trigger (b) check
 
 print_help() {
@@ -69,17 +49,6 @@ while [ $# -gt 0 ]; do
     --before-file) BEFORE_FILE="$2"; shift 2 ;;
     --after-file) AFTER_FILE="$2"; shift 2 ;;
     --assert-review) MODE="assert-review"; ASSERT_REVIEW_FILE="$2"; shift 2 ;;
-    --check-drift) MODE="check-drift"; shift ;;
-    --drift-resume-file) DRIFT_RESUME_FILE="$2"; shift 2 ;;
-    --drift-commits-file) DRIFT_COMMITS_FILE="$2"; shift 2 ;;
-    --drift-session-loc) DRIFT_SESSION_LOC="$2"; shift 2 ;;
-    --drift-session-files) DRIFT_SESSION_FILES="$2"; shift 2 ;;
-    --drift-threshold-loc) DRIFT_THRESHOLD_LOC="$2"; shift 2 ;;
-    --drift-threshold-files) DRIFT_THRESHOLD_FILES="$2"; shift 2 ;;
-    --check-replication) MODE="check-replication"; shift ;;
-    --repl-config-file) REPL_CONFIG_FILE="$2"; shift 2 ;;
-    --repl-changed-file) REPL_CHANGED_FILE="$2"; shift 2 ;;
-    --repl-home) REPL_HOME="$2"; shift 2 ;;
     --self-mod-changed-file) SELF_MOD_CHANGED_FILE="$2"; shift 2 ;;
     -h|--help) print_help; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
@@ -112,8 +81,7 @@ if [ "$MODE" = "assert-review" ]; then
   #    file path with line number (`foo.ts:42`) or a backticked symbol/path
   #    (`processOrder`, `scripts/foo.sh`). Sycophancy gate (P55): reviews
   #    that pass structurally but cite nothing concrete are blocked here.
-  #    Reasoning lives in claude-agent-sop.md §3 step 2 — Anthropic's
-  #    30 April 2026 personal-guidance research measured 9% baseline /
+  #    Anthropic's 30 April 2026 personal-guidance research measured 9% baseline /
   #    25-38% emotional-domain validation rates even in frontier models
   #    trained against sycophancy. Reviewer-as-peer-agent carries the
   #    same load. Cite or fail.
@@ -155,389 +123,10 @@ if [ "$MODE" = "assert-review" ]; then
   if [ -n "$missing" ]; then
     echo "BLOCK: review artifact $ASSERT_REVIEW_FILE missing:$missing" >&2
     echo "Required: diff summary heading, Severity: <enum>, Findings section (or reasoned 'No issues — <reason>'), and at least one concrete anchor inside findings/no-issues — a file path with line number (e.g. \`foo.ts:42\`) or a backticked symbol or path (e.g. \`processOrder\`, \`scripts/foo.sh\`)." >&2
-    echo "Sycophancy gate: reviews that pass structurally but cite nothing concrete are blocked. See SOP §3 step 2 for rationale." >&2
+    echo "Sycophancy gate: reviews that pass structurally but cite nothing concrete are blocked." >&2
     exit 1
   fi
   exit 0
-fi
-
-# ---------------------------------------------------------------------------
-# --check-drift: P46 mid-session drift detection
-#
-# Compares the P-numbers mentioned in project_resume_<agent-id>.md (declared
-# in-flight work) against P-numbers referenced in session commits. If the
-# session has non-trivial commits (over threshold) but none reference a
-# declared P-number AND no ## Scope Change block exists in the resume file,
-# hard-block — the agent drifted and hasn't declared it.
-# ---------------------------------------------------------------------------
-if [ "$MODE" = "check-drift" ] && [ -z "$DRIFT_RESUME_FILE" ] && [ ! -f "$(dirname "$0")/resolve-resume-path.sh" ]; then
-    echo "check-drift: retired with the resume layer (P124, 11 Oct 2026); nothing to check." >&2
-    exit 0
-fi
-if [ "$MODE" = "check-drift" ]; then
-  # Resolve resume file
-  resume_file="$DRIFT_RESUME_FILE"
-  if [ -z "$resume_file" ]; then
-    # Delegated to scripts/resolve-resume-path.sh (P96). This block previously
-    # inlined the agent-id and memory-dir derivation, which /restart-sop
-    # duplicated verbatim and /update-sop Step 6 did not implement at all —
-    # so the writer and the two readers could target different directories.
-    # One implementation now serves all three; see the script header and
-    # docs/guides/cross-layer-rules.md Tier A.
-    #
-    # `|| resolver_status=$?` is load-bearing under `set -e`: the resolver
-    # exits 1 when no resume file exists and 2 on unsafe/ambiguous resolution.
-    # Capture the status so diagnostics survive; only absence may skip drift.
-    resolver="$(cd "$(dirname "$0")" && pwd)/resolve-resume-path.sh"
-    resolver_status=0
-    resolver_err=$(mktemp)
-    resume_file=$(bash "$resolver" --read 2>"$resolver_err") || resolver_status=$?
-    # Always re-emit the resolver's stderr when it wrote any. On success that is
-    # the legacy-fallback migration advisory, which P47 made load-bearing. On
-    # failure it is the specific reason — "not a git repository", or the
-    # home-root refusal — which the generic "no project_resume file found"
-    # message below would otherwise replace with something misleading. The
-    # resolver stays silent on the ordinary first-session case (exit 1, no
-    # output), so this adds no noise where D1 requires graceful degradation.
-    if [ -s "$resolver_err" ]; then
-      cat "$resolver_err" >&2
-    fi
-    rm -f "$resolver_err"
-    if [ "$resolver_status" != "0" ]; then
-      resume_file=""
-    fi
-    if [ "$resolver_status" -gt 1 ]; then
-      echo "check-drift: resume resolution failed; repair the reported cause before closing." >&2
-      exit "$resolver_status"
-    fi
-  fi
-
-  if [ -z "$resume_file" ] || [ ! -f "$resume_file" ]; then
-    echo "check-drift: no project_resume file found — skipping (first session, or fresh repo)"
-    exit 0
-  fi
-
-  # Collect session commits + diff size.
-  #
-  # Two critical invariants:
-  #   a) commit_pnums and (loc, files) MUST come from the same range — either
-  #      both committed-only or both including working tree. Mixing causes
-  #      false-positives when an agent has large uncommitted work mid-session
-  #      (large loc, empty commit list → false drift block). We use
-  #      committed-only (`base..HEAD`) so both measurements match.
-  #   b) Fixture mode uses explicit session-size overrides so harness tests
-  #      can exercise the threshold-skip branch without a real git history.
-  commit_pnums=""
-  if [ -n "$DRIFT_COMMITS_FILE" ]; then
-    # `|| true`: grep exits 1 when the fixture names no P-number, which is a
-    # legal input (it is what the no-declared-work case looks like). Under
-    # pipefail that 1 propagates past `sort` and errexit kills the script.
-    commit_pnums=$( { grep -oE '\bP[0-9]+\b' "$DRIFT_COMMITS_FILE" || true; } | sort -u)
-    loc="${DRIFT_SESSION_LOC:-0}"
-    files="${DRIFT_SESSION_FILES:-0}"
-  else
-    # Real mode: derive from git
-    default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@') || true
-    if [ -z "$default_branch" ]; then
-      for candidate in origin/main origin/master origin/develop; do
-        if git rev-parse --verify "$candidate" >/dev/null 2>&1; then
-          default_branch="$candidate"
-          break
-        fi
-      done
-    fi
-    if [ -z "$default_branch" ]; then
-      echo "check-drift: no default branch — skipping"
-      exit 0
-    fi
-    base=$(git merge-base "$default_branch" HEAD 2>/dev/null) || {
-      echo "check-drift: no merge-base with $default_branch — skipping"
-      exit 0
-    }
-    head_sha=$(git rev-parse HEAD 2>/dev/null)
-    # No committed divergence AND no working-tree changes = nothing to check
-    if [ "$base" = "$head_sha" ] && git diff --quiet HEAD 2>/dev/null; then
-      echo "check-drift: no session commits or working-tree changes — skipping"
-      exit 0
-    fi
-    # When there are no committed commits yet (everything still uncommitted),
-    # skip drift detection — `/update-sop` Step 10 hasn't run. The next
-    # invocation after commit will catch drift from the committed state.
-    if [ "$base" = "$head_sha" ]; then
-      echo "check-drift: no session commits yet — skipping until after first commit"
-      exit 0
-    fi
-    # `|| true` keeps pipefail+errexit from killing the script when no
-    # P-numbers appear in commit messages — empty result is a legal state
-    # (drift detection's whole point is "do commits reference declared work?").
-    commit_pnums=$( { git log "${base}..HEAD" --format='%s%n%b' 2>/dev/null | grep -oE '\bP[0-9]+\b' || true; } | sort -u)
-    # Measure diff over the committed range only — stays consistent with
-    # commit_pnums so uncommitted work doesn't trigger a false-positive.
-    # `|| true` on both: git diff exits non-zero on an unresolvable range, and
-    # pipefail carries that past awk/wc into an errexit kill. The fallbacks
-    # below turn an unmeasurable range into 0, which skips the gate rather than
-    # crashing it — the same outcome as a below-threshold session.
-    loc=$( { git diff --numstat "${base}..HEAD" -- 2>/dev/null || true; } | awk '{a+=$1; d+=$2} END{print a+d+0}')
-    files=$( { git diff --numstat "${base}..HEAD" -- 2>/dev/null || true; } | wc -l | tr -d ' ')
-    [ -z "$loc" ] && loc=0
-    [ -z "$files" ] && files=0
-  fi
-
-  # Thresholds: override flags win; otherwise read from config; otherwise defaults.
-  threshold_loc="${DRIFT_THRESHOLD_LOC:-}"
-  threshold_files="${DRIFT_THRESHOLD_FILES:-}"
-  if [ -z "$threshold_loc" ] || [ -z "$threshold_files" ]; then
-    config_file=""
-    if [ -f ".$SOP_RUNTIME/agent-sop.config.json" ]; then
-      config_file=".$SOP_RUNTIME/agent-sop.config.json"
-    elif [ -f "$SOP_CONFIG_HOME/agent-sop.config.json" ]; then
-      config_file="$SOP_CONFIG_HOME/agent-sop.config.json"
-    fi
-    if [ -n "$config_file" ]; then
-      # `|| true` keeps pipefail + errexit from killing us when a field is
-      # absent (grep exits 1 on no-match).
-      [ -z "$threshold_loc" ] && threshold_loc=$( { grep -oE '"review_loc_threshold"[[:space:]]*:[[:space:]]*[0-9]+' "$config_file" 2>/dev/null || true; } | grep -oE '[0-9]+$' | head -1 || true)
-      [ -z "$threshold_files" ] && threshold_files=$( { grep -oE '"review_files_threshold"[[:space:]]*:[[:space:]]*[0-9]+' "$config_file" 2>/dev/null || true; } | grep -oE '[0-9]+$' | head -1 || true)
-    fi
-    [ -z "$threshold_loc" ] && threshold_loc=50
-    [ -z "$threshold_files" ] && threshold_files=3
-  fi
-
-  # Skip if BOTH dimensions under threshold. This IS the OR-fire semantics
-  # P44 documents (either dimension over fires the check) — by De Morgan:
-  #   fire iff (loc>=T_loc OR files>=T_files)
-  #   skip iff NOT(...) = (loc<T_loc AND files<T_files)
-  # A 200-LOC single-file change correctly fires (loc over, so OR is true).
-  if [ "$loc" -lt "$threshold_loc" ] && [ "$files" -lt "$threshold_files" ]; then
-    echo "check-drift: session under both thresholds (loc=$loc<$threshold_loc, files=$files<$threshold_files) — OK"
-    exit 0
-  fi
-
-  # Extract P-numbers mentioned in the resume file. Wrap with || true so
-  # pipefail+errexit don't kill us when the resume has no P-numbers (grep
-  # exits 1 on no match, sort gets empty input — both legal states).
-  resume_pnums=$( { grep -oE '\bP[0-9]+\b' "$resume_file" 2>/dev/null || true; } | sort -u)
-
-  # Scope Change escape hatch — accept "Scope Change" or "Scope-Change",
-  # case-insensitive. Matches intent over typography.
-  if grep -qiE '^##+[[:space:]]+scope[[:space:]-]+change' "$resume_file"; then
-    echo "check-drift: ## Scope Change block present in $resume_file — accepted as explicit redirection."
-    exit 0
-  fi
-
-  if [ -z "$resume_pnums" ]; then
-    echo "check-drift: no P-numbers declared in $resume_file — cannot establish baseline. Skipping."
-    exit 0
-  fi
-
-  # Intersection: any resume P-number also in commit P-numbers?
-  intersection=""
-  for p in $resume_pnums; do
-    if printf '%s\n' "$commit_pnums" | grep -qxF "$p"; then
-      intersection="$intersection $p"
-    fi
-  done
-
-  if [ -n "$intersection" ]; then
-    echo "check-drift: OK — commits reference declared in-flight item(s):$intersection"
-    exit 0
-  fi
-
-  # No match — hard-block
-  echo "BLOCK: session drift detected." >&2
-  echo "  Declared in-flight (project_resume):$(printf ' %s' $resume_pnums)" >&2
-  if [ -n "$commit_pnums" ]; then
-    echo "  Actual commit P-numbers:$(printf ' %s' $commit_pnums)" >&2
-  else
-    echo "  Commit messages reference no P-numbers." >&2
-  fi
-  echo "  Session diff: loc=$loc files=$files (thresholds: $threshold_loc / $threshold_files)" >&2
-  echo "" >&2
-  echo "Resolve by one of:" >&2
-  echo "  1) If you changed scope deliberately: add a '## Scope Change' block to $resume_file with a one-line reason." >&2
-  echo "  2) If you drifted unintentionally: amend the commit message(s) to reference the in-flight P-number, or split the work so the declared item ships." >&2
-  echo "  3) If the prior resume file is stale: update it (Step 6 of /update-sop) and re-run." >&2
-  exit 1
-fi
-
-# ---------------------------------------------------------------------------
-# --check-replication: P75 pristine-replica replication gate
-#
-# Every existing gate asks "was this change declared?". None asks "did this
-# change reach the surface that enforces it?". A session can edit a
-# pristine-replica file, pass Step 4, merge, and leave the user-scope
-# copy that actually executes untouched — observed twice, in both directions
-# (Batch 0.27 left user scope stale for eight days; Batch 0.26 found a
-# project-specific step that had leaked the other way).
-#
-# The file list comes from `baseline_shas` in agent-sop.config.json, which is
-# the same source /update-agent-sop reads. A second hardcoded list here would
-# be the same class of bug one layer up (docs/guides/cross-layer-rules.md).
-# ---------------------------------------------------------------------------
-if [ "$MODE" = "check-replication" ]; then
-  # Resolve config: project scope wins over user scope, matching /update-agent-sop.
-  config="$REPL_CONFIG_FILE"
-  if [ -z "$config" ]; then
-    if [ "$SOP_RUNTIME" = codex ]; then config="$SOP_CONFIG_HOME/agent-sop.config.json"; fi
-    for candidate in ".$SOP_RUNTIME/agent-sop.config.json" "$SOP_CONFIG_HOME/agent-sop.config.json"; do
-      [ -z "$config" ] || break
-      if [ -f "$candidate" ]; then config="$candidate"; break; fi
-    done
-  fi
-  if [ -z "$config" ] || [ ! -f "$config" ]; then
-    if [ "$SOP_RUNTIME" = codex ] && [ -f .codex/agent-sop.config.json ]; then
-      echo "BLOCK: project Codex replication configuration exists, but user configuration is missing: $config" >&2
-      exit 1
-    fi
-    echo "check-replication: no agent-sop.config.json found — skipping (project does not track pristine replicas)"
-    exit 0
-  fi
-
-  home_root="${REPL_HOME:-$HOME}"
-
-  sha_of() {
-    if command -v shasum >/dev/null 2>&1; then
-      shasum -a 256 "$1" | cut -d' ' -f1
-    else
-      sha256sum "$1" | cut -d' ' -f1
-    fi
-  }
-
-  # Parse JSON structurally: an inline empty exclude array must not consume
-  # subsequent baseline keys. Invalid or unavailable configuration fails closed.
-  command -v jq >/dev/null || { echo 'BLOCK: replication checks require jq' >&2; exit 1; }
-  jq -e 'type == "object" and ((.baseline_shas // {}) | type == "object") and
-    ((.exclude // []) | type == "array" and all(.[]; type == "string"))' "$config" >/dev/null || {
-    echo "BLOCK: invalid replication configuration: $config" >&2; exit 1;
-  }
-  manifest=$(jq -r '(.baseline_shas // {}) | to_entries[] |
-    select(.key | test("\\.(md|sh|py|toml|yaml)$")) |
-    select(.value | type == "string") | select(.value | test("^[a-f0-9]{64}$")) |
-    "\(.key)|\(.value)"' "$config") || { echo 'BLOCK: cannot parse replication baselines' >&2; exit 1; }
-
-  if [ -z "$manifest" ]; then
-    echo "check-replication: baseline_shas is empty — skipping (nothing tracked yet)"
-    exit 0
-  fi
-
-  # Excluded files are never synced, so they can never be out of sync.
-  excluded=$(jq -r '(.exclude // [])[]' "$config") || {
-    echo 'BLOCK: cannot parse replication exclusions' >&2; exit 1;
-  }
-
-  project_excluded=""
-  if [ "$SOP_RUNTIME" = codex ] && [ -f .codex/agent-sop.config.json ]; then
-    jq -e '(.exclude // []) | type == "array" and all(.[]; type == "string")' .codex/agent-sop.config.json >/dev/null || { echo 'BLOCK: invalid project exclusions' >&2; exit 1; }
-    project_excluded=$(jq -r '(.exclude // [])[]' .codex/agent-sop.config.json) || exit 1
-  fi
-
-  # Session-changed files: committed in range plus working tree. Fixture mode
-  # supplies the list directly so the check is testable without a repo.
-  if [ -n "$REPL_CHANGED_FILE" ]; then
-    changed=$(cat "$REPL_CHANGED_FILE")
-  else
-    range=""
-    default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@') || default_branch=""
-    if [ -z "$default_branch" ]; then
-      for candidate in origin/main origin/master origin/develop; do
-        if git rev-parse --verify "$candidate" >/dev/null 2>&1; then default_branch="$candidate"; break; fi
-      done
-    fi
-    if [ -n "$default_branch" ]; then
-      base=$( { git merge-base "$default_branch" HEAD 2>/dev/null || true; } )
-      head_sha=$( { git rev-parse HEAD 2>/dev/null || true; } )
-      if [ -n "$base" ] && [ "$base" != "$head_sha" ]; then range="$base..HEAD"; fi
-    fi
-    committed=""
-    if [ -n "$range" ]; then
-      committed=$( { git diff --name-only "$range" 2>/dev/null || true; } )
-    fi
-    worktree=$( { git diff --name-only HEAD 2>/dev/null || true; } )
-    changed=$(printf '%s\n%s\n' "$committed" "$worktree" | grep -v '^$' | sort -u || true)
-  fi
-
-  if [ -z "$changed" ]; then
-    echo "check-replication: no changed files this session — skipping"
-    exit 0
-  fi
-
-  # Baseline staleness is a real finding upstream, where baseline_shas records
-  # this repo's own shipped state. In a consumer project a differing baseline
-  # means LOCALLY MODIFIED, which /update-agent-sop Step 4 already handles, so
-  # it is not reported there. Resolved once, not per file.
-  cfg_local_path=$(grep -oE '"local_path"[[:space:]]*:[[:space:]]*"[^"]*"' "$config" | sed 's/.*:[[:space:]]*"//; s/"$//' || true)
-  repo_root=$( { git rev-parse --show-toplevel 2>/dev/null || true; } )
-  is_upstream="no"
-  if [ -n "$cfg_local_path" ] && [ -n "$repo_root" ] && [ "$cfg_local_path" = "$repo_root" ]; then
-    is_upstream="yes"
-  fi
-
-  stale_mirror=""
-  stale_baseline=""
-  checked=0
-
-  while IFS='|' read -r path baseline; do
-    [ -n "$path" ] || continue
-    # Only files this session actually touched.
-    printf '%s\n' "$changed" | grep -qxF "$path" || continue
-    # Excluded files are out of scope by declaration.
-    if [ -n "$excluded" ] && printf '%s\n' "$excluded" | grep -qxF "$path"; then continue; fi
-    case "$path" in
-      .claude/*|.codex/*|.agents/skills/*) ;;
-      *) if [ -n "$project_excluded" ] && printf '%s\n' "$project_excluded" | grep -qxF "$path"; then continue; fi ;;
-    esac
-    [ -f "$path" ] || continue
-
-    checked=$((checked + 1))
-    current=$(sha_of "$path")
-
-    case "$path" in
-      .claude/*|.codex/*|.agents/skills/*)
-        # User-scope mirror: the copy that actually executes in every session.
-        mirror="$home_root/$path"
-        if [ "$SOP_RUNTIME" = codex ]; then
-          case "$path" in .codex/*) mirror="${CODEX_HOME:-$home_root/.codex}/${path#.codex/}" ;; esac
-        fi
-        if [ ! -f "$mirror" ]; then
-          stale_mirror="$stale_mirror
-  $path -> $mirror (mirror missing)"
-        elif [ "$(sha_of "$mirror")" != "$current" ]; then
-          stale_mirror="$stale_mirror
-  $path -> $mirror (content differs)"
-        fi
-        ;;
-    esac
-
-    if [ "$is_upstream" = "yes" ] && [ "$current" != "$baseline" ]; then
-      stale_baseline="$stale_baseline
-  $path (baseline records $(printf '%.12s' "$baseline")…, file is $(printf '%.12s' "$current")…)"
-    fi
-  done <<EOF
-$manifest
-EOF
-
-  if [ "$checked" = "0" ]; then
-    echo "check-replication: no manifest-tracked files changed this session — skipping"
-    exit 0
-  fi
-
-  if [ -z "$stale_mirror" ] && [ -z "$stale_baseline" ]; then
-    echo "check-replication: OK — all $checked manifest-tracked file(s) changed this session are replicated."
-    exit 0
-  fi
-
-  echo "BLOCK: manifest-tracked files changed this session have not been replicated." >&2
-  if [ -n "$stale_mirror" ]; then
-    echo "  User-scope mirror out of sync (this is the copy that executes):$stale_mirror" >&2
-  fi
-  if [ -n "$stale_baseline" ]; then
-    echo "  Baseline SHA stale in $config:$stale_baseline" >&2
-  fi
-  echo "" >&2
-  echo "Resolve by one of:" >&2
-  echo "  1) Run /update-agent-sop to replicate the change and refresh baselines." >&2
-  echo "  2) If the divergence is deliberate, record it on this item's Backlog entry as: replication deferred (P<n>): <reason>" >&2
-  exit 1
 fi
 
 # ---------------------------------------------------------------------------
@@ -617,27 +206,21 @@ legal_paths_from() {
 
 # Resolve the before-state contents onto stdout. Empty output = skip validation.
 #
-# Default: compare HEAD's Backlog.md against working tree (what the current
-# /update-sop invocation is about to finalise). Earlier commits in the session
-# are assumed already validated by their own /update-sop runs, or can be
+# Default: compare HEAD's Backlog.md against the working tree (what is about
+# to be committed). Earlier commits are assumed already validated, or can be
 # revalidated with `--before <merge-base>` explicitly.
 #
 # Override precedence: --before-file > --before <ref> > HEAD (default).
-# ── Review trigger (b): SOP self-modification ────────────────────────────────
+# ── Review trigger (b): self-modification ────────────────────────────────────
 #
-# claude-agent-sop.md states this as the SOP's one unconditional gate: edits to
-# files the SOP itself executes or instructs are load-bearing "regardless of
-# LOC". Until P87 that sentence had no execution arm anywhere — update-sop.md
-# implemented the diff-size trigger only, and this validator did no path
-# inspection at all, so the strongest-sounding gate in the SOP was satisfiable
-# by a self-declared `docs-only` token that no code verified.
+# Edits to files an agent executes or follows as instructions (reviewer
+# agents, commands, skills, the push gate, this validator) need a review
+# whatever the diff size, so a self-declared `docs-only` skip cannot pass them.
 #
-# Tag-independent, deliberately. The tag exemption is the larger hole: the two
-# sessions that most needed review on these paths (P75, and this session's own
-# P84/P92 work) were tagged [Bug]/[Refactor] and exempt, and the reviews that
-# did run found a HIGH and two CRITICALs. Tag is a poor proxy for risk here.
+# Tag-independent, deliberately: a [Bug] or [Refactor] tag is a poor proxy for
+# risk on these paths.
 sop_self_mod_paths() {
-  printf '%s\n' "$1" | grep -E '^(docs/sop/|docs/guides/sop-|\.claude/agents/|\.claude/commands/|\.agents/skills/|\.codex/agents/|scripts/validate-)' || true
+  printf '%s\n' "$1" | grep -E '^(\.claude/agents/|\.claude/commands/|\.agents/skills/|\.codex/agents/|scripts/hooks/|scripts/validate-)' || true
 }
 
 session_changed_files() {
@@ -733,7 +316,7 @@ while IFS=$'\t' read -r p after_status; do
     esac
 
     # [SHIPPED] transitions of a [Feature]/[Refactor] item (or any item when the
-    # session touched the SOP's own executable surface, trigger (b), P87) must
+    # branch touched an executable instruction surface, trigger (b)) must
     # cite a review artifact under docs/reviews/ or declare an enumerated skip
     # — on the Backlog entry itself. Until P105 (2026-09-05) the citation lived
     # on a Batch Log line in docs/build-plans/; a measured review found the
@@ -814,8 +397,8 @@ while IFS=$'\t' read -r p after_status; do
             : # enumerated skip, bound to this P-number — gate satisfied
           else
             if [ -n "${SELF_MOD_FILES:-}" ]; then
-              echo "BLOCK: $p ([${item_type}]) shipped in a session that modified the SOP's own executable surface — the review trigger fires regardless of tag or diff size."
-              echo "  Self-modifying paths changed this session:"
+              echo "BLOCK: $p ([${item_type}]) shipped on a branch that modified an executable instruction surface - the review trigger fires regardless of tag or diff size."
+              echo "  Self-modifying paths changed on this branch:"
               printf '%s\n' "$SELF_MOD_FILES" | sed 's/^/    /'
               echo "  Requires a real reviewer artifact cited on the Backlog entry as: review: docs/reviews/<file>.md"
               violations=$((violations + 1))

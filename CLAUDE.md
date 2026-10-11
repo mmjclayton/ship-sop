@@ -2,8 +2,10 @@
 
 **Project type:** code
 
-Code review execution and evidence for Claude Code and Codex. ship-sop owns the
-review workflow. Project conventions here take precedence on project details.
+Code review gates for Claude Code and Codex: the review workflow, receipts, and
+the user-scope push gate that enforces them. Self-contained; no other repository
+is needed to build, test or install it. Project conventions here take precedence
+on project details.
 
 ## Working rules
 
@@ -18,11 +20,13 @@ review workflow. Project conventions here take precedence on project details.
 |---|---|---|
 | Understand behaviour | `README.md` | Public contract |
 | Locate work | `Backlog.md` | Read the relevant P-number only |
-| Change receipt generation | `scripts/ship-receipt.sh` | Validates through installed Agent SOP policy |
+| Change the push gate or its rules | `scripts/hooks/sop-lib.sh`, then `scripts/hooks/sop-push-gate.sh` | Gate, receipt check and `/ship` share the library; fixtures in `tests/push-gate.sh` |
+| Change receipt generation | `scripts/ship-receipt.sh` | Validates through the installed `sop-lib.sh` |
 | Change Codex execution | `scripts/codex-review.sh` | Independent read-only clones; retains local evidence |
 | Change a workflow | `.agents/skills/ship/SKILL.md`, `.claude/commands/ship.md` | Both runtimes share the receipt contract |
-| Change installation | `setup.sh`, `scripts/install-codex.sh` | Preserve customisations and self-install protection |
-| Change policy | `docs/templates/ship-sop.config.json` | Shared validation is upstream in Agent SOP |
+| Change installation | `setup.sh`, `scripts/install-hooks.sh`, `scripts/install-codex.sh` | Preserve customisations and self-install protection |
+| Change a reviewer agent | `.claude/agents/`, `.codex/agents/` | Add the new blob to `scripts/shipped-agents.txt` |
+| Change policy | `docs/templates/ship-sop.config.json` | Validated by `sop_policy_valid` in `sop-lib.sh` |
 | Recover project knowledge | `docs/agent-memory/` | Decisions and gotchas, as reference reading |
 | Review current architecture work | `docs/build-plans/review-hardening.md` | Older phase plans are historical |
 
@@ -34,9 +38,9 @@ publication requires gh. CI is `.github/workflows/ci.yml`.
 ## Key Commands
 
 ```bash
-for t in tests/*.sh; do [ "$t" = tests/receipt-integration.sh ] || bash "$t"; done
-AGENT_SOP_SOURCE=../agent-sop bash tests/receipt-integration.sh   # CI also runs it at the minimum agent-sop
-shellcheck -S warning setup.sh scripts/{install-codex,setup-codex,codex-review,ship-receipt,receipt-totals}.sh tests/*.sh
+for t in tests/*.sh; do bash "$t" || echo "FAILED: $t"; done
+shellcheck -S warning setup.sh scripts/*.sh scripts/hooks/*.sh tests/*.sh
+bash scripts/validate-state-transitions.sh   # before committing a Backlog.md change
 bash setup.sh /path/to/project --runtime codex
 ```
 
@@ -53,8 +57,13 @@ confirmation where it runs. A branch awaiting merge remains `[IN PROGRESS]`.
 - Review committed HEAD. After a code or executable-instruction fix, review again;
   do not relabel old evidence with the new SHA.
 - Use the trusted installed runner. A worktree path in a prompt is not isolation.
-- Hook registration is not runtime verification. The current trigger is Agent
-  SOP's user-scope Stop/push hooks. Legacy directive files are not the live path.
+- Hook registration is not runtime verification. The live trigger is the
+  user-scope push gate (`scripts/hooks/sop-push-gate.sh`). Legacy directive files
+  and the old project-scope Stop hook are not the live path.
+- The push gate may only exit 0 or 2; any other exit is "allow" to Claude Code.
+  Keep its fail-closed trap and the suite's exit-code invariant.
+- The installed copy under `~/.claude/scripts/hooks/ship-sop/` is what runs, not
+  the repository file; re-run setup to test a change end to end.
 - Preserve self-install inode/path checks and existing user customisations.
 
 ## Change and verification rules
@@ -63,7 +72,6 @@ Read the work item and implementation, add a discriminating fixture for behaviou
 changes and run the checks above.
 The coordinating session owns records; specialists return findings.
 Ship via a branch and PR; main is protected. Publication needs user authorisation.
-Do not edit upstream Agent SOP replicas directly: fix them in agent-sop and sync.
 New non-obvious decisions belong in `docs/agent-memory/`. Earlier session records
 stay in `docs/recent-work/` as history and are no longer written; status is in
 `Backlog.md`. Feature inventory changes when work merges. Build plans are

@@ -1,0 +1,24 @@
+# Git blob ids of every shipped version of each reviewer agent setup.sh installs into
+# ~/.claude/agents/. An installed copy that matches one is unedited and is updated;
+# anything else is a local edit and is kept. tests/install-agents.sh fails when a
+# current .claude/agents/*.md is not listed, so add its line whenever an agent changes.
+# Format: <blob> <file name>
+01027637966b1e741c49018f071b91b0cad528f6 code-reviewer.md
+1370b7a31bfe071a3a5ee92638271702428ee0aa code-reviewer.md
+9f15688b107fd2876e5c09e1e7514ca12e7b02e4 code-reviewer.md
+a10fb112dd434edcf2e7f549244dcf49f66af1e5 code-reviewer.md
+ec869dd8abcafbd78aabe4f93c638dd617e52eb9 code-reviewer.md
+eff67eaac0aff786141a7422915714b5bc7eb5c9 code-reviewer.md
+c14114701c3b92ca2688baf389d09544184d5daa code-reviewer.md
+cb5fe962fe950203b8f3b3c259f2d94fd65b8fbd code-reviewer.md
+444395f5b9a67e652ee7e19d79c182b8b72566f7 compliance-reviewer.md
+9ca9517aa31319d37362cfca451cb36c23a6723d compliance-reviewer.md
+f2b17c98bd1abf6d620d9829b2a744675d0ef45a compliance-reviewer.md
+135918dca15a501db95c4da7bbe92966fa507882 compliance-reviewer.md
+d9a7216bb0acf2cab7bdd8a0ff8f685053e4fe70 diagram-builder.md
+5b3a99850c96ea2fb253bc4f36d1f947561a271f release-notes-writer.md
+aac56e81e9670dcfb937a97ddb01e3bc51f18215 release-notes-writer.md
+03672da2b5ae308ef87df889893ed69503212a2d security-reviewer.md
+06de2960eeeb7e8c9e5c29c6df2afc067fcd2c48 security-reviewer.md
+0f8a59958459703fc4108ecf1977f4638b6a4565 security-reviewer.md
+28c5e218de49d517830e9ea23d000f3206e156a6 security-reviewer.md

@@ -2,14 +2,20 @@
 # Assemble and validate a gate receipt from real reviewer and test results.
 set -euo pipefail
 BASE=''; HEAD_REF=HEAD; RESULTS=''; TESTS=''; OUTPUT=''
-RUNTIME=${AGENT_SOP_RUNTIME:-codex}
+RUNTIME=${SHIP_SOP_RUNTIME:-codex}
 CHECK_LIB=false
-# agent-sop library functions ship-sop calls: the first three here, the last two
-# from /ship and $ship. The check is by name only. The oldest agent-sop known to
-# provide all of them, with receipt schema version 2, is 0a1e5ee (P112,
-# 2026-09-24); CI tests against that commit and against agent-sop main.
-REQUIRED_SOP_FUNCTIONS='sop_effective_config sop_policy_digest sop_receipt_valid sop_agents_in_scope sop_changed_files_json'
-MIN_AGENT_SOP='0a1e5ee (2026-09-24)'
+# Functions of the installed push-gate library (scripts/hooks/sop-lib.sh) that
+# ship-sop calls, here, from /ship and $ship, and from the push gate. This is the
+# gate's own SOP_GATE_FUNCTIONS list, so --check-lib also answers "can the gate
+# run?". The check is by name only; it catches a missing, broken or hand-edited
+# install. tests/push-gate.sh keeps the two lists equal.
+REQUIRED_SOP_FUNCTIONS='sop_have_jq sop_read_input sop_field sop_sha256 sop_repo_root sop_is_gated_repo
+sop_instruction_file sop_claude_prose sop_type_from_file sop_declared_project_type sop_code_signals
+sop_project_type sop_is_code_repo sop_default_branch sop_range_base sop_cmd_matches_push
+sop_is_push_command sop_strip_heredocs sop_instruction_pattern sop_instructions_changed
+sop_code_lines sop_effective_config sop_policy_valid sop_policy_digest sop_changed_files_json
+sop_agents_in_scope sop_receipt_valid sop_shipsop_covered sop_shipsop_gate'
+REINSTALL='re-run ship-sop setup.sh for this project'
 while [ $# -gt 0 ]; do
     if [ "$1" = --check-lib ]; then CHECK_LIB=true; shift; continue; fi
     [ $# -ge 2 ] || { echo 'Each option needs a value' >&2; exit 2; }
@@ -21,16 +27,16 @@ while [ $# -gt 0 ]; do
     shift 2
 done
 case "$RUNTIME" in
-    codex) CONFIG_HOME=${CODEX_HOME:-${AGENT_SOP_USER_HOME:-$HOME}/.codex} ;;
-    claude) CONFIG_HOME=${AGENT_SOP_USER_HOME:-$HOME}/.claude ;;
+    codex) CONFIG_HOME=${CODEX_HOME:-${SHIP_SOP_USER_HOME:-$HOME}/.codex} ;;
+    claude) CONFIG_HOME=${SHIP_SOP_USER_HOME:-$HOME}/.claude ;;
     *) echo 'runtime must be claude or codex' >&2; exit 2 ;;
 esac
-export AGENT_SOP_RUNTIME="$RUNTIME" AGENT_SOP_CONFIG_HOME="$CONFIG_HOME"
-LIB="$CONFIG_HOME/scripts/hooks/agent-sop/sop-lib.sh"
-[ -f "$LIB" ] || { echo "INCOMPLETE: agent-sop hooks not installed at $LIB; install agent-sop $MIN_AGENT_SOP or later" >&2; exit 1; }
+export SHIP_SOP_RUNTIME="$RUNTIME" SHIP_SOP_CONFIG_HOME="$CONFIG_HOME"
+LIB="$CONFIG_HOME/scripts/hooks/ship-sop/sop-lib.sh"
+[ -f "$LIB" ] || { echo "INCOMPLETE: ship-sop push-gate library not installed at $LIB; $REINSTALL" >&2; exit 1; }
 # Load it once in a throwaway shell so a broken library is reported, not fatal.
 if ! load_error=$(bash -euo pipefail -c '. "$1"' _ "$LIB" 2>&1); then
-    echo "INCOMPLETE: $LIB failed to load; reinstall agent-sop $MIN_AGENT_SOP or later${load_error:+: $load_error}" >&2
+    echo "INCOMPLETE: $LIB failed to load; $REINSTALL${load_error:+: $load_error}" >&2
     exit 1
 fi
 # shellcheck disable=SC1090
@@ -38,10 +44,10 @@ fi
 missing=''
 for fn in $REQUIRED_SOP_FUNCTIONS; do declare -F "$fn" >/dev/null || missing="$missing $fn"; done
 if [ -n "$missing" ]; then
-    echo "INCOMPLETE: installed agent-sop is older than ship-sop needs (missing:$missing); update to agent-sop $MIN_AGENT_SOP or later" >&2
+    echo "INCOMPLETE: installed library at $LIB lacks functions ship-sop needs (missing:$missing); $REINSTALL" >&2
     exit 1
 fi
-if [ "$CHECK_LIB" = true ]; then echo "agent-sop library at $LIB provides every function ship-sop needs"; exit 0; fi
+if [ "$CHECK_LIB" = true ]; then echo "library at $LIB provides every function ship-sop needs"; exit 0; fi
 ROOT=$(git rev-parse --show-toplevel)
 [ -n "$BASE" ] && [ -f "$RESULTS" ] && [ -f "$TESTS" ] && [ -n "$OUTPUT" ] || {
     echo 'Required: --base REF --results reviewers.json --tests tests.json --output docs/reviews/STAMP-ship-auto.json' >&2
