@@ -482,7 +482,7 @@ Since agent-sop P124 (11 Oct 2026), the only parts of agent-sop that do anything
 **Design:**
 - **Code.** The four hook scripts move to `scripts/hooks/`, the installer to `scripts/install-hooks.sh`. The installed location becomes `~/.claude/scripts/hooks/ship-sop/` (Codex: `$CODEX_HOME/scripts/hooks/ship-sop/`). `sop-lib.sh` keeps only what the gate, the project-type check and receipt validation use. Function names (`sop_*`) and the `SOP_SKIP_GATE` bypass are unchanged, and the gate still fails closed.
 - **Migration.** The installer removes every registration that points at `.../scripts/hooks/agent-sop/sop-*.sh` (Codex also at the Claude copies), then deletes the old copies whose git blob is a shipped agent-sop version (`scripts/legacy-agent-sop-hooks.txt`, built from agent-sop's full history). Edited copies are kept and named, and deletion happens after the settings write. The retired-hook registration cleanup is kept.
-- **Setup.** `setup.sh` and `setup-codex.sh` install and register the gate and the two reviewer agents themselves; the "install agent-sop first" preconditions go. Agents are installed where absent or byte-identical to a shipped version (`scripts/shipped-agents.txt`) and kept when edited. `--no-hook` installs the scripts without registering the gate; `--uninstall` removes the registration and the scripts. `install-codex.sh` knows only the ship-sop package.
+- **Setup.** `setup.sh` and `setup-codex.sh` install and register the gate and the two reviewer agents themselves; the "install agent-sop first" preconditions go. Agents are installed where absent or byte-identical to a shipped version (`scripts/shipped-user-files.txt` (then `shipped-agents.txt`)) and kept when edited. `--no-hook` installs the scripts without registering the gate; `--uninstall` removes the registration and the scripts. `install-codex.sh` knows only the ship-sop package.
 - **Sync layer retired.** `.claude/agent-sop.config.json`, `scripts/detect-trackers.sh` and the archived agent-sop guide are deleted; `validate-state-transitions.sh` loses its drift and replication modes and stays as ship-sop's own file, with `archive-backlog.sh`.
 - **Tests and CI.** The agent-sop push-gate, project-type, dispatcher, library and installer fixtures are ported to `tests/push-gate.sh` and `tests/install-hooks.sh`, with the `SUITE_DONE` early-stop guard; retired-hook cases are left out. `tests/receipt-integration.sh` uses the shipped library and `tests/receipt-lib-check.sh` replaces the agent-sop compatibility test (no minimum agent-sop). CI runs every suite with no agent-sop checkout, shellchecks the hooks as first-party code, and fails if a script or test names an external checkout.
 - **Docs.** The README describes only what ship-sop does, with an optional working-rules snippet; CLAUDE.md, AGENTS.md, the docs index, the feature map and the commands and skills point at the new paths.
@@ -501,6 +501,22 @@ Since agent-sop P124 (11 Oct 2026), the only parts of agent-sop that do anything
 **Outcome:** ship-sop installs and registers the push gate and the two gate reviewers itself; CI and every suite run without agent-sop. Review took one blocking round (silent-failure: a missing library function let a push through) and three fix commits; the gate now refuses on any check it cannot complete.
 
 review: docs/reviews/20261011-230251-ship-auto.md
+
+
+---
+
+### P42 - Setup updates unedited installed commands and the receipt tool
+
+`[SHIPPED - 2026-10-11] [Bug]`
+
+Found switching a real machine over after P41: setup copied the Claude slash commands and `scripts/ship-receipt.sh` only when missing, so a machine set up earlier kept copies that point at the old `hooks/agent-sop/` path. `/ship`, `/ship-on`, `/ship-off`, `/release` and the receipt tool would then fail. Agents already used shipped-version matching; commands and the receipt tool now do the same.
+
+**Acceptance criteria:**
+- `scripts/shipped-user-files.txt` (renamed from `shipped-agents.txt`) lists every shipped version of each agent, command and the receipt tool; `tests/install-agents.sh` fails when a current one is missing
+- Install updates an unedited earlier command or receipt tool and keeps an edited one; uninstall removes only unedited ones
+- The upgrade test fails against the previous `setup.sh`
+
+review: docs/reviews/20261011-231347-ship-auto.md
 
 ---
 

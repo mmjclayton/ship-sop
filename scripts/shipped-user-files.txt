@@ -1,0 +1,57 @@
+# Git blob ids of every shipped version of each file setup.sh installs into ~/.claude/:
+# the reviewer agents (agents/), the slash commands (commands/) and the receipt tool
+# (scripts/ship-sop/ship-receipt.sh). An installed copy that matches one is unedited and
+# is updated; anything else is a local edit and is kept. tests/install-agents.sh fails
+# when a current shipped file is not listed, so add its line whenever one changes.
+# Format: <blob> <file name>
+de58f31d31b45bf13434b1992880a6f66ead0d86 audit.md
+01027637966b1e741c49018f071b91b0cad528f6 code-reviewer.md
+1370b7a31bfe071a3a5ee92638271702428ee0aa code-reviewer.md
+9f15688b107fd2876e5c09e1e7514ca12e7b02e4 code-reviewer.md
+a10fb112dd434edcf2e7f549244dcf49f66af1e5 code-reviewer.md
+c14114701c3b92ca2688baf389d09544184d5daa code-reviewer.md
+cb5fe962fe950203b8f3b3c259f2d94fd65b8fbd code-reviewer.md
+ec869dd8abcafbd78aabe4f93c638dd617e52eb9 code-reviewer.md
+eff67eaac0aff786141a7422915714b5bc7eb5c9 code-reviewer.md
+135918dca15a501db95c4da7bbe92966fa507882 compliance-reviewer.md
+444395f5b9a67e652ee7e19d79c182b8b72566f7 compliance-reviewer.md
+9ca9517aa31319d37362cfca451cb36c23a6723d compliance-reviewer.md
+f2b17c98bd1abf6d620d9829b2a744675d0ef45a compliance-reviewer.md
+d9a7216bb0acf2cab7bdd8a0ff8f685053e4fe70 diagram-builder.md
+5b3a99850c96ea2fb253bc4f36d1f947561a271f release-notes-writer.md
+aac56e81e9670dcfb937a97ddb01e3bc51f18215 release-notes-writer.md
+a863d649f4a038cc8fef8fbe6d51b9f1546db9ac release.md
+fea163f7e45bec287f2ffb83e24c1270b66591ae release.md
+03672da2b5ae308ef87df889893ed69503212a2d security-reviewer.md
+06de2960eeeb7e8c9e5c29c6df2afc067fcd2c48 security-reviewer.md
+0f8a59958459703fc4108ecf1977f4638b6a4565 security-reviewer.md
+28c5e218de49d517830e9ea23d000f3206e156a6 security-reviewer.md
+0bc9db4e832dfeb9d585bc772503a4be51cb130f ship-off.md
+290343ebcf7e4da28a5e988329de6480bca42473 ship-off.md
+98603ec04040c9e4bda5a87ee79339779c1f72fc ship-off.md
+a46371e1a6848725ff04b33731f205eb4e7ef502 ship-off.md
+11ae876b1cfa26c8d0b5eef6d058b333c27d91bb ship-on.md
+2db65a9098f1b4872c4de5f30533d8001b94dd33 ship-on.md
+42d5d2307154f4fea04b0981e40c7a4f1a78b9b8 ship-on.md
+7a70f3b417b0aa84a1106ae1656f3bb487271e4e ship-on.md
+9ef2a5f29a6d867b2e2a942edf93004c3f99da3a ship-on.md
+ad4b0f8a8422b74d2f6572b5194d4f53ee7d4b8f ship-on.md
+ec7431d3153f9accff44cb2ebccfbd0b94c65e17 ship-on.md
+155f8389c0caa092a0f41a086e9ffe9c9bfb7637 ship-receipt.sh
+78c7d85d1f2d82fea74585abad7c2bb4741295d8 ship-receipt.sh
+a6bcb0d08ee9ea1d9c75ceb78567b1dc057ca2a7 ship-receipt.sh
+bf5e7499ce642ccac89227a02338f7d169daf76b ship-receipt.sh
+c731d7fa157ca6c33c89fcab8f8f1edb78ac4fee ship-receipt.sh
+c88c8d6f74262ca656d559ca1509f0941d473210 ship-receipt.sh
+d054097fcecf42b9a65d8519c834761d866b4bcc ship-receipt.sh
+0dfc02f4c1b3ec80262c2b07852e75af2fa37d78 ship.md
+291b5fb0b968a1900c780c70e092f4c3edbbed95 ship.md
+449212888c3a80c20f3cdb01c78f1d7c624d8c2a ship.md
+66d1be8176fb35eb3243e14ee3de39a5e23a3f7a ship.md
+6775db485af3cc8c0332dcf7c5aeb7696ac2ecd1 ship.md
+7763382db89208fa97e5c3e2f59fef29daf965fc ship.md
+9ab0727157cceb0df4c2081fd38718553883a81a ship.md
+b98f893da06e032102625467b10edcb837f4ff6f ship.md
+c701d85adedd69fa3760e4139f1e683fbe920577 ship.md
+e88bf24a83e62a7205c718581446976b5633ca8d ship.md
+ec7a2dccf0d0f7264b65223339d1b61555785215 ship.md

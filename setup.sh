@@ -232,21 +232,24 @@ remove_if_unmodified() {
     fi
 }
 
-# ── Reviewer agents (user-scope) ──────────────────────────────────────────────
+# ── User-scope files: agents, commands, the receipt tool ──────────────────────
 #
-# scripts/shipped-agents.txt lists the git blob of every shipped version of each
-# agent. An installed copy that matches one is unedited: install updates it and
+# scripts/shipped-user-files.txt lists the git blob of every shipped version of
+# each. An installed copy that matches one is unedited: install updates it and
 # uninstall removes it. Anything else is a local edit and is kept unless --force.
 
-SHIPPED_AGENTS="$SCRIPT_DIR/scripts/shipped-agents.txt"
+SHIPPED_FILES="$SCRIPT_DIR/scripts/shipped-user-files.txt"
+# Without the list every installed copy would read as edited and stay stale.
+[ -r "$SHIPPED_FILES" ] || { echo "Cannot read $SHIPPED_FILES; the ship-sop checkout is incomplete." >&2; exit 1; }
 
-is_shipped_agent() { # <installed-path>
+is_shipped_file() { # <installed-path>
     local b
     b=$(git hash-object --no-filters "$1" 2>/dev/null) || return 1
-    grep -qx "$b $(basename "$1")" "$SHIPPED_AGENTS"
+    [ -n "$b" ] || return 1
+    grep -qx "$b $(basename "$1")" "$SHIPPED_FILES"
 }
 
-install_agent() { # <src> <dest>
+install_shipped() { # <src> <dest>
     local src="$1" dest="$2" name
     name=$(basename "$dest")
     if [ "$src" -ef "$dest" ]; then
@@ -259,16 +262,19 @@ install_agent() { # <src> <dest>
     elif [ "$FORCE" = true ]; then
         cp "$src" "$dest" || return 1
         echo "  update $name (--force)"
-    elif is_shipped_agent "$dest"; then
+    elif is_shipped_file "$dest"; then
         cp "$src" "$dest" || return 1
         echo "  update $name"
     else
         echo "  keep   $name (edited locally, use --force to replace)"
+        if grep -q 'hooks/agent-sop' "$dest" 2>/dev/null; then
+            echo "  warn   $name points at the retired agent-sop path (hooks/agent-sop); reconcile it with $src or re-run with --force"
+        fi
     fi
 }
 
-remove_agent() { # <src> <dest>
-    if [ -f "$2" ] && [ ! "$1" -ef "$2" ] && [ "$FORCE" = false ] && is_shipped_agent "$2"; then
+remove_shipped() { # <src> <dest>
+    if [ -f "$2" ] && [ ! "$1" -ef "$2" ] && [ "$FORCE" = false ] && is_shipped_file "$2"; then
         rm -f "$2"
         echo "  remove $(basename "$2")"
         return 0
@@ -406,7 +412,7 @@ uninstall_mode() {
 
     local user_claude_dir="${SHIP_SOP_USER_HOME:-$HOME}/.claude"
 
-    remove_if_unmodified "$SCRIPT_DIR/scripts/ship-receipt.sh" "$user_claude_dir/scripts/ship-sop/ship-receipt.sh"
+    remove_shipped "$SCRIPT_DIR/scripts/ship-receipt.sh" "$user_claude_dir/scripts/ship-sop/ship-receipt.sh"
     rmdir "$user_claude_dir/scripts/ship-sop" 2>/dev/null || true
 
     # User-scope push gate: registration first, then the scripts.
@@ -421,7 +427,7 @@ uninstall_mode() {
     echo "Removing agents from $user_claude_dir/agents/"
     for src in "$SCRIPT_DIR"/.claude/agents/*.md; do
         [ -f "$src" ] || continue
-        remove_agent "$src" "$user_claude_dir/agents/$(basename "$src")"
+        remove_shipped "$src" "$user_claude_dir/agents/$(basename "$src")"
     done
 
     # User-scope commands
@@ -429,7 +435,7 @@ uninstall_mode() {
     echo "Removing commands from $user_claude_dir/commands/"
     for src in "$SCRIPT_DIR"/.claude/commands/*.md; do
         [ -f "$src" ] || continue
-        remove_if_unmodified "$src" "$user_claude_dir/commands/$(basename "$src")"
+        remove_shipped "$src" "$user_claude_dir/commands/$(basename "$src")"
     done
 
     # Project-scope files
@@ -578,12 +584,12 @@ USER_CLAUDE_DIR="${SHIP_SOP_USER_HOME:-$HOME}/.claude"
 mkdir -p "$USER_CLAUDE_DIR/agents" "$USER_CLAUDE_DIR/commands"
 
 mkdir -p "$USER_CLAUDE_DIR/scripts/ship-sop"
-if copy_if_missing "$SCRIPT_DIR/scripts/ship-receipt.sh" "$USER_CLAUDE_DIR/scripts/ship-sop/ship-receipt.sh"; then :
-else result=$?; [ "$result" = 1 ] || { echo 'Receipt tool installation failed' >&2; exit "$result"; }; fi
+install_shipped "$SCRIPT_DIR/scripts/ship-receipt.sh" "$USER_CLAUDE_DIR/scripts/ship-sop/ship-receipt.sh" \
+    || { echo 'Receipt tool installation failed' >&2; exit 1; }
 echo "Installing agents to ~/.claude/agents/"
 for src in "$SCRIPT_DIR"/.claude/agents/*.md; do
     [ -f "$src" ] || continue
-    install_agent "$src" "$USER_CLAUDE_DIR/agents/$(basename "$src")"
+    install_shipped "$src" "$USER_CLAUDE_DIR/agents/$(basename "$src")"
 done
 
 # ── Install slash commands (user-scope) ───────────────────────────────────────
@@ -592,13 +598,8 @@ echo ""
 echo "Installing commands to ~/.claude/commands/"
 for src in "$SCRIPT_DIR"/.claude/commands/*.md; do
     [ -f "$src" ] || continue
-    dest="$USER_CLAUDE_DIR/commands/$(basename "$src")"
-    if [ -f "$dest" ] && [ "$FORCE" = false ]; then
-        echo "  skip   $(basename "$src") (already exists, use --force)"
-    else
-        cp "$src" "$dest"
-        echo "  create $(basename "$src")"
-    fi
+    install_shipped "$src" "$USER_CLAUDE_DIR/commands/$(basename "$src")" \
+        || { echo "Command installation failed: $(basename "$src")" >&2; exit 1; }
 done
 
 # ── Install hook script and config (project-scope) ────────────────────────────
