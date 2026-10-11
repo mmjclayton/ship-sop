@@ -507,7 +507,7 @@ review: docs/reviews/20261011-230251-ship-auto.md
 
 ### P42 - Setup updates unedited installed commands and the receipt tool
 
-`[IN PROGRESS] [Bug]`
+`[SHIPPED - 2026-10-11] [Bug]`
 
 Found switching a real machine over after P41: setup copied the Claude slash commands and `scripts/ship-receipt.sh` only when missing, so a machine set up earlier kept copies that point at the old `hooks/agent-sop/` path. `/ship`, `/ship-on`, `/ship-off`, `/release` and the receipt tool would then fail. Agents already used shipped-version matching; commands and the receipt tool now do the same.
 
@@ -515,6 +515,8 @@ Found switching a real machine over after P41: setup copied the Claude slash com
 - `scripts/shipped-user-files.txt` (renamed from `shipped-agents.txt`) lists every shipped version of each agent, command and the receipt tool; `tests/install-agents.sh` fails when a current one is missing
 - Install updates an unedited earlier command or receipt tool and keeps an edited one; uninstall removes only unedited ones
 - The upgrade test fails against the previous `setup.sh`
+
+review: docs/reviews/20261011-231347-ship-auto.md
 
 ---
 
