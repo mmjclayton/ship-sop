@@ -449,7 +449,8 @@ A version constant exported by agent-sop's library would replace the function li
 
 ### P40 - Measure reviewer precision on a blind sample of blocking findings
 
-`[IN PROGRESS] [Feature]`
+`[SHIPPED - 2026-10-11] [Feature]`
+review: docs/reviews/20261011-p40-ship-auto.md (merged as PR #36, 41fb083)
 
 **Result (11 Oct 2026, run at Matt's request: "run it if it gives us actual data that ship sop adds value or not"; report `docs/benchmark/p40/report.md`):** of 29 blind-graded blocking findings from edward, both graders rated 14 (48%) real defects and 2 (7%) false positives. Grader A rated 17 real and 3 false; grader B, told to be sceptical, rated 14 real and 5 false. The graders agreed on 24 of 29. The confirmed defects include 3 security or privacy exposures and 2 data-loss defects. The result holds with uncertain rows removed (46-50% real, 5-8% false). Whether edward's existing tests would also have caught them is unknown, because receipts record test status only at the final commit. Measured cost: 1,460 reviewer runs over 174 receipts, 8.4 per receipt. Tokens are not measured for edward; about 93M at P27's 64k per launch is an estimate. Not measured: what the defects would have cost if caught later, so this shows precision, not net value. S14 was excluded (its blocking findings could not be attributed).
 
