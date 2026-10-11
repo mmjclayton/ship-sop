@@ -111,13 +111,13 @@ affects all of them. To stop automatic review in one project only, run
 
 ## Configuration
 
-Edit `ship-sop.config.json` in the project. The defaults:
+Edit `ship-sop.config.json` in the project. A reviewer blocks on findings at or above its threshold. The defaults:
 
 | Reviewer | Enabled | Blocks on | Runs when the diff touches |
 |---|---|---|---|
 | `security-reviewer` | Yes | HIGH | shell, server/auth/route code, HTML templates, env and container files, workflows, SQL |
-| `silent-failure-hunter` | Yes | HIGH or CRITICAL | any code |
-| `code-reviewer` | Yes | HIGH or CRITICAL | any code |
+| `silent-failure-hunter` | Yes | HIGH | any code |
+| `code-reviewer` | Yes | HIGH | any code |
 | `pr-test-analyzer` | No | Advisory | any code |
 | `compliance-reviewer` | No | CRITICAL | any code |
 | `diagram-builder` | No | Advisory | any code |
