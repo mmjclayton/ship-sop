@@ -46,20 +46,21 @@ sop_is_push_command sop_strip_heredocs sop_instruction_pattern sop_instructions_
 sop_code_lines sop_effective_config sop_policy_valid sop_policy_digest sop_changed_files_json
 sop_agents_in_scope sop_receipt_valid sop_shipsop_covered sop_shipsop_gate'
 
-# looks_like_push: a loose match on raw input, used only when the input cannot be
-# parsed or the library cannot run. JSON escapes (\" \t) sit between the words,
-# so it over-refuses.
+# looks_like_push: a loose match, used only when the input cannot be parsed or the
+# library cannot run. It over-refuses rather than miss a push.
 # Escapes become spaces and quotes and backslashes go first, so quoting tricks
-# (git p'u'sh, g"i"t push, git pu\sh) still match; a \u00 escape near git or gh
-# counts as a push, since its letters cannot be read without decoding.
+# (git p'u'sh, g"i"t push, git pu\sh) still match; any \u00 escape counts as a
+# push, since its letters cannot be read without decoding.
 looks_like_push() {
     # Bash only: this runs when tools may be missing, and a failed tool must not
     # read as "not a push".
-    local flat=$1 re_push='git[^[:alnum:]_-].*push|pr[^[:alnum:]_-]+(create|new)' re_tool='(^|[^[:alnum:]_])(git|gh)([^[:alnum:]_]|$)'
+    local flat=$1 re_push='git[^[:alnum:]_-].*push|pr[^[:alnum:]_-]+(create|new)'
     flat=${flat//\\n/ }; flat=${flat//\\t/ }
     flat=${flat//\'/}; flat=${flat//\"/}; flat=${flat//\\/}
     [[ $flat =~ $re_push ]] && return 0
-    [[ $1 == *u00* && $flat =~ $re_tool ]]
+    # Any \u00 escape: its letters cannot be read without decoding, and the tool
+    # name itself may be the escaped part.
+    [[ $1 == *u00* ]]
 }
 
 # A missing or incomplete library refuses anything that looks like a push and lets
