@@ -620,8 +620,9 @@ fi
 # ── Automatic review hooks (agent-sop) ────────────────────────────────────────
 
 UNIFIED_SETTINGS="${AGENT_SOP_USER_HOME:-$HOME}/.claude/settings.json"
-UNIFIED_STOP="${AGENT_SOP_USER_HOME:-$HOME}/.claude/scripts/hooks/agent-sop/sop-stop-drift.sh"
-# absent: no agent-sop Stop hook; wired: registered and present; stale: registered
+UNIFIED_STOP="${AGENT_SOP_USER_HOME:-$HOME}/.claude/scripts/hooks/agent-sop/sop-push-gate.sh"
+# P124: agent-sop registers only its PreToolUse push gate.
+# absent: no agent-sop push-gate hook; wired: registered and present; stale: registered
 # but not at the standard path; unknown: jq missing or settings unreadable.
 UNIFIED_STATE=absent
 if [ -f "$UNIFIED_SETTINGS" ]; then
@@ -629,10 +630,10 @@ if [ -f "$UNIFIED_SETTINGS" ]; then
         UNIFIED_STATE=unknown
     else
         rc=0
-        jq -e '[.hooks.Stop[]?.hooks[]? | (.command? // "") | strings | select(contains("sop-stop-drift.sh"))] | length > 0' "$UNIFIED_SETTINGS" >/dev/null 2>&1 || rc=$?
+        jq -e '[.hooks.PreToolUse[]?.hooks[]? | (.command? // "") | strings | select(contains("sop-push-gate.sh"))] | length > 0' "$UNIFIED_SETTINGS" >/dev/null 2>&1 || rc=$?
         if [ "$rc" = 0 ]; then
             UNIFIED_STATE=wired
-            if [ ! -f "$UNIFIED_STOP" ] || ! jq -e --arg command "bash \"$UNIFIED_STOP\"" '[.hooks.Stop[]?.hooks[]? | (.command? // "") | select(. == $command)] | length > 0' "$UNIFIED_SETTINGS" >/dev/null; then
+            if [ ! -f "$UNIFIED_STOP" ] || ! jq -e --arg command "bash \"$UNIFIED_STOP\"" '[.hooks.PreToolUse[]?.hooks[]? | (.command? // "") | select(. == $command)] | length > 0' "$UNIFIED_SETTINGS" >/dev/null; then
                 UNIFIED_STATE=stale
             fi
         elif [ "$rc" != 1 ]; then
@@ -693,8 +694,8 @@ echo ""
 echo "  4. Try a dry run:"
 echo "     - Make a small commit, then in a Claude Code session in this project,"
 echo "       run /ship to see the manual pipeline."
-echo "     - With agent-sop hooks and auto-mode on, ending a session with an"
-echo "       unreviewed code diff requests the configured review."
+echo "     - With agent-sop's push gate and auto-mode on, a push or PR with an"
+echo "       unreviewed code diff is refused until the configured review has run."
 echo ""
 echo "  5. Toggle modes any time:"
 echo "     /ship-on     enable auto-mode"

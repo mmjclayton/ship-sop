@@ -1,9 +1,9 @@
 ---
-description: Disable ship-sop auto-mode. Sets trigger.mode to "manual" so the agent-sop Stop hook (`sop-stop-drift.sh`, user-scope) becomes a no-op. /ship and /release continue to work manually.
+description: Disable ship-sop auto-mode. Sets trigger.mode to "manual" so the agent-sop push gate (`sop-push-gate.sh`, user-scope) stops demanding a review. /ship and /release continue to work manually.
 ship_sop_version: "2026-04-25"
 ---
 
-Flip ship-sop auto-mode off. The SessionStop hook stays wired but becomes a no-op — it reads the config, sees `trigger.mode: "manual"`, and exits silently. Manual `/ship` and `/release` continue to work.
+Flip ship-sop auto-mode off. The push gate stays wired but lets pushes through — it reads the config, sees `trigger.mode: "manual"`, and exits silently. Manual `/ship` and `/release` continue to work.
 
 ## Workflow
 
@@ -23,7 +23,7 @@ Manual entrypoints: /ship, /release
 
 | Mode | Behaviour |
 |------|-----------|
-| `auto` | SessionStop hook fires the configured gates against the diff |
+| `auto` | The push gate refuses a push or PR until the configured gates have reviewed HEAD |
 | `manual` | Hook runs but exits early; `/ship` and `/release` work as normal |
 | `off` | Hook exits even earlier; equivalent to manual but signals "I want this fully disabled" |
 

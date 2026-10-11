@@ -1,5 +1,5 @@
 ---
-description: Run the ship-sop gates against the current code diff — every agent enabled in ship-sop.config.json, read-only, in isolated worktrees; the session writes one report that covers HEAD. Manual entrypoint for the same run the agent-sop Stop hook demands in auto-mode. Does not push, tag, or publish.
+description: Run the ship-sop gates against the current code diff — every agent enabled in ship-sop.config.json, read-only, in isolated worktrees; the session writes one report that covers HEAD. The run the agent-sop push gate demands in auto-mode. Does not push, tag, or publish.
 ship_sop_version: "2026-09-24"
 ---
 
@@ -28,4 +28,4 @@ that shows launches and re-checks per reviewer, findings and dispositions. A Cov
 
 7. **Reply.** CRITICAL and HIGH at the top with file:line. Fix in-diff where the fix is small; a fix commit requires a fresh review and receipt; never stamp a new HEAD with an old review. Do not file Backlog entries for findings. Do not commit or push here.
 
-On a code project with `trigger.mode: "auto"`, this run also satisfies agent-sop's `/update-sop` Step 1b reviewer turn: cite the same report from the Backlog entry's `review:` line instead of running a second review.
+On a code project with `trigger.mode: "auto"`, cite the same report from the Backlog entry's `review:` line instead of running a second review.

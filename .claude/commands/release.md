@@ -122,7 +122,7 @@ If `--draft`, append a reminder to publish the draft via the GitHub UI or `gh re
 
 ## When this fires
 
-- **Always manual.** No SessionStop hook triggers `/release`. No git pre-push hook calls it.
+- **Always manual.** No hook triggers `/release`. No git pre-push hook calls it.
 - The reasoning: ship-sop auto-mode protects code quality on every session. Releases are public artifacts — they get a human pulling the trigger every time.
 - If you want pre-push automation, use a project-level git hook or GitHub Actions on tag push, not ship-sop.
 

@@ -89,7 +89,7 @@ Set `enabled` per reviewer and use `block_on: "never"` for advisory findings.
 Set `paths` (an array of regular expressions) to scope a reviewer to the files
 where it earns its run: with `paths`, the reviewer joins the gate only when a
 path changed in the review range matches one of the patterns; without `paths`
-it runs on every code diff; an empty array never runs it. The Stop hook demand,
+it runs on every code diff; an empty array never runs it. The push gate,
 the receipt validator and `ship` read the same rule, so a receipt is complete
 when it carries every reviewer in scope for its own range. `ship --with <agent>`
 adds a reviewer for one run regardless of scope. The default `paths` on
@@ -143,9 +143,9 @@ outside it, for example in CI.
 
 ## Automatic review
 
-Auto-mode uses **agent-sop's user-scope hooks**. When the agent stops with an
-uncovered code diff, the Stop hook requests the configured review. The push hook
-checks coverage before supported `git push` and `gh pr create` calls.
+Auto-mode uses **agent-sop's user-scope push gate**. Before supported `git push`
+and `gh pr create` calls it checks that a validated receipt covers HEAD, and
+refuses the push until the configured review has run.
 
 By default it applies to code projects with at least 10 changed code lines.
 Executable instruction changes, including applicable Markdown skills, commands
