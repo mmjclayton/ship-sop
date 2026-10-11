@@ -112,13 +112,15 @@ git init -q -b main "$WORK/up-project"; printf '# Backlog\n' > "$WORK/up-project
 git -C "$SOURCE" show 84b9f49:.claude/commands/ship.md > "$UP/.claude/commands/ship.md"
 git -C "$SOURCE" show 84b9f49:scripts/ship-receipt.sh > "$UP/.claude/scripts/ship-sop/ship-receipt.sh"
 { git -C "$SOURCE" show 84b9f49:.claude/commands/release.md; printf '\nlocal note\n'; } > "$UP/.claude/commands/release.md"
+{ git -C "$SOURCE" show 84b9f49:.claude/commands/ship-on.md; printf '\nlocal note\n'; } > "$UP/.claude/commands/ship-on.md"
 SHIP_SOP_USER_HOME="$UP" bash "$SOURCE/setup.sh" "$WORK/up-project" --runtime claude > "$WORK/upgrade.log" 2>&1
 cmp "$SOURCE/.claude/commands/ship.md" "$UP/.claude/commands/ship.md"
 cmp "$SOURCE/scripts/ship-receipt.sh" "$UP/.claude/scripts/ship-sop/ship-receipt.sh"
 grep -q 'local note' "$UP/.claude/commands/release.md"
 grep -q 'keep   release.md' "$WORK/upgrade.log"
 if grep -q 'hooks/agent-sop' "$UP/.claude/commands/ship.md" "$UP/.claude/scripts/ship-sop/ship-receipt.sh"; then echo "FAIL: an updated copy still points at hooks/agent-sop"; exit 1; fi
-grep -q 'release.md points at the retired agent-sop path' "$WORK/upgrade.log"
+grep -q 'ship-on.md points at the retired agent-sop path' "$WORK/upgrade.log"
+if grep -q 'release.md points at the retired' "$WORK/upgrade.log"; then echo "FAIL: warned about a copy that does not use the agent-sop path"; exit 1; fi
 printf 'PASS: an upgrade updates unedited earlier commands and the receipt tool and keeps edited ones\n'
 
 SUITE_DONE=1

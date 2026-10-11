@@ -239,6 +239,8 @@ remove_if_unmodified() {
 # uninstall removes it. Anything else is a local edit and is kept unless --force.
 
 SHIPPED_FILES="$SCRIPT_DIR/scripts/shipped-user-files.txt"
+# Without the list every installed copy would read as edited and stay stale.
+[ -r "$SHIPPED_FILES" ] || { echo "Cannot read $SHIPPED_FILES; the ship-sop checkout is incomplete." >&2; exit 1; }
 
 is_shipped_file() { # <installed-path>
     local b
