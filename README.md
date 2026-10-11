@@ -145,7 +145,7 @@ one. Each bypass is logged to `.ship/bypass.log`.
 
 The gate fails closed: when it cannot tell whether a push is covered (a missing
 library function, no usable working directory in the hook input, an unreadable
-`HEAD`, or a review range it cannot compute) it refuses the push and says why.
+`HEAD`, or a review range it cannot compute) it refuses the push and says why. If the remote has no recognisable default branch, `git remote set-head origin -a` sets one.
 
 ### Reports and receipts
 

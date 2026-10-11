@@ -597,6 +597,13 @@ if allowed; then ok "push-intact-library-allows-the-same-push"; else bad "push-i
 MISSLIB="$TMP/no-lib"; mkdir -p "$MISSLIB"; cp "$PUSH" "$MISSLIB/"
 run_hook "$MISSLIB/sop-push-gate.sh" "$CODE_T" "$(push_json 'git push origin main')"
 if [ "$HOOK_EXIT" = 2 ] && grep -q "library is missing" "$HOOK_ERR"; then ok "push-missing-library-refuses"; else bad "push-missing-library-refuses" "exit $HOOK_EXIT"; fi
+# A broken library blocks pushes only: other commands, including the setup that
+# repairs it, still run.
+run_hook "$MISSLIB/sop-push-gate.sh" "$CODE_T" "$(push_json 'bash setup.sh . --runtime claude')"
+if allowed; then ok "missing-library-allows-non-push"; else bad "missing-library-allows-non-push" "exit $HOOK_EXIT"; fi
+MISSFN="$TMP/miss-sop_field"
+run_hook "$MISSFN/sop-push-gate.sh" "$CODE_T" "$(push_json 'ls -la')"
+if allowed; then ok "incomplete-library-allows-non-push"; else bad "incomplete-library-allows-non-push" "exit $HOOK_EXIT"; fi
 # A gate check that fails (non-zero, no output) is a refusal, not "no demand".
 FAILGATE="$TMP/failgate"; mkdir -p "$FAILGATE"; cp "$PUSH" "$HOOKS_DIR/sop-lib.sh" "$FAILGATE/"
 printf '\nsop_shipsop_gate() { return 3; }\n' >> "$FAILGATE/sop-lib.sh"

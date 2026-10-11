@@ -364,8 +364,22 @@ fi
 MODESET="$TMP/mode/settings.json"; mkdir -p "$TMP/mode" "$TMP/ro-tmp"; printf '{}\n' > "$MODESET"; chmod 640 "$MODESET"; chmod 500 "$TMP/ro-tmp"
 TMPDIR="$TMP/ro-tmp" bash "$INSTALLER" --settings "$MODESET" --dest "$TMP/mode-dest" > "$TMP/mode-out" 2>&1; MD=$?
 chmod 700 "$TMP/ro-tmp"
-MODE_NOW=$(stat -f %Lp "$MODESET" 2>/dev/null || stat -c %a "$MODESET")
+MODE_NOW=$(stat -c %a "$MODESET" 2>/dev/null || stat -f %Lp "$MODESET")
 if [ "$MD" = 0 ] && [ "$MODE_NOW" = 640 ] && [ "$(count "$MODESET" PreToolUse 'sop-push-gate')" = 1 ]; then ok "installer-keeps-settings-mode-and-writes-beside-it"; else bad "installer-keeps-settings-mode-and-writes-beside-it" "exit $MD mode $MODE_NOW $(cat "$TMP/mode-out")"; fi
+# GNU stat (Linux): `-f` is file-system status and exits 0 with output that is not
+# a mode, so the installer must ask for `-c %a` first. A stub on PATH plays GNU.
+REAL_STAT=$(command -v stat); mkdir -p "$TMP/gnu-bin"
+cat > "$TMP/gnu-bin/stat" <<STUB
+#!/bin/bash
+if [ "\$1" = -c ] && [ "\$2" = %a ]; then "$REAL_STAT" -c %a "\$3" 2>/dev/null || "$REAL_STAT" -f %Lp "\$3"; exit; fi
+if [ "\$1" = -f ]; then echo '  File: "\$3"  ID: 0 Namelen: 255 Type: ext2/ext3'; exit 0; fi
+exec "$REAL_STAT" "\$@"
+STUB
+chmod +x "$TMP/gnu-bin/stat"
+GNUSET="$TMP/gnu/settings.json"; mkdir -p "$TMP/gnu"; printf '{}\n' > "$GNUSET"; chmod 644 "$GNUSET"
+PATH="$TMP/gnu-bin:$PATH" bash "$INSTALLER" --settings "$GNUSET" --dest "$TMP/gnu-dest" > "$TMP/gnu-out" 2>&1; GD=$?
+GNU_MODE=$(stat -c %a "$GNUSET" 2>/dev/null || stat -f %Lp "$GNUSET")
+if [ "$GD" = 0 ] && [ "$GNU_MODE" = 644 ]; then ok "installer-reads-the-mode-with-gnu-stat"; else bad "installer-reads-the-mode-with-gnu-stat" "exit $GD mode $GNU_MODE $(cat "$TMP/gnu-out")"; fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""

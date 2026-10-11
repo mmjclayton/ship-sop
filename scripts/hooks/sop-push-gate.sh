@@ -46,17 +46,29 @@ sop_is_push_command sop_strip_heredocs sop_instruction_pattern sop_instructions_
 sop_code_lines sop_effective_config sop_policy_valid sop_policy_digest sop_changed_files_json
 sop_agents_in_scope sop_receipt_valid sop_shipsop_covered sop_shipsop_gate'
 
-LIB="$(dirname "${BASH_SOURCE[0]}")/sop-lib.sh"
-[ -f "$LIB" ] || refuse "the push gate library is missing at $LIB; re-run ship-sop setup.sh."
-# shellcheck source=sop-lib.sh
-. "$LIB"
-missing=''
-for fn in $SOP_GATE_FUNCTIONS; do declare -F "$fn" >/dev/null || missing="$missing $fn"; done
-[ -z "$missing" ] || refuse "the push gate library at $LIB lacks:$missing. Re-run ship-sop setup.sh."
-
 # looks_like_push: a loose match on raw input, used only when the input cannot be
-# parsed. JSON escapes (\" \t) sit between the words, so it over-refuses.
+# parsed or the library cannot run. JSON escapes (\" \t) sit between the words,
+# so it over-refuses.
 looks_like_push() { printf '%s' "$1" | grep -Eq 'git[^[:alnum:]_-].*push|pr[^[:alnum:]_-]+(create|new)'; }
+
+# A missing or incomplete library refuses anything that looks like a push and lets
+# other commands through, so the setup that repairs it can still run.
+LIB="$(dirname "${BASH_SOURCE[0]}")/sop-lib.sh"
+LIB_PROBLEM=''
+if [ ! -f "$LIB" ]; then
+    LIB_PROBLEM="the push gate library is missing at $LIB"
+else
+    # shellcheck source=sop-lib.sh
+    . "$LIB" 2>/dev/null || LIB_PROBLEM="the push gate library at $LIB failed to load"
+    missing=''
+    for fn in $SOP_GATE_FUNCTIONS; do declare -F "$fn" >/dev/null || missing="$missing $fn"; done
+    [ -n "$LIB_PROBLEM" ] || [ -z "$missing" ] || LIB_PROBLEM="the push gate library at $LIB lacks:$missing"
+fi
+if [ -n "$LIB_PROBLEM" ]; then
+    INPUT=$(cat 2>/dev/null || true)
+    looks_like_push "$INPUT" && refuse "$LIB_PROBLEM. Re-run ship-sop setup.sh."
+    exit 0
+fi
 
 if ! sop_have_jq; then
     INPUT=$(cat 2>/dev/null || true)

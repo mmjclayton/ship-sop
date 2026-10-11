@@ -101,8 +101,13 @@ backup_settings() {
     cp "$target" "$target.bak-$(date +%Y%m%d-%H%M%S)" || { echo "install-hooks: could not back up $target" >&2; exit 1; }
 }
 
-# file_mode <path>: octal permission bits (BSD stat, then GNU stat).
-file_mode() { stat -f %Lp "$1" 2>/dev/null || stat -c %a "$1" 2>/dev/null; }
+# file_mode <path>: octal permission bits. GNU stat first: on Linux `stat -f` is
+# file-system status, so the BSD form could print something that is not a mode.
+file_mode() {
+    local m
+    m=$(stat -c %a "$1" 2>/dev/null) || m=$(stat -f %Lp "$1" 2>/dev/null) || return 1
+    case "$m" in [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7]) printf '%s' "$m" ;; *) return 1 ;; esac
+}
 
 # The temporary file sits beside the target, so the rename is atomic and stays on
 # one file system, and it takes the original file's mode.
