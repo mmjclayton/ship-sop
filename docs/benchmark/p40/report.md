@@ -1,10 +1,10 @@
 # P40: are ship-sop's blocks real? Blind precision sample from edward
 
-**Date:** 2026-10-11. **Data:** edward's ship-gate records, 8 Sep to 11 Oct 2026. **Files:** this folder.
+**Date:** 2026-10-11. **Data:** edward's schema-2 ship-gate receipts, 25 Sep to 11 Oct 2026. **Files:** this folder.
 
 ## Answer
 
-About half of the gate's blocks were real defects, and few were false alarms. All 29 sampled blocks were raised on commits whose test suite had already passed, so the tests had not caught any of them. This shows the gate catches real defects the tests miss. It does not show the gate is worth its cost: what those defects would have cost if caught later, or never, was not measured.
+About half of the gate's blocks were real defects, and few were false alarms. This holds when the questionable rows are removed (see Sensitivity). This shows the gate catches real defects. Whether edward's existing tests would also have caught them is unknown: the receipts record test status only at their final commit, not at the blocked one. It does not show the gate is worth its cost: what those defects would have cost if caught later, or never, was not measured.
 
 | Blind grade of 29 blocking findings | Grader A | Grader B | Both graders |
 |---|---|---|---|
@@ -12,7 +12,7 @@ About half of the gate's blocks were real defects, and few were false alarms. Al
 | Correct but minor | 9 | 10 | 8 |
 | False positive | 3 (10%) | 5 (17%) | 2 (7%) |
 
-The graders agreed on 24 of 29 (83%). Where they disagreed, B was the stricter: three findings A rated real, B rated minor or false. Grader B's instructions included "be sceptical, automated reviewers often overstate"; A's did not. This difference was not planned, so read the two columns as a lenient and a sceptical framing of the same evidence.
+The graders agreed on 24 of 29 (83%). B was stricter in 4 of the 5 disagreements: A rated three findings real that B rated minor or false, and S18 minor where B rated it false. A was stricter on S21. Grader B's instructions included "be sceptical, automated reviewers often overstate"; A's did not. This difference was not planned, so read the two columns as a lenient and a sceptical framing of the same evidence.
 
 | A (rows) by B (columns) | Real | Minor | False positive |
 |---|---|---|---|
@@ -43,18 +43,33 @@ The samples are small, so differences between reviewers are not significant.
 
 ## Would the tests have caught them?
 
-No, on the record. ship-sop's `/ship` runs the project's test suite before the reviewers and halts on a failure. Every sampled receipt records its tests as PASS. Each blocking finding was raised on a commit whose existing suite passed, so none of the 14 confirmed defects was caught by edward's tests.
+Unknown. ship-sop's `/ship` procedure runs the project's test suite before the reviewers, and a failure halts the ship (`.claude/commands/ship.md`, step 3). Every sampled receipt records its tests as PASS, but at its final commit after the fixes; for example, S08's evidence reads "On 6727d88", while the blocked commit was e597a52. The test status at each blocked commit is not recorded, and neither is whether every edward round followed the procedure. Many receipts note a regression test "watched failing first" for each fix. That shows a test was added after the block; it says nothing about whether the existing suite was green at the blocked commit.
+
+## Sensitivity
+
+The rows below remove groups whose grades are less certain:
+- **S22:** not blind. Its packet text said the finding was raised again in a later round.
+- **Inferred rows:** the round commit, severity, files or reviewer were inferred by the extractors (S04, S07, S08, S09, S12, S25, S27, S29, S30). S12 and S29 also carried "inferred" or "implied" in the severity field the graders saw.
+- **Below-threshold blocks:** security blocks recorded at HIGH, below edward's CRITICAL threshold (S08, S10, S20).
+
+| Set | n | Real (both graders) | Real (A-B) | False positive (both) | False positive (either) |
+|---|---|---|---|---|---|
+| All | 29 | 14 (48%) | 17-14 | 2 (7%) | 6 |
+| Without S22 | 28 | 13 (46%) | 16-13 | 2 (7%) | 6 |
+| Without inferred rows | 20 | 10 (50%) | 13-10 | 1 (5%) | 5 |
+| Without below-threshold security blocks | 26 | 12 (46%) | 14-12 | 2 (8%) | 5 |
+| Without all of these | 17 | 8 (47%) | 10-8 | 1 (6%) | 4 |
 
 ## Cost
 
-Measured from edward's 174 schema-2 receipts (8 Sep to 11 Oct 2026):
+Measured from edward's 174 schema-2 receipts (25 Sep to 11 Oct 2026):
 
 | Measure | Count |
 |---|---|
 | Reviewer launches | 636 |
 | Re-checks | 824 |
 | Reviewer runs in total | 1,460 |
-| Reviewer runs per shipped change, on average | 8.4 |
+| Reviewer runs per receipt, on average | 8.4 |
 | Block rounds | 277 |
 
 Token cost per run is not measured for edward. Receipts record no usage, and edward's session transcripts no longer hold the per-agent token counts. ship-sop P27 measured about 64,000 tokens per agent launch on agent-sop. At that rate, 1,460 runs would be about 93 million tokens. That figure is an estimate built from another repo's measurement, not a measurement of edward.
@@ -71,7 +86,8 @@ Not measured either: the time a session spent fixing each block. That includes f
 ## Limits
 
 - **One project, 29 findings.** One finding per run was graded, so a run whose other findings were false or minor is not reflected.
-- **Inferred attribution.** For S12, S25, S29 and S30, the severity or files were inferred by the extractors from the reports; they are flagged in `extract/`.
+- **Inferred attribution.** For S04, S07, S08, S09, S12, S25, S27, S29 and S30, the round commit, severity, files or reviewer were inferred by the extractors from the reports. For S07, S08 and S09 the round commit may be wrong, in which case the graders read slightly different code. S12's attribution to the silent-failure reviewer rests only on its two block rounds. These rows are flagged in `extract/` and isolated in Sensitivity.
+- **One leak.** S22's packet text named a later round, so its grades are not blind.
 - **Threshold mismatch.** The records show the security reviewer blocking on HIGH in at least three receipts (S08, S10, S20), although edward's config sets its block threshold at CRITICAL.
 - **AI graders.** The graders are AI agents, not humans, and were not calibrated against human grades.
 - **No counterfactual.** Whether these defects would have been found by a later review, by users or never, and at what cost, is not measured. This study measures the precision of blocks, not net value.
