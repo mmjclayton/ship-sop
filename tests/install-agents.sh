@@ -117,7 +117,8 @@ cmp "$SOURCE/.claude/commands/ship.md" "$UP/.claude/commands/ship.md"
 cmp "$SOURCE/scripts/ship-receipt.sh" "$UP/.claude/scripts/ship-sop/ship-receipt.sh"
 grep -q 'local note' "$UP/.claude/commands/release.md"
 grep -q 'keep   release.md' "$WORK/upgrade.log"
-! grep -q 'hooks/agent-sop' "$UP/.claude/commands/ship.md" "$UP/.claude/scripts/ship-sop/ship-receipt.sh"
+if grep -q 'hooks/agent-sop' "$UP/.claude/commands/ship.md" "$UP/.claude/scripts/ship-sop/ship-receipt.sh"; then echo "FAIL: an updated copy still points at hooks/agent-sop"; exit 1; fi
+grep -q 'release.md points at the retired agent-sop path' "$WORK/upgrade.log"
 printf 'PASS: an upgrade updates unedited earlier commands and the receipt tool and keeps edited ones\n'
 
 SUITE_DONE=1

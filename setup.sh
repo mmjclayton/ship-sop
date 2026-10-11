@@ -265,6 +265,9 @@ install_shipped() { # <src> <dest>
         echo "  update $name"
     else
         echo "  keep   $name (edited locally, use --force to replace)"
+        if grep -q 'hooks/agent-sop' "$dest" 2>/dev/null; then
+            echo "  warn   $name points at the retired agent-sop path (hooks/agent-sop); reconcile it with $src or re-run with --force"
+        fi
     fi
 }
 
