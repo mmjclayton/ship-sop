@@ -27,9 +27,11 @@ such a receipt exists.
   deliberate release workflow (`release`) that can prepare notes without
   publishing. `ship` itself never commits, pushes or publishes.
 
-In a blind sample of 29 blocking findings from one project, both graders rated 14
-as real defects and 2 as false positives; see the
-[P40 report](docs/benchmark/p40/report.md) for the method and its limits.
+In a blind sample of 29 blocking findings from one project, two AI graders both
+rated 14 as real defects and 2 as false positives. Five of the 14 were a security
+or privacy exposure or a data loss (one grader's labels). The sample covers one
+project; review cost and net benefit against no gate have not been measured.
+[Method and limits](docs/benchmark/p40/report.md).
 
 ## Who it is for
 
