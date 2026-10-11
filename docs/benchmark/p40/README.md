@@ -10,7 +10,7 @@
 ## Reproducing the draws
 
 ```python
-import csv, json, random
+import csv, glob, json, random
 rows = list(csv.reader(open('frame.tsv'), delimiter='\t'))
 rng = random.Random(40)  # one shared instance, reviewers drawn in this order
 sample = []
@@ -20,11 +20,12 @@ sample.sort()  # ids S01..S30 follow this order
 
 # Finding selection: a fresh Random(40), rows in id order, one choice per row
 # among findings whose severity starts with HIGH or CRITICAL; rows with none are excluded.
+extracted_rows = [r for f in sorted(glob.glob('extract/batch*.json')) for r in json.load(open(f))]
 rng = random.Random(40)
 for row in sorted(extracted_rows, key=lambda r: r['id']):
     eligible = [f for f in row['findings'] if f['severity'].split()[0] in ('HIGH', 'CRITICAL')]
     if eligible:
-        pick = rng.choice(eligible)
+        pick = rng.choice(eligible)  # selected.json strips S04's "[Round two, fbdd9d2] " prefix
 ```
 
 S04's pick came from its round-two commit, which the claim text named. Its `reviewed_commit` was corrected to fbdd9d2 before grading (16f82ad).

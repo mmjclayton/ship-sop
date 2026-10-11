@@ -60,6 +60,8 @@ The rows below remove groups whose grades are less certain:
 | Without below-threshold security blocks | 26 | 12 (46%) | 14-12 | 2 (8%) | 5 |
 | Without all of these | 17 | 8 (47%) | 10-8 | 1 (6%) | 4 |
 
+The 17 rows left in the last slice: S01, S02, S03, S05, S06, S11, S13, S15, S16, S17, S18, S19, S21, S23, S24, S26, S28.
+
 ## Cost
 
 Measured from edward's 174 schema-2 receipts (25 Sep to 11 Oct 2026):
