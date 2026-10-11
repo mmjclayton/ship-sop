@@ -30,8 +30,41 @@ jq -e '.[0] | .receipts == 4 and .schema_v2 == 3 and .gates_that_blocked == 2
 printf 'PASS: totals dedupe clones, count v2 and later runs, count findings\n'
 
 bash "$SOURCE/scripts/receipt-totals.sh" "$WORK/alpha" > "$WORK/table" 2>/dev/null
-grep -q '^| alpha | 4 | 3 | 2 | 2 | 5 | 2 | 0 | 1 | 1 | 2 | 1 |$' "$WORK/table"
+grep -q '^| alpha | 4 | 3 | 2 | 2 | 5 | 2 | 0 | 1 | 1 | 2 | 1 | 0 | 0 | 0 | 0 / 0 / 0 |$' "$WORK/table"
 printf 'PASS: table output\n'
+
+# Cost and test-catch (P44). A change's tokens and minutes count only when every
+# reviewer in it has usage; Claude and Codex shapes are both read; block_tests
+# results are counted.
+claude_usage() { # tokens duration_ms
+    jq -n --argjson t "$1" --argjson d "$2" \
+        '{source:"claude-task-notification",runs:[{tokens:$t,duration_ms:$d}],tokens:{total_tokens:$t},duration_ms:$d}'
+}
+codex_usage='{"source":"codex-review","runs":1,"turns":2,"elapsed_seconds":60,"tokens":{"input_tokens":1000,"cached_input_tokens":400,"output_tokens":200},"evidence":["x"]}'
+with_usage() { jq --argjson u "$2" '. + {usage: $u}' <<< "$1"; }
+receipt "$WORK/gamma" 20261013-000000 g1 2 "[$(with_usage "$(reviewer code 1 1 1 INFO)" "$(claude_usage 30000 120000)"), $(with_usage "$(reviewer sec 1 0 0)" "$codex_usage")]"
+jq '. + {block_tests: [{commit:"c", result:"PASS", evidence:"npm test passed"}]}' "$WORK/gamma/docs/reviews/20261013-000000-ship-auto.json" > "$WORK/g.json"
+mv "$WORK/g.json" "$WORK/gamma/docs/reviews/20261013-000000-ship-auto.json"
+receipt "$WORK/gamma" 20261014-000000 g2 2 "[$(with_usage "$(reviewer code 1 0 0)" "$(claude_usage 10000 60000)")]"
+# One reviewer without usage: the change has no cost figure, not a partial one.
+receipt "$WORK/gamma" 20261015-000000 g3 2 "[$(with_usage "$(reviewer code 2 1 2)" "$(claude_usage 50000 60000)"), $(with_usage "$(reviewer sec 1 0 0)" null)]"
+jq '. + {block_tests: [{commit:"c", result:"FAIL", evidence:"1 failing"}, {commit:"d", result:"NOT_AVAILABLE", evidence:"no suite"}]}' "$WORK/gamma/docs/reviews/20261015-000000-ship-auto.json" > "$WORK/g.json"
+mv "$WORK/g.json" "$WORK/gamma/docs/reviews/20261015-000000-ship-auto.json"
+# A malformed usage object is unknown, not a crash or a skipped receipt.
+receipt "$WORK/gamma" 20261016-000000 g4 2 "[$(with_usage "$(reviewer code 1 0 0)" '{"source":"claude-task-notification","tokens":"lots"}')]"
+bash "$SOURCE/scripts/receipt-totals.sh" --json "$WORK/gamma" > "$WORK/cost.json"
+jq -e '.[0] | .receipts == 4 and .changes_with_usage == 2 and .tokens == 41200 and .reviewer_minutes == 4
+    and .tokens_by_source == {"claude-task-notification": 90000, "codex-review": 1200}
+    and .per_change.tokens_median == 20600 and .per_change.tokens_min == 10000 and .per_change.tokens_max == 31200
+    and .per_change.block_rounds_median == 0.5 and .per_change.block_rounds_max == 2
+    and .block_tests == {"PASS":1,"FAIL":1,"NOT_AVAILABLE":1}
+    and ([.changes[] | select(.head == "g3")][0] | .tokens == null and .reviewer_minutes == null and .block_rounds == 2)
+    and ([.changes[] | select(.head == "g1")][0] | .tokens == 31200 and .reviewer_minutes == 3)' "$WORK/cost.json" >/dev/null \
+    || { echo 'FAIL: cost and test-catch totals'; cat "$WORK/cost.json"; exit 1; }
+bash "$SOURCE/scripts/receipt-totals.sh" "$WORK/gamma" > "$WORK/table"
+grep -q '^| gamma | 4 | 4 | 2 | 3 | 7 | 2 | 0 | 0 | 0 | 0 | 1 | 2 | 41200 | 4 | 1 / 1 / 1 |$' "$WORK/table" \
+    || { echo 'FAIL: cost table row'; cat "$WORK/table"; exit 1; }
+printf 'PASS: tokens, reviewer minutes and block-test results per change and in total\n'
 
 # Unreadable receipts and empty roots are reported and fail the run; the
 # totals for the rest still print.

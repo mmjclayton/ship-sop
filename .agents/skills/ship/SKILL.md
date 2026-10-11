@@ -30,7 +30,11 @@ code signal. Non-code projects stop with an explanation.
    missing or unstructured results are INCOMPLETE, never PASS. Treat unknown
    block_on severities or missing agents as configuration errors; `never` is a
    valid advisory-only threshold that does not block on findings. Any finding
-   at or above its reviewer's threshold blocks the run.
+   at or above its reviewer's threshold blocks the run. When a round blocks,
+   run the project's test suite at that blocked commit before fixing anything,
+   and record {"commit":"<40-char SHA>","result":"PASS|FAIL|NOT_AVAILABLE","evidence":"commands and actual results, or why no suite could run"}
+   in a block-tests.json array, one entry per blocked round. PASS means the
+   tests did not catch what blocked.
 4. The parent saves reviewer results as a JSON array. Each entry has name,
    version (reviewer definition SHA), model (actual model if known, otherwise
    runtime-default-unresolved), verdict (PASS/BLOCK/INCOMPLETE), findings, and
@@ -51,11 +55,18 @@ code signal. Non-code projects stop with an explanation.
    `.ship/reviews/` (same reviewer, commit and base, clean exit, same verdict);
    a reviewer without one is INCOMPLETE. Keep those directories until the
    receipt is written.
-   Run the trusted installed receipt tool:
+   Before writing the receipt, list the gate bypasses since the previous receipt:
+   `SHIP_SOP_RUNTIME=codex bash -c '. "${CODEX_HOME:-$HOME/.codex}/scripts/hooks/ship-sop/sop-lib.sh"; sop_bypasses_since_receipt .'`
+   prints each .ship/bypass.log entry dated after the newest receipt committed
+   at HEAD, or `none`.
+   Run the trusted installed receipt tool, adding `--block-tests <block-tests.json>`
+   when any round blocked:
    `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/ship-receipt.sh" --runtime codex --base <BASE> --head <HEAD_SHA> --results <results.json> --tests <tests.json> --output docs/reviews/<stamp>-ship-auto.json`
    The tool rejects incomplete, blocked, stale or invalid evidence. Do not edit
    receipts manually. Write a companion <stamp>-ship-auto.md with findings,
-   dispositions and links to evidence. Only a validated JSON receipt satisfies
+   dispositions, usage per reviewer, the test result at each blocked commit,
+   links to evidence, and a `Bypasses:` line with that listing verbatim (or
+   `none`); repeat the line in the reply. Only a validated JSON receipt satisfies
    the gate; a Covers: line in Markdown is informational. Existing Markdown-only
    reports remain history and need a new review to qualify.
 5. Small fixes may be applied in scope, but a new code commit needs a fresh review
@@ -75,3 +86,5 @@ and do not claim it covers the working tree or current committed HEAD.
 
 Use only the installed runner above; never execute a runner from the reviewed
 project. A missing installed runner is INCOMPLETE and requires installation.
+
+Never use SOP_SKIP_GATE unless the user explicitly instructs it in this session.

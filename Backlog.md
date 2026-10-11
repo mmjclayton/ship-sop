@@ -534,6 +534,21 @@ Matt chose option 2 from P40 (11 Oct 2026): cut the gate's cost without dropping
 
 review: docs/reviews/20261012-064609-ship-auto.md
 
+### P44 - Bypass hygiene, live cost and test-catch recording, archive old history
+
+`[IN PROGRESS] [Iteration]`
+
+Matt approved three changes on 12 Oct 2026. First, an independent review found that the push gate's refusal, which Claude Code shows to the model, gave the agent the exact bypass command. The refusal now says nothing about a bypass; the mechanism and its log are unchanged and documented for people in the README; `/ship` and the Codex skill carry the rule "Never use SOP_SKIP_GATE unless the user explicitly instructs it in this session"; and each ship report lists every bypass since the previous receipt. Second, the gate's value is to be measured on live work (`docs/build-plans/2026-10-12-gate-value.md`), so receipts now record Claude reviewer usage from the task-completion notifications and, for each blocked round, the project's test result at the blocked commit (`block_tests`); `receipt-totals.sh` summarises both. Third, records from before ship-sop became self-contained move to `archive/`.
+
+**Acceptance criteria:**
+- No push-gate refusal or library demand names `SOP_SKIP_GATE`; a fixture checks every refusal in the suite. The bypass still works and is logged
+- `sop_bypasses_since_receipt` lists bypass-log entries after the newest receipt committed at HEAD (its `written_at`, else the commit that added it), or `none`; both workflows put it in the report as a `Bypasses:` line
+- The validator accepts the Claude and Codex usage shapes and null, and rejects malformed ones; Claude totals must equal the sum of their runs
+- `block_tests` is optional; valid entries are accepted and malformed ones rejected; older receipts stay valid
+- `receipt-totals.sh` reports tokens, reviewer minutes, block rounds per change and block-test results
+- The gate-value plan describes the approved live-measurement design
+- `docs/recent-work/`, `docs/agent-memory/`, `docs/agent-memory.md`, `docs/RECENT-WORK.md` and the historical build plans are in `archive/` with history kept; no live document points at a moved path
+
 ---
 
 ## Shipped Archive

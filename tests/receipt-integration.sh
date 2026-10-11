@@ -128,6 +128,36 @@ rm -rf .ship/reviews
 jq 'map(select(.name != "security-reviewer"))' "$WORK/results-original.json" > "$WORK/results.json"
 SHIP_SOP_USER_HOME="$WORK/user" bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --base "$BASE" \
     --results "$WORK/results.json" --tests "$WORK/tests.json" --output docs/reviews/claude-ship-auto.json
+jq -e '.written_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' docs/reviews/claude-ship-auto.json >/dev/null \
+    || { echo 'FAIL: receipt has no UTC written_at'; exit 1; }
+jq -e 'has("block_tests") | not' docs/reviews/claude-ship-auto.json >/dev/null || { echo 'FAIL: block_tests added without --block-tests'; exit 1; }
+# P44: Claude usage from task notifications; the tool adds the totals from the runs.
+claude_receipt() { # output [extra args...]
+    local out=$1; shift
+    SHIP_SOP_USER_HOME="$WORK/user" bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --base "$BASE" \
+        --results "$WORK/results.json" --tests "$WORK/tests.json" --output "$out" "$@"
+}
+jq 'map(select(.name != "security-reviewer") | .rechecks = 1 | .block_rounds = 1
+      | .usage = {source: "claude-task-notification", runs: [{tokens: 1200, duration_ms: 3000}, {tokens: 800, duration_ms: 1000}]})' \
+    "$WORK/results-original.json" > "$WORK/results.json"
+printf '[{"commit":"%s","result":"PASS","evidence":"bash tests/run.sh: 4 passed"}]\n' "$(git rev-parse HEAD)" > "$WORK/block-tests.json"
+claude_receipt docs/reviews/usage-ship-auto.json --block-tests "$WORK/block-tests.json" 2> "$WORK/usage.err"
+jq -e 'all(.reviewers[]; .usage.tokens.total_tokens == 2000 and .usage.duration_ms == 4000)
+       and .block_tests == [{"commit": .head, "result": "PASS", "evidence": "bash tests/run.sh: 4 passed"}]' \
+    docs/reviews/usage-ship-auto.json >/dev/null || { echo 'FAIL: usage totals or block_tests not recorded'; cat docs/reviews/usage-ship-auto.json; exit 1; }
+if grep -q 'no --block-tests' "$WORK/usage.err"; then echo 'FAIL: warned about block tests that were given'; exit 1; fi
+# A block round without block tests is written, with a warning.
+claude_receipt docs/reviews/no-block-tests-ship-auto.json 2> "$WORK/usage.err"
+grep -q 'no --block-tests file was given' "$WORK/usage.err" || { echo 'FAIL: no warning for a block round without block tests'; exit 1; }
+for bad in '{"commit":"x"}' 'not json' '[] []'; do
+    printf '%s\n' "$bad" > "$WORK/block-tests.json"
+    if claude_receipt docs/reviews/bad-block-tests-ship-auto.json --block-tests "$WORK/block-tests.json" 2>/dev/null; then
+        echo "FAIL: accepted block tests: $bad"; exit 1
+    fi
+    test ! -e docs/reviews/bad-block-tests-ship-auto.json
+done
+if claude_receipt docs/reviews/missing-block-tests-ship-auto.json --block-tests "$WORK/none.json" 2>/dev/null; then echo 'FAIL: accepted a missing block tests file'; exit 1; fi
+echo 'PASS: receipts record written_at, Claude usage totals from the runs, and block tests'
 echo 'PASS: real receipts qualify, reject BLOCK, preserve existing evidence, honour reviewer scope and require run counts'
 echo 'PASS: Codex receipts need matching runner evidence (commit, base, clean exit, verdict); Claude unchanged'
 

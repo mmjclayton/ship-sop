@@ -401,7 +401,17 @@ sop_agents_in_scope() {
 # schema_version 1 receipts stay valid; version 2 (ship-sop P34) adds per-reviewer
 # run counts - launches (fresh agents, at least one), rechecks (re-reviews with
 # context intact), block_rounds (rounds with a finding at or above the reviewer's
-# block_on, never more than the runs) - and an optional usage object the runtime may supply; null when it cannot.
+# block_on, never more than the runs) - and a usage object, null when the runtime
+# supplies no figure. Usage has one of two shapes (P44):
+#   Codex:  {source: "codex-review", runs, turns, elapsed_seconds, tokens: {kind: n}, evidence}
+#           (scripts/codex-usage.sh writes it from the runner's telemetry)
+#   Claude: {source: "claude-task-notification", runs: [{tokens, duration_ms}, ...],
+#            tokens: {total_tokens}, duration_ms}
+#           one runs entry per task-completion notification (launch or re-check),
+#           the totals equal to the sums of the runs.
+# An optional top-level block_tests array (P44) records the test suite run at each
+# blocked commit before its fix: [{commit, result: PASS|FAIL|NOT_AVAILABLE, evidence}].
+# Receipts without it stay valid.
 sop_receipt_valid() {
     local root="$1" receipt="$2" cfg sha base required tree scope
     cfg=$(sop_effective_config "$root")
@@ -415,8 +425,23 @@ sop_receipt_valid() {
     jq -e --slurpfile cfg "$cfg" --argjson scope "$scope" --arg policy "$(sop_policy_digest "$cfg")" '
       def rank: {CRITICAL:4,HIGH:3,MEDIUM:2,LOW:1,INFO:0,never:99}[.];
       def text: type == "string" and length > 0;
+      def nat: type == "number" and . >= 0 and floor == .;
+      def usage_ok($runs):
+        . == null or (type == "object" and . as $u |
+          if .source == "claude-task-notification" then
+            (.runs | type == "array" and length >= 1 and length <= $runs and
+              all(.[]; type == "object" and (.tokens | nat) and (.duration_ms | nat))) and
+            (.tokens | type == "object") and .tokens.total_tokens == ([$u.runs[].tokens] | add) and
+            .duration_ms == ([$u.runs[].duration_ms] | add)
+          elif .source == "codex-review" then
+            (.runs | nat and . >= 1) and (.elapsed_seconds | type == "number" and . >= 0) and
+            (.tokens | type == "object" and all(.[]; nat))
+          else false end);
       . as $r |
       (.schema_version | IN(1, 2)) and .policy_sha256 == $policy and
+      ((has("block_tests") | not) or (.block_tests | type == "array" and all(.[];
+        type == "object" and (.commit | type == "string" and test("^[0-9a-f]{40}$")) and
+        (.result | IN("PASS", "FAIL", "NOT_AVAILABLE")) and (.evidence | text)))) and
       (.head | test("^[0-9a-f]{40}$")) and (.base | test("^[0-9a-f]{40}$")) and
       (.tree | test("^[0-9a-f]{40}$")) and
       (.tests.status | IN("PASS", "NOT_AVAILABLE")) and (.tests.evidence | text) and
@@ -429,7 +454,7 @@ sop_receipt_valid() {
            (.rechecks | type == "number" and . >= 0 and floor == .) and
            (.block_rounds | type == "number" and . >= 0 and floor == .) and
            (.block_rounds <= .launches + .rechecks) and
-           ((.usage // null) | type == "object" or . == null)
+           ((.launches + .rechecks) as $runs | (.usage // null) | usage_ok($runs))
          else true end) and
         (.findings | type == "array" and all(.[];
           (.severity | IN("CRITICAL","HIGH","MEDIUM","LOW","INFO")) and
@@ -461,6 +486,39 @@ sop_shipsop_covered() {
         [ "$(sop_code_lines "$root" "$sha" "$head" true)" = "0" ] && return 0
     done
     return 1
+}
+
+# sop_bypasses_since_receipt <root> - the .ship/bypass.log entries dated after the
+# previous ship report's receipt was written, one per line, or "none" (P44).
+# "Previous" is the newest *-ship-auto.json committed in HEAD's tree under
+# docs/reviews/: a receipt this run has just written is not committed yet, so it
+# never counts. A receipt's time is its written_at field (ship-receipt.sh adds it
+# from P44 on); an older receipt without one uses the committer time, in UTC, of
+# the commit that added it. With no committed receipt every entry is listed. A
+# log line without a leading timestamp is listed as "unparsed: <line>" rather than
+# dropped, and a log that exists but cannot be read is reported as "unreadable",
+# never as "none". Credentials in a URL (scheme://user:secret@) are masked.
+sop_bypasses_since_receipt() {
+    local root="$1" log="$1/.ship/bypass.log" since='' path t out
+    local stamp='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+    while IFS= read -r path; do
+        t=$(git -C "$root" show "HEAD:$path" 2>/dev/null \
+            | jq -r --arg re "$stamp" 'if (.written_at | type) == "string" and (.written_at | test($re)) then .written_at else empty end' 2>/dev/null)
+        [ -n "$t" ] || t=$(TZ=UTC git -C "$root" log -1 --diff-filter=A --format=%cd \
+            --date=format-local:%Y-%m-%dT%H:%M:%SZ HEAD -- "$path" 2>/dev/null)
+        [ -n "$t" ] || continue
+        if [[ "$t" > "$since" ]]; then since=$t; fi
+    done < <(git -C "$root" ls-tree -r --name-only HEAD -- docs/reviews 2>/dev/null | grep -E '^docs/reviews/[^/]+-ship-auto[.]json$')
+    out=''
+    if [ -e "$log" ] && { [ ! -f "$log" ] || [ ! -r "$log" ]; }; then
+        out="unreadable: $log"
+    elif [ -f "$log" ]; then
+        out=$(awk -v since="$since" '
+            NF == 0 { next }
+            $1 ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$/ { if ($1 > since) print; next }
+            { print "unparsed: " $0 }' "$log" | sed -E 's#://[^/@[:space:]]+@#://***@#g')
+    fi
+    printf '%s\n' "${out:-none}"
 }
 
 # sop_shipsop_gate <root> — prints the gate demand when ship-sop auto-mode

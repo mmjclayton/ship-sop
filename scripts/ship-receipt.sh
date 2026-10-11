@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # Assemble and validate a gate receipt from real reviewer and test results.
 set -euo pipefail
-BASE=''; HEAD_REF=HEAD; RESULTS=''; TESTS=''; OUTPUT=''
+#
+# Optional --block-tests FILE (P44): a JSON array of {commit, result, evidence},
+# one entry per blocked review round, recording the project's tests run at the
+# blocked commit before its fix. It becomes the receipt's block_tests field.
+# A Claude reviewer's usage may carry only its runs; the totals are added here
+# from them, so nobody sums by hand. Every receipt records written_at (UTC).
+BASE=''; HEAD_REF=HEAD; RESULTS=''; TESTS=''; OUTPUT=''; BLOCK_TESTS=''
 RUNTIME=${SHIP_SOP_RUNTIME:-codex}
 CHECK_LIB=false
 # Functions of the installed push-gate library (scripts/hooks/sop-lib.sh) that
@@ -14,7 +20,7 @@ sop_instruction_file sop_claude_prose sop_type_from_file sop_declared_project_ty
 sop_project_type sop_is_code_repo sop_default_branch sop_range_base sop_cmd_matches_push
 sop_is_push_command sop_strip_heredocs sop_instruction_pattern sop_instructions_changed
 sop_code_lines sop_effective_config sop_policy_valid sop_policy_digest sop_changed_files_json
-sop_agents_in_scope sop_receipt_valid sop_shipsop_covered sop_shipsop_gate'
+sop_agents_in_scope sop_receipt_valid sop_shipsop_covered sop_shipsop_gate sop_bypasses_since_receipt'
 REINSTALL='re-run ship-sop setup.sh for this project'
 while [ $# -gt 0 ]; do
     if [ "$1" = --check-lib ]; then CHECK_LIB=true; shift; continue; fi
@@ -22,6 +28,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --base) BASE=$2 ;; --head) HEAD_REF=$2 ;; --results) RESULTS=$2 ;;
         --tests) TESTS=$2 ;; --output) OUTPUT=$2 ;; --runtime) RUNTIME=$2 ;;
+        --block-tests) BLOCK_TESTS=$2 ;;
         *) echo "Unknown argument: $1" >&2; exit 2 ;;
     esac
     shift 2
@@ -50,13 +57,17 @@ fi
 if [ "$CHECK_LIB" = true ]; then echo "library at $LIB provides every function ship-sop needs"; exit 0; fi
 ROOT=$(git rev-parse --show-toplevel)
 [ -n "$BASE" ] && [ -f "$RESULTS" ] && [ -f "$TESTS" ] && [ -n "$OUTPUT" ] || {
-    echo 'Required: --base REF --results reviewers.json --tests tests.json --output docs/reviews/STAMP-ship-auto.json' >&2
+    echo 'Required: --base REF --results reviewers.json --tests tests.json --output docs/reviews/STAMP-ship-auto.json [--block-tests block-tests.json]' >&2
     exit 2
 }
 case "$OUTPUT" in *-ship-auto.json) ;; *) echo 'Output must end in -ship-auto.json' >&2; exit 2 ;; esac
 [ ! -e "$OUTPUT" ] || { echo 'Use a new receipt filename; existing evidence is immutable' >&2; exit 2; }
 jq -se 'length == 1 and (.[0] | type == "array")' "$RESULTS" >/dev/null || { echo 'INCOMPLETE: results must contain one JSON array' >&2; exit 1; }
 jq -se 'length == 1 and (.[0] | type == "object")' "$TESTS" >/dev/null || { echo 'INCOMPLETE: tests must contain one JSON object' >&2; exit 1; }
+if [ -n "$BLOCK_TESTS" ]; then
+    [ -f "$BLOCK_TESTS" ] && jq -se 'length == 1 and (.[0] | type == "array")' "$BLOCK_TESTS" >/dev/null 2>&1 \
+        || { echo 'INCOMPLETE: --block-tests must name a file holding one JSON array' >&2; exit 1; }
+fi
 CONFIG=$(sop_effective_config "$ROOT")
 BASE=$(git rev-parse --verify "$BASE^{commit}")
 HEAD_SHA=$(git rev-parse --verify "$HEAD_REF^{commit}")
@@ -106,11 +117,27 @@ TREE=$(git rev-parse "$HEAD_SHA^{tree}")
 mkdir -p "$(dirname "$OUTPUT")"
 TMP=$(mktemp "${OUTPUT}.XXXXXX")
 trap 'rm -f "$TMP"' EXIT
+BLOCK_TESTS_JSON=null
+[ -z "$BLOCK_TESTS" ] || BLOCK_TESTS_JSON=$(jq -c . "$BLOCK_TESTS")
+# Claude usage totals are derived from the runs when every run carries both
+# figures as numbers; anything else is left as given for the validator to judge.
 jq -n --arg base "$BASE" --arg head "$HEAD_SHA" --arg tree "$TREE" \
-    --arg policy "$(sop_policy_digest "$CONFIG")" \
-    --slurpfile results "$RESULTS" --slurpfile tests "$TESTS" \
-    '{schema_version:2,base:$base,head:$head,tree:$tree,policy_sha256:$policy,
-      tests:$tests[0],reviewers:$results[0]}' > "$TMP"
+    --arg policy "$(sop_policy_digest "$CONFIG")" --arg written "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --slurpfile results "$RESULTS" --slurpfile tests "$TESTS" --argjson block_tests "$BLOCK_TESTS_JSON" \
+    'def totals: if type == "object" and .source == "claude-task-notification"
+          and (.runs | type == "array" and length > 0 and all(.[]; type == "object" and (.tokens | type == "number") and (.duration_ms | type == "number")))
+        then (if has("tokens") then . else . + {tokens: {total_tokens: ([.runs[].tokens] | add)}} end)
+           | (if has("duration_ms") then . else . + {duration_ms: ([.runs[].duration_ms] | add)} end)
+        else . end;
+     {schema_version:2,base:$base,head:$head,tree:$tree,policy_sha256:$policy,written_at:$written,
+      tests:$tests[0],
+      reviewers:($results[0] | map(if type == "object" and has("usage") then .usage |= totals else . end))}
+     + (if $block_tests == null then {} else {block_tests: $block_tests} end)' > "$TMP"
+# A blocked round with no test result recorded loses the test-catch measure
+# (P44); say so, without refusing a receipt the policy allows.
+if [ -z "$BLOCK_TESTS" ] && jq -e 'any(.reviewers[]; (.block_rounds // 0) > 0)' "$TMP" >/dev/null 2>&1; then
+    echo 'warn: a reviewer recorded a block round but no --block-tests file was given; the receipt will not show whether the tests caught it' >&2
+fi
 if ! sop_receipt_valid "$ROOT" "$TMP"; then
     echo 'BLOCK/INCOMPLETE: results, tests, policy or review range do not qualify; no receipt written' >&2
     exit 1
