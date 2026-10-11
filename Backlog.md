@@ -475,7 +475,7 @@ From review v2 (2026-10-10). The gates' block rate (edward: 98 of 142 schema-2 r
 
 ### P41 - Fold agent-sop's push gate and reviewer agents into ship-sop
 
-`[IN PROGRESS] [Refactor]`
+`[SHIPPED - 2026-10-11] [Refactor]`
 
 Since agent-sop P124 (11 Oct 2026), the only parts of agent-sop that do anything are the push gate (`sop-push-gate.sh`, `sop-lib.sh`, `sop-project-type.sh`, the Codex dispatcher `sop-codex-hook.sh`, registered by `install-hooks.sh`), the library `ship-receipt.sh` loads to validate receipts, and the `security-reviewer` and `code-reviewer` agents the gate runs. All of them serve ship-sop. Keeping them in a second repository meant two installs, a sync layer (`/update-agent-sop`, `sync-sop-files.sh`, `.claude/agent-sop.config.json`), CI checkouts of agent-sop at `main` and at a minimum commit, and a compatibility check between the two. Operator decision 11 Oct 2026: fold them into ship-sop; agent-sop then becomes private and archived, and ship-sop must stand on its own.
 
@@ -497,6 +497,10 @@ Since agent-sop P124 (11 Oct 2026), the only parts of agent-sop that do anything
 **Review round 1 (11 Oct 2026):** silent-failure-hunter BLOCK, security and code PASS with MEDIUMs. Fixed on the branch, each with a fixture: the gate refuses when a library function is missing, the gate check fails, `cwd` is absent or unusable, `HEAD` is unreadable or the review range cannot be computed; `--check-lib` covers the gate's functions and Claude setup exits non-zero on failure; the installer touches only entries holding a matching command, names a non-array event, refuses (and keeps old copies) when another gate registration remains, never treats an unhashable copy as unedited, and writes settings beside the target with its mode kept; the bypass applies only when every push carries it, and a failed bypass-log write warns; the installed gate is exercised end to end for Claude and Codex; setup reports the Codex `hooks` feature; `AGENT_SOP_*` environment variables are renamed `SHIP_SOP_*`.
 
 **Source:** operator decision 11 Oct 2026 (fold agent-sop into ship-sop; archive agent-sop afterwards).
+
+**Outcome:** ship-sop installs and registers the push gate and the two gate reviewers itself; CI and every suite run without agent-sop. Review took one blocking round (silent-failure: a missing library function let a push through) and three fix commits; the gate now refuses on any check it cannot complete.
+
+review: docs/reviews/20261011-225814-ship-auto.md
 
 ---
 
