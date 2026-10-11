@@ -37,9 +37,8 @@ jobs:
         continue-on-error: true
         run: |
           shellcheck -S warning \
-            scripts/refresh-rollup.sh \
-            scripts/refresh-in-flight.sh \
-            scripts/validate-state-transitions.sh
+            scripts/validate-state-transitions.sh \
+            scripts/detect-trackers.sh
 
       - name: Validate JSON
         run: |

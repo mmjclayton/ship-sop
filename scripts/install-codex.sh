@@ -5,7 +5,7 @@ set -euo pipefail
 SOURCE="$(cd "$(dirname "$0")/.." && pwd -P)"
 PACKAGE="$(basename "$SOURCE")"
 # Clones can have arbitrary names. Identify the package by its source assets.
-if [ -f "$SOURCE/.agents/skills/restart-sop/SKILL.md" ]; then PACKAGE=agent-sop; else PACKAGE=ship-sop; fi
+if [ -f "$SOURCE/.agents/skills/update-agent-sop/SKILL.md" ]; then PACKAGE=agent-sop; else PACKAGE=ship-sop; fi
 USER_ROOT="${AGENT_SOP_USER_HOME:-$HOME}"
 CODEX_DIR="${CODEX_HOME:-$USER_ROOT/.codex}"
 FORCE=false; REMOVE=false
@@ -22,6 +22,7 @@ trap 'rm -rf "$WORK"' EXIT
 if [ -f "$MANIFEST" ]; then jq -e 'type == "object"' "$MANIFEST" >/dev/null; cp "$MANIFEST" "$WORK/manifest"; else echo '{}' > "$WORK/manifest"; fi
 sha() { if command -v shasum >/dev/null; then shasum -a 256 "$1"; else sha256sum "$1"; fi | cut -d' ' -f1; }
 asset_target() {
+    case "/$1/" in */../*|*/./*) echo "Invalid asset: $1" >&2; return 1 ;; esac
     case "$1" in
         .agents/skills/*) printf '%s/%s' "$USER_ROOT" "$1" ;;
         .codex/agents/*) printf '%s/agents/%s' "$CODEX_DIR" "${1#.codex/agents/}" ;;
@@ -67,6 +68,21 @@ while IFS= read -r src; do
     fi
     jq --arg p "$src" --arg sha "$wanted" '.[$p]=$sha' "$WORK/manifest" > "$WORK/next"; mv "$WORK/next" "$WORK/manifest"
 done < "$WORK/assets"
+# Assets this package no longer ships (P124: retired skills) go when unedited; an edited
+# copy is kept and named.
+if [ "$REMOVE" = false ]; then
+    while IFS= read -r src; do
+        grep -qxF -- "$src" "$WORK/assets" && continue
+        if ! dest=$(asset_target "$src"); then
+            jq --arg p "$src" 'del(.[$p])' "$WORK/manifest" > "$WORK/next"; mv "$WORK/next" "$WORK/manifest"; continue
+        fi
+        old=$(jq -r --arg p "$src" '.[$p] // empty' "$WORK/manifest")
+        if [ -f "$dest" ] && [ "$(sha "$dest")" = "$old" ]; then
+            rm "$dest"; rmdir "$(dirname "$dest")" 2>/dev/null || true; echo "remove $dest (no longer shipped)"
+        elif [ -f "$dest" ]; then echo "keep $dest (no longer shipped, but edited locally)"; fi
+        jq --arg p "$src" 'del(.[$p])' "$WORK/manifest" > "$WORK/next"; mv "$WORK/next" "$WORK/manifest"
+    done < <(jq -r 'keys[]' "$WORK/manifest")
+fi
 # Write through symlinks to preserve dotfiles-managed configuration.
 cat "$WORK/manifest" > "$MANIFEST"
 if [ "$REMOVE" = false ] && [ ! -f "$CONFIG" ]; then

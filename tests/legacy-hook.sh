@@ -36,9 +36,9 @@ retired_settings() {
 }
 register_agent_sop() {
     mkdir -p "$AGENT_SOP_USER_HOME/.claude/scripts/hooks/agent-sop"
-    touch "$AGENT_SOP_USER_HOME/.claude/scripts/hooks/agent-sop/sop-stop-drift.sh"
-    jq -n --arg c "bash \"$AGENT_SOP_USER_HOME/.claude/scripts/hooks/agent-sop/sop-stop-drift.sh\"" \
-        '{hooks:{Stop:[{matcher:"*",hooks:[{type:"command",command:$c}]},{matcher:"*",hooks:[{type:"prompt",prompt:"x"}]}]}}' \
+    touch "$AGENT_SOP_USER_HOME/.claude/scripts/hooks/agent-sop/sop-push-gate.sh"
+    jq -n --arg c "bash \"$AGENT_SOP_USER_HOME/.claude/scripts/hooks/agent-sop/sop-push-gate.sh\"" \
+        '{hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:$c}]}],Stop:[{matcher:"*",hooks:[{type:"prompt",prompt:"x"}]}]}}' \
         > "$AGENT_SOP_USER_HOME/.claude/settings.json"
 }
 
@@ -165,7 +165,7 @@ printf 'PASS: links outside the project and home, linked directories, non-settin
 
 # A stale agent-sop registration stops setup before anything is retired.
 mkdir -p "$AGENT_SOP_USER_HOME/.claude"
-jq -n '{hooks:{Stop:[{matcher:"*",hooks:[{type:"command",command:"bash /elsewhere/sop-stop-drift.sh"}]}]}}' > "$AGENT_SOP_USER_HOME/.claude/settings.json"
+jq -n '{hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:"bash /elsewhere/sop-push-gate.sh"}]}]}}' > "$AGENT_SOP_USER_HOME/.claude/settings.json"
 legacy_project stale
 cp "$WORK/stale/.claude/settings.json" "$WORK/stale-before"
 if bash "$SOURCE/setup.sh" "$WORK/stale" --runtime claude < /dev/null > "$WORK/stale.log" 2>&1; then

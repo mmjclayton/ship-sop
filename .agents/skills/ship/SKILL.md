@@ -60,8 +60,8 @@ code signal. Non-code projects stop with an explanation.
 5. Small fixes may be applied in scope, but a new code commit needs a fresh review
    of that HEAD. Do not stamp an old review with a newer SHA. Do not commit, push,
    tag or publish as part of ship. Do not file findings into Backlog automatically.
-   Report HIGH/CRITICAL findings first. Cite the same report in update-sop when
-   that review serves its session-close requirement.
+   Report HIGH/CRITICAL findings first. Cite the same report from the Backlog
+   entry's `review:` line.
 
 The review script requires a committed snapshot. If the intended scope includes
 uncommitted changes, state that limitation; use a temporary snapshot for review

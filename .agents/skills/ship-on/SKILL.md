@@ -9,7 +9,7 @@ exists, create the project config from docs/templates/ship-sop.config.json when
 available. Otherwise report the missing installation.
 Use jq and a validated temporary file to change only .trigger.mode to "auto";
 preserve all other fields and write through an existing symlink. Verify the value.
-For auto-mode check that Codex hooks.json has agent-sop Stop and PreToolUse entries
+For auto-mode check that Codex hooks.json has the agent-sop PreToolUse entry
 and their scripts exist. Inline hooks in config.toml are also supported by Codex.
 If missing, report auto-mode as inactive and repair using agent-sop's
 scripts/install-hooks.sh --runtime codex when installation is authorized.

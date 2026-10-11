@@ -122,7 +122,7 @@ printf 'PASS: missing reviewers fail and uninstall preserves project data\n'
 
 # A wrapper on disk does not validate registrations pointing elsewhere.
 mkdir -p "$WORK/project/docs/sop" "$AGENT_SOP_USER_HOME/.codex/scripts/hooks/agent-sop"
-printf '# SOP\n' > "$WORK/project/docs/sop/claude-agent-sop.md"
+# P124: auto-mode needs only Backlog.md and the push-gate hook, no docs/sop.
 printf '# Backlog\n' > "$WORK/project/Backlog.md"
 printf '#!/bin/sh\n' > "$AGENT_SOP_USER_HOME/.codex/scripts/hooks/agent-sop/sop-codex-hook.sh"
 printf '{"hooks":{"Stop":[{"hooks":[{"command":"bash /missing/sop-codex-hook.sh Stop"}]}],"PreToolUse":[{"hooks":[{"command":"bash /missing/sop-codex-hook.sh PreToolUse"}]}]}}\n' > "$AGENT_SOP_USER_HOME/.codex/hooks.json"
@@ -132,7 +132,7 @@ fi
 printf 'PASS: stale registered hook paths rejected\n'
 
 mkdir -p "$AGENT_SOP_USER_HOME/.claude" "$WORK/project/.claude"
-printf '{"hooks":{"Stop":[{"hooks":[{"command":"bash /missing/sop-stop-drift.sh"}]}]}}\n' > "$AGENT_SOP_USER_HOME/.claude/settings.json"
+printf '{"hooks":{"PreToolUse":[{"hooks":[{"command":"bash /missing/sop-push-gate.sh"}]}]}}\n' > "$AGENT_SOP_USER_HOME/.claude/settings.json"
 printf '{"hooks":{"Stop":[{"hooks":[{"command":"scripts/auto-ship-hook.sh"}]}]}}\n' > "$WORK/project/.claude/settings.json"
 cp "$WORK/project/.claude/settings.json" "$WORK/legacy-before"
 if bash "$SOURCE/setup.sh" "$WORK/project" --runtime claude > "$WORK/stale-claude-hooks" 2>&1; then

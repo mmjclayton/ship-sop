@@ -26,12 +26,12 @@ if [ "$REMOVE" = true ]; then
 fi
 # Validate the dependency before installing any ship-sop assets.
 if [ "$NO_HOOK" = false ]; then
-    if [ ! -f "$TARGET/Backlog.md" ] || [ ! -f "$TARGET/docs/sop/claude-agent-sop.md" ]; then
+    if [ ! -f "$TARGET/Backlog.md" ]; then
         echo 'Auto-mode needs agent-sop scaffolding in this target. Run agent-sop setup.sh <project> --runtime codex first.' >&2
         exit 1
     fi
     if [ ! -f "$CODEX_DIR/scripts/hooks/agent-sop/sop-codex-hook.sh" ] ||
-       ! jq -e --arg wrapper "bash \"$CODEX_DIR/scripts/hooks/agent-sop/sop-codex-hook.sh\"" '([.hooks.Stop[]?.hooks[]?.command | select(. == ($wrapper + " Stop"))] | length > 0) and ([.hooks.PreToolUse[]?.hooks[]?.command | select(. == ($wrapper + " PreToolUse"))] | length > 0)' "$CODEX_DIR/hooks.json" >/dev/null 2>&1; then
+       ! jq -e --arg wrapper "bash \"$CODEX_DIR/scripts/hooks/agent-sop/sop-codex-hook.sh\"" '[.hooks.PreToolUse[]?.hooks[]?.command | select(. == ($wrapper + " PreToolUse"))] | length > 0' "$CODEX_DIR/hooks.json" >/dev/null 2>&1; then
         echo 'Codex auto-mode requires agent-sop setup.sh <project> --runtime codex first; or use --no-hook for manual mode.' >&2
         exit 1
     fi
