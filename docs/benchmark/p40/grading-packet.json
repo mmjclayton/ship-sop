@@ -1,0 +1,234 @@
+[
+  {
+    "id": "S01",
+    "reviewed_commit": "37f2b5e29857eeb087cdab5efd41826be670a719",
+    "severity": "HIGH",
+    "file": "src/pipeline/scope.ts",
+    "line": "32",
+    "claim": "The scope proposal requires the model to supply the set date, which the model has no way of knowing."
+  },
+  {
+    "id": "S02",
+    "reviewed_commit": "523b4e3d1e0143602e1b7d6133e8aed510dc1abd",
+    "severity": "HIGH",
+    "file": "src/pipeline/verification.ts",
+    "line": "judgeClaim",
+    "claim": "A short research span that the page does carry is treated as a misquote: the verdict note falsely says the page does not carry it, and the span is withheld from the verifier."
+  },
+  {
+    "id": "S03",
+    "reviewed_commit": "b10c58e7d8ec66985a822ea917c9d3fb948d3139",
+    "severity": "HIGH",
+    "file": "src/artefacts/prose.ts",
+    "line": "proseBlocks",
+    "claim": "A numbered list that restarts at \"1.\" after a blank line is merged into the preceding list and renumbered; the wrap and continuation paths have no direct tests."
+  },
+  {
+    "id": "S04",
+    "reviewed_commit": "fbdd9d2",
+    "severity": "HIGH",
+    "file": "src/web (company switcher, home list, conversation view)",
+    "line": null,
+    "claim": "Company names in the switcher and home list, and a conversation's insight origin, render without the record marking, so the guard flags or misses them."
+  },
+  {
+    "id": "S05",
+    "reviewed_commit": "b46622ad04cbd09d3231b500c704d44148fe38e3",
+    "severity": "HIGH",
+    "file": "src/web/thread-view.ts",
+    "line": "80",
+    "claim": "A message the server never received appears as sent, and the failure reads as Ed not answering."
+  },
+  {
+    "id": "S06",
+    "reviewed_commit": "51060ff6ec3d169b1750fb98afe2b185325f5a4b",
+    "severity": "HIGH",
+    "file": "src/web/path-view.ts",
+    "line": "263",
+    "claim": "The setup page shows the old research plan and a Start research control that the server refuses, rather than Ed's draft plan awaiting confirmation."
+  },
+  {
+    "id": "S07",
+    "reviewed_commit": "e597a52",
+    "severity": "HIGH",
+    "file": "src/pipeline/batch-rerun.ts",
+    "line": "64-78",
+    "claim": "Setup work runs outside the error handler, so a failure there can leave notes stuck in 'sent' status."
+  },
+  {
+    "id": "S08",
+    "reviewed_commit": "e597a52",
+    "severity": "HIGH",
+    "file": "src/brain/tools.ts",
+    "line": "563, 743",
+    "claim": "A moved question or a claim verdict reaches the batch's model call without checking the company's provider permission."
+  },
+  {
+    "id": "S09",
+    "reviewed_commit": "afe7476494dfe488f80461f627eb4f1957fcdd0e",
+    "severity": "HIGH",
+    "file": "src/web/server.ts",
+    "line": "1610",
+    "claim": "A premise flag is closed when its run starts, so a run that later fails disappears from view with the flag still closed."
+  },
+  {
+    "id": "S10",
+    "reviewed_commit": "8352b7568d191235e3683a21765cade4ac5e71f2",
+    "severity": "HIGH",
+    "file": "src/pipeline/revisions.ts",
+    "line": "194",
+    "claim": "An Action's revision reason and author are shown to a client, outside the ruling that a client reads only notes they wrote."
+  },
+  {
+    "id": "S11",
+    "reviewed_commit": "f537849",
+    "severity": "HIGH",
+    "file": null,
+    "line": null,
+    "claim": "The new Documents place shows a client internal (strategist-side) documents and research-pack sources that should not be listed to a client."
+  },
+  {
+    "id": "S12",
+    "reviewed_commit": "512e469",
+    "severity": "HIGH (implied, not stated)",
+    "file": null,
+    "line": null,
+    "claim": "The web server does not drain briefings in flight before shutting down."
+  },
+  {
+    "id": "S13",
+    "reviewed_commit": "a2d58df",
+    "severity": "HIGH",
+    "file": null,
+    "line": null,
+    "claim": "A Deep question asked of 'Your documents' runs web research instead of staying within the company's documents."
+  },
+  {
+    "id": "S15",
+    "reviewed_commit": "1e7fff3",
+    "severity": "HIGH",
+    "file": "src/web/thread-view.ts",
+    "line": "79",
+    "claim": "The chat page script throws on Ed's own standing chat, which has no composer, and the exception also stops the artefact panel's script from running."
+  },
+  {
+    "id": "S16",
+    "reviewed_commit": "ef6e1b8",
+    "severity": "HIGH",
+    "file": "src/corpus/read-on-add.ts",
+    "line": "75",
+    "claim": "A document claimed for reading stays stuck permanently if the job dies mid-read, because a stale read claim is never released or retaken."
+  },
+  {
+    "id": "S17",
+    "reviewed_commit": "46635c5",
+    "severity": "HIGH",
+    "file": "src/corpus/read-on-add.ts",
+    "line": "133",
+    "claim": "The settle function (confirming existing document drafts) has no caller, so it never runs."
+  },
+  {
+    "id": "S18",
+    "reviewed_commit": "ac12a57",
+    "severity": "HIGH",
+    "file": "src/pipeline/bounty-answer.ts",
+    "line": "51",
+    "claim": "Side reads of the Bounties set (an answer's check, a briefing, Ed's pass, the Next round route) open a new round as a side effect of reading."
+  },
+  {
+    "id": "S19",
+    "reviewed_commit": "ac12a57",
+    "severity": "HIGH",
+    "file": "src/pipeline/bounties.ts",
+    "line": "84",
+    "claim": "A failure to read or write the bounty round breaks every page that shows Bounties, with no fallback."
+  },
+  {
+    "id": "S20",
+    "reviewed_commit": "b53ad66",
+    "severity": "HIGH",
+    "file": "src/web/bounty-history.ts",
+    "line": "40",
+    "claim": "Bounties History shows a client the note attached to any move on a question as if it were the answer, exposing strategist notes to the client."
+  },
+  {
+    "id": "S21",
+    "reviewed_commit": "4626c03",
+    "severity": "HIGH",
+    "file": "src/pipeline/derivation.ts",
+    "line": "633",
+    "claim": "The step that retires an earlier attempt's insights also supersedes scored, merged and shown (client-visible) insights. It leaves no record of why they were retired, so their reasons are lost, and their dependents (Actions, notes) are orphaned."
+  },
+  {
+    "id": "S22",
+    "reviewed_commit": "8862f85",
+    "severity": "HIGH",
+    "file": "src/pipeline/release.ts",
+    "line": "30",
+    "claim": "retireIfShown (src/pipeline/recompute.ts) marks a hidden original (rejected, unresolved or quarantined) as superseded once its rerun is shown. That makes it match clientInsightSql's standing-in rule (superseded, with nothing later released), so a client can see an insight the strategist rejected while its rerun waits for release. Raised at 8862f85 and again at f367eb4."
+  },
+  {
+    "id": "S23",
+    "reviewed_commit": "b01eae2",
+    "severity": "HIGH",
+    "file": "src/pipeline/scoring-retry.ts",
+    "line": "60",
+    "claim": "In the scoring retry's check-before-render path, a verification that was truncated (did not complete) is treated as passed or checked, so insights are rendered as verified when they were not fully checked."
+  },
+  {
+    "id": "S24",
+    "reviewed_commit": "96d3155",
+    "severity": "HIGH",
+    "file": null,
+    "line": "archive company path / scheduled cycle firing (file not stated; likely src/web/server.ts archive route and src/ops/queue.ts)",
+    "claim": "Archiving a company leaves its registered cron in place, and nothing checks the archive, so scheduled research cycles keep firing for an archived company."
+  },
+  {
+    "id": "S25",
+    "reviewed_commit": "d78f8d9",
+    "severity": "HIGH",
+    "file": "src/pipeline/derive-plan.ts / src/research/plan.ts (not stated)",
+    "line": null,
+    "claim": "The plan's questions for the person (what only the company can answer) are stored with origin plan_derivation. As a result the Bounty paths ignore them, research spawns them as research questions, and the next config save switches them off."
+  },
+  {
+    "id": "S26",
+    "reviewed_commit": "e09952f",
+    "severity": "HIGH",
+    "file": "src/web/eta.ts",
+    "line": null,
+    "claim": "The insights-writing time history used for estimates counts edits and recomputes along with insights written in a research cycle, so the 'time left' estimate is built from unlike work."
+  },
+  {
+    "id": "S27",
+    "reviewed_commit": "92d4f28",
+    "severity": "HIGH",
+    "file": "src/web/notices.ts",
+    "line": null,
+    "claim": "When the read of a run's topics fails, the notice falls back to a false 'Did not start' message, and the failure is neither logged nor said."
+  },
+  {
+    "id": "S28",
+    "reviewed_commit": "481e16b",
+    "severity": "HIGH",
+    "file": "src/research/brand.ts",
+    "line": null,
+    "claim": "At 481e16b: a failed brand read (site fetch or parse) overwrites the company's stored brand with empty values, wiping the brand that was kept before."
+  },
+  {
+    "id": "S29",
+    "reviewed_commit": "79ad551",
+    "severity": "CRITICAL (inferred from block threshold)",
+    "file": "migrations/123_company_brand.sql",
+    "line": null,
+    "claim": "Migration 123 does not correctly carry the brand columns the code relies on, so a database other than the one aligned by hand lacks them."
+  },
+  {
+    "id": "S30",
+    "reviewed_commit": "8b23763",
+    "severity": "HIGH",
+    "file": "src/brain/research-act.ts / src/web/server.ts (not stated)",
+    "line": null,
+    "claim": "Ed's Research actions are not correctly scoped to the current subject (company), so an action can run with the wrong subject scope."
+  }
+]

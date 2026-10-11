@@ -1,0 +1,37 @@
+[
+{"id":"S11","receipt":"20260930-113726-ship-auto","reviewer":"code-reviewer","reviewed_commit":"f537849","commit_note":"Report names 'Round one (f537849)'; code-reviewer block_rounds 1, round one the only round with HIGHs. No file or line given.","findings":[
+{"severity":"HIGH","file":null,"line":null,"claim":"The new Documents place shows a client internal (strategist-side) documents and research-pack sources that should not be listed to a client."},
+{"severity":"HIGH","file":null,"line":null,"claim":"The Home and Companies pages lost their link styling under the new shell."}]},
+{"id":"S12","receipt":"20260930-141517-ship-auto","reviewer":"silent-failure-hunter","reviewed_commit":"7bb9c8f","commit_note":"block_rounds 2. Round one (7bb9c8f): 'Silent-failure and code both found HIGH' for three items (shared). Round two (512e469): severity not given, implied by block_rounds 2. No file/line stated.","findings":[
+{"severity":"HIGH","file":null,"line":null,"round":"7bb9c8f","claim":"The CLI exits before a briefing is written, so briefings triggered from CLI commands are lost."},
+{"severity":"HIGH","file":null,"line":null,"round":"7bb9c8f","claim":"The worker, which runs scheduled cycles, never registers the briefing writer, so scheduled runs get no briefing."},
+{"severity":"HIGH","file":null,"line":null,"round":"7bb9c8f","claim":"Writer registration uses one global slot, so one server's registration or removal silences another's."},
+{"severity":"HIGH (implied, not stated)","file":null,"line":null,"round":"512e469","claim":"The briefing drain only covers work that was in flight when the drain started, so briefings started during the drain are not waited for."},
+{"severity":"HIGH (implied, not stated)","file":null,"line":null,"round":"512e469","claim":"The web server does not drain briefings in flight before shutting down."}]},
+{"id":"S13","receipt":"20260930-170512-ship-auto","reviewer":"silent-failure-hunter","reviewed_commit":"a2d58df","commit_note":"Round one (a2d58df); 'Code and silent-failure blocked'; three unattributed HIGHs included as possibly shared; the Deep-lock HIGH named as code is excluded. No file/line stated.","findings":[
+{"severity":"HIGH","file":null,"line":null,"claim":"The Deep research 'working' line never ends when the underlying job dies, so the chat shows Ed working indefinitely."},
+{"severity":"HIGH","file":null,"line":null,"claim":"The chosen corpus is reported to the person as applied, but it is not actually applied to the answer."},
+{"severity":"HIGH","file":null,"line":null,"claim":"A Deep question asked of 'Your documents' runs web research instead of staying within the company's documents."}]},
+{"id":"S14","receipt":"20260930-174619-ship-auto","reviewer":"silent-failure-hunter","reviewed_commit":"23f4aef","commit_note":"Round one (23f4aef): 'Silent-failure blocked. Code and security passed with MEDIUMs.' No per-finding severity or reviewer attribution; the blocking HIGHs cannot be identified. Unresolved attribution.","findings":[
+{"severity":"UNSTATED","file":null,"line":null,"claim":"A data file cut at the reading limit is profiled as if it were the whole file."},
+{"severity":"UNSTATED","file":null,"line":null,"claim":"A refused Withdraw gives the person no indication that it was refused."},
+{"severity":"UNSTATED","file":null,"line":null,"claim":"Excel cells shift to the wrong column when a preceding cell in the row is empty."},
+{"severity":"UNSTATED","file":null,"line":null,"claim":"The profiler reports false dates (values that are not valid dates read as dates)."},
+{"severity":"UNSTATED","file":null,"line":null,"claim":"A partially successful multi-file upload is reported as all failed."},
+{"severity":"UNSTATED","file":null,"line":null,"claim":"A file Ed could not read is reported as 'Added'."},
+{"severity":"UNSTATED","file":null,"line":null,"claim":"Column kinds are inferred over-confidently."},
+{"severity":"UNSTATED","file":null,"line":null,"claim":"A document's future expiry date survives a withdrawal, so the withdrawal does not take effect as an expiry."},
+{"severity":"UNSTATED","file":null,"line":null,"claim":"A client learns a count of unreleased insights through the Withdraw flow."}]},
+{"id":"S15","receipt":"20261003-170827-ship-auto","reviewer":"silent-failure-hunter","reviewed_commit":"1e7fff3","commit_note":"First fix commit b5e36a0 says '(gate over 1e7fff3)'. HIGH located from the .json INFO entry.","findings":[
+{"severity":"HIGH","file":"src/web/thread-view.ts","line":"79","claim":"The chat page script throws on Ed's own standing chat, which has no composer, and the exception also stops the artefact panel's script from running."}]},
+{"id":"S16","receipt":"20261005-133900-ship-auto","reviewer":"silent-failure-hunter","reviewed_commit":"ef6e1b8","commit_note":"block_rounds 1; .json states the HIGH was raised 'over ef6e1b8' (second round).","findings":[
+{"severity":"HIGH","file":"src/corpus/read-on-add.ts","line":"75","claim":"A document claimed for reading stays stuck permanently if the job dies mid-read, because a stale read claim is never released or retaken."}]},
+{"id":"S17","receipt":"20261005-181602-ship-auto","reviewer":"code-reviewer","reviewed_commit":"46635c5","commit_note":"First fix commit e416b4a: 'Over 46635c5 the reviewers found: the settle had no caller (HIGH)'.","findings":[
+{"severity":"HIGH","file":"src/corpus/read-on-add.ts","line":"133","claim":"The settle function (confirming existing document drafts) has no caller, so it never runs."}]},
+{"id":"S18","receipt":"20261005-201425-ship-auto","reviewer":"code-reviewer","reviewed_commit":"ac12a57","commit_note":"Fix commit a68e0b2: 'Code gate over ac12a57'. File/line from the .json INFO entry.","findings":[
+{"severity":"HIGH","file":"src/pipeline/bounty-answer.ts","line":"51","claim":"Side reads of the Bounties set (an answer's check, a briefing, Ed's pass, the Next round route) open a new round as a side effect of reading."}]},
+{"id":"S19","receipt":"20261005-201425-ship-auto","reviewer":"silent-failure-hunter","reviewed_commit":"ac12a57","commit_note":"Fix commit a68e0b2 covers the silent-failure gate over ac12a57. File/line from the .json INFO entry.","findings":[
+{"severity":"HIGH","file":"src/pipeline/bounties.ts","line":"84","claim":"A failure to read or write the bounty round breaks every page that shows Bounties, with no fallback."}]},
+{"id":"S20","receipt":"20261005-211611-ship-auto","reviewer":"security-reviewer","reviewed_commit":"b53ad66","commit_note":"Fix commit e4b7b46: 'Security gate over b53ad66'. Config sets security block_on CRITICAL but no CRITICAL is named; the block-round finding is HIGH.","findings":[
+{"severity":"HIGH","file":"src/web/bounty-history.ts","line":"40","claim":"Bounties History shows a client the note attached to any move on a question as if it were the answer, exposing strategist notes to the client."}]}
+]
