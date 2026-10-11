@@ -71,3 +71,13 @@ ec0fb60024bb539010beccdd465b54c933dd47f0 sop-stop-drift.sh
 4d669da03eb2444f60d94761963b1128765763f9 sop-worktree-claim.sh
 8608ca57873eed0c058698ecc03cd8ebf36e1362 sop-worktree-claim.sh
 a2fe005ef2e7cd1fec01f7b078a6b2a0fe423099 sop-worktree-claim.sh
+058a25ffb1f4016f276b424d7dd901ec5273e8b4 sop-lib.sh
+0e74ea6df78e167f7ee635283b1be328b53308fd sop-push-gate.sh
+15945a387d67b7817cacb63079a983d5ac1c7d3e sop-lib.sh
+2aa8ba52207240d58d4e4f0ba075ce0425c0cfd4 sop-push-gate.sh
+3b2a4cb8f366c1f18648599541abe9d66e5454e7 sop-push-gate.sh
+701701a0fb5f7f4052cd27aec5de2027a4ec0e16 sop-lib.sh
+95ad27c4032aaabd3a9cf233bcffeff3de2ba5ed sop-lib.sh
+c84b6a6a2d079894cc7b9241bdfa4ed6ee25a704 sop-lib.sh
+cabd6d0b27c107150e884999341f637a5318e251 sop-lib.sh
+f908b0d2e3fb666ee6b03b23936edec03ebda408 sop-lib.sh
