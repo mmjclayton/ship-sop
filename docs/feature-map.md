@@ -26,12 +26,12 @@ Last updated: 2026-09-08 (P28, P30)
 | P3 | End-to-end dogfood of auto-mode | `docs/reviews/20260425-154239-*.md` | 2026-04-25 (`31f984e`) |
 | P3 | Leftover-rename fix in directive header | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-04-25 (`31f984e`) |
 | P4 | Docs-only detection in hook | `scripts/auto-ship-hook.sh` (removed 2026-10-10, P25) | 2026-04-25 (`bc2e9d7`) |
-| P5 | Session-process install (retrospective record) | `CLAUDE.md`, `Backlog.md`, `docs/agent-memory*` | 2026-04-25 |
+| P5 | Session-process install (retrospective record) | `CLAUDE.md`, `Backlog.md`, `archive/agent-memory*` | 2026-04-25 |
 | P6 | Multi-tenant isolation scan in compliance-reviewer | `.claude/agents/compliance-reviewer.md` (Section 7) | 2026-04-25 (`3b679e0`) |
 | P6 | Lawful-basis severity bump LOW → MEDIUM | `.claude/agents/compliance-reviewer.md` (GDPR rights scan) | 2026-04-25 (`3b679e0`) |
 | P7 | `/audit` slash command (whole-codebase compliance audit) | `.claude/commands/audit.md` | 2026-04-25 |
 | P7 | Audit-mode workflow in compliance-reviewer (Pass A-D) | `.claude/agents/compliance-reviewer.md` (Audit Mode Workflow) | 2026-04-25 |
-| P7 | Phase 1 build plan | `docs/build-plans/phase-1-audit-mode.md` | 2026-04-25 |
+| P7 | Phase 1 build plan | `archive/build-plans/phase-1-audit-mode.md` | 2026-04-25 |
 | P9 | `code-reviewer` added to default reviewer set | `docs/templates/ship-sop.config.json` (+ dogfood `ship-sop.config.json`) | 2026-04-25 |
 | P9 | `silent-failure-hunter` added to default reviewer set | `docs/templates/ship-sop.config.json` (+ dogfood `ship-sop.config.json`) | 2026-04-25 |
 | P9 | `pr-test-analyzer` added to default reviewer set (advisory) | `docs/templates/ship-sop.config.json` (+ dogfood `ship-sop.config.json`) | 2026-04-25 |
@@ -49,7 +49,7 @@ Last updated: 2026-09-08 (P28, P30)
 | P11 | README uninstall fallback wrapped in `<details>`; `/audit` added to quick start; new troubleshooting section | `README.md` | 2026-05-02 |
 | P11 | `setup.sh prompt_yn()` non-interactive timeout (`read -t 30` with default fallthrough) | `setup.sh` | 2026-05-02 |
 | P11 | `docs/README.md` orientation note (product surface vs history) | `docs/README.md` | 2026-05-02 |
-| P11 | P10 retroactive `docs/recent-work/` entry filed; rollup re-runs cleanly | `docs/recent-work/2026-04-26_solo_p10-uninstall.md` | 2026-05-02 |
+| P11 | P10 retroactive `recent-work/` entry filed; rollup re-runs cleanly | `archive/recent-work/2026-04-26_solo_p10-uninstall.md` | 2026-05-02 |
 | P14 | SessionStop hook wired in the nested shape Claude Code actually executes — auto-mode fires for the first time since P1 | `setup.sh`, `.claude/settings.json` | 2026-08-03 |
 | P14 | Shared hook selectors (`HOOK_NESTED_PROBE`, `HOOK_LEGACY_PROBE`, `HOOK_ENTRY_EXAMPLE`) so install and uninstall cannot drift apart | `setup.sh` | 2026-08-03 |
 | P14 | In-place migration of pre-P14 flat hook entries; uninstall removes both shapes and preserves other hooks | `setup.sh`, `README.md` | 2026-08-03 |

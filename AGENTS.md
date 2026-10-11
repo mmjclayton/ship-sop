@@ -3,7 +3,7 @@
 **Project type:** code
 
 Read `CLAUDE.md` for shared project conventions, working rules and document
-dispatch. Both runtimes use one Backlog, memory, validators and review reports.
+dispatch. Both runtimes use one Backlog, validators and review reports.
 
 Codex workflows live in `.agents/skills/`, reviewers in `.codex/agents/`, and the
 push gate in `scripts/hooks/` (Codex reaches it through `sop-codex-hook.sh`).

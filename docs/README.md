@@ -12,12 +12,12 @@ product surface, and some are history kept for reference.
 - `ship-sop.md` - redirect stub; the spec lives in the top-level `README.md`
 - `benchmark/p40/` - the blind precision sample of ship-gate blocks (P40)
 
+- `build-plans/2026-10-12-gate-value.md` - the plan to measure the gate's cost and value on live work
+
 ## History (read, do not rewrite)
 
-- `agent-memory.md`, `agent-memory/decisions/`, `agent-memory/gotchas/` - decisions and lessons, as reference reading
-- `recent-work/`, `RECENT-WORK.md` - earlier session records; no longer written
-- `build-plans/` - phase plans and batch logs; planning context
 - `backlog-archive.md` - closed Backlog items moved by `scripts/archive-backlog.sh`
+- Older records (session logs, agent memory, phase build plans) are in the top-level `archive/` folder; nothing reads them
 
 ## Runtime artifacts
 
