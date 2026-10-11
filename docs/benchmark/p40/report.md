@@ -4,7 +4,7 @@
 
 ## Answer
 
-About half of the gate's blocks were real defects, and few were false alarms. This holds when the questionable rows are removed (see Sensitivity). This shows the gate catches real defects. Whether edward's existing tests would also have caught them is unknown: the receipts record test status only at their final commit, not at the blocked one. It does not show the gate is worth its cost: what those defects would have cost if caught later, or never, was not measured.
+About half of the gate's blocks were real defects by the stricter grader's standard; the more lenient grader's figure was about 60%. Few were false alarms: 7% by both graders' grading, 21% by at least one. These figures hold when the questionable rows are removed (see Sensitivity). This shows the gate catches real defects. Whether edward's existing tests would also have caught them is unknown: the receipts record test status only at their final commit, not at the blocked one. It does not show the gate is worth its cost: what those defects would have cost if caught later, or never, was not measured.
 
 | Blind grade of 29 blocking findings | Grader A | Grader B | Both graders |
 |---|---|---|---|
