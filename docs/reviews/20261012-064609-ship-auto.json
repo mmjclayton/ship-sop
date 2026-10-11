@@ -1,0 +1,85 @@
+{
+  "schema_version": 2,
+  "base": "4ecb925228f0130d147609e4f28989527c2a8cac",
+  "head": "837e061bf344532f2545aaf978a5713762e8b1e0",
+  "tree": "205ec346a977ef2178fb278506c7a4419bafbe71",
+  "policy_sha256": "76049105bc652b9a92fb3e34c6424e1c38bf8e198780f112ba52e07253717025",
+  "tests": {
+    "status": "PASS",
+    "evidence": "At 837e061 on macOS: claude-install PASS; codex-install PASS; codex-usage PASS; install-agents PASS; install-hooks PASS; legacy-hook PASS; push-gate PASS; receipt-contract PASS; receipt-integration PASS; receipt-lib-check PASS; receipt-totals PASS; severity-rule PASS; validate-state-transitions PASS. Codex prompt test fails against the previous runner; reviewer mutations of the rule and handover sentences each fail tests/severity-rule.sh."
+  },
+  "reviewers": [
+    {
+      "name": "security-reviewer",
+      "version": "0f8a59958459703fc4108ecf1977f4638b6a4565",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 2,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/codex-review.sh",
+          "line": 55,
+          "message": "an --audit run without --block-on gets the rule but names no threshold"
+        },
+        {
+          "severity": "INFO",
+          "file": "ship-sop.config.json",
+          "line": 17,
+          "message": "fixed by operator decision: HIGH security findings would have shipped as notes; security now blocks at HIGH"
+        }
+      ]
+    },
+    {
+      "name": "code-reviewer",
+      "version": "cb5fe962fe950203b8f3b3c259f2d94fd65b8fbd",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 2,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "tests/push-gate.sh",
+          "line": 141,
+          "message": "threshold fixtures still use CRITICAL for security; self-contained, not a defect"
+        },
+        {
+          "severity": "INFO",
+          "file": ".agents/skills/ship/SKILL.md",
+          "line": 38,
+          "message": "fixed: block_rounds definition and recording of fixed threshold findings aligned with the validator"
+        }
+      ]
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "46bcbfc7adb8b13d1e0f0d9bcdf16d512b165d89",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 2,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/hooks/sop-lib.sh",
+          "line": 361,
+          "message": "an agent configured without block_on still falls back to CRITICAL"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/hooks/sop-lib.sh",
+          "line": 548,
+          "message": "fixed: push-gate demand text now hands reviewers their threshold; codex-review requires --block-on for diff reviews"
+        }
+      ]
+    }
+  ]
+}

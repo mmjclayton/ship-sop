@@ -523,7 +523,7 @@ review: docs/reviews/20261011-231347-ship-auto.md
 
 ### P43 - Block only on findings with user or data impact
 
-`[IN PROGRESS] [Iteration]`
+`[SHIPPED - 2026-10-12] [Iteration]`
 
 Matt chose option 2 from P40 (11 Oct 2026): cut the gate's cost without dropping the blocks that matter. P40 found 8 to 10 of 29 sampled blocks were correct but minor, each costing a fix round and a re-review, and three security blocks fired on HIGH below edward's CRITICAL threshold because `/ship` told the session to fix every HIGH and never told reviewers their threshold. Reviewers now get their `block_on` and one shared rule: CRITICAL or HIGH only for user or data impact. Only findings at or above the threshold block, count as a block round or get fixed; the rest are report notes. On review, a security HIGH under the new rule means a real weakness, so Matt set security-reviewer's default `block_on` to HIGH (12 Oct 2026); code and silent-failure stay at HIGH. The saving is an estimate from the P40 sample, not a measurement.
 
@@ -531,6 +531,8 @@ Matt chose option 2 from P40 (11 Oct 2026): cut the gate's cost without dropping
 - `/ship` (Claude) and `codex-review.sh` (Codex) carry the same severity rule; a test fails if they differ
 - Each reviewer is told its threshold (Codex: `--block-on`, validated); an invalid threshold is refused
 - `/ship` and the Codex skill fix and count only at-or-above-threshold findings
+
+review: docs/reviews/20261012-064609-ship-auto.md
 
 ---
 
