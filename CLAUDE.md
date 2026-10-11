@@ -12,7 +12,7 @@ on project details.
 - `Backlog.md` is the list of work and its status. Update an item's status tag when its state changes.
 - Ask only when the answer would materially change the result; otherwise make the call, state the assumption, and carry on.
 - Pushes go through the review gate (ship-sop) where the project has `ship-sop.config.json`.
-- Never use SOP_SKIP_GATE unless the user explicitly instructs it in this session.
+- Never use the gate's user-only override (see the README) unless the user explicitly instructs it in this session.
 - When files disagree, code and git win, then this file, then `Backlog.md`.
 
 ## Key Documents & Dispatch

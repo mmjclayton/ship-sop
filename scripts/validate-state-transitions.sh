@@ -296,7 +296,11 @@ while IFS=$'\t' read -r p after_status; do
   [ -z "$before_status" ] && before_status="<absent>"
 
   if transition_is_legal "$before_status" "$after_status"; then
-    # Soft warning: [BLOCKED] ↔ [DEFERRED] with no decision-file reference
+    # Soft warning: [BLOCKED] ↔ [DEFERRED] with no decision-file reference.
+    # The path is the agent-sop layout (docs/agent-memory/decisions/) that
+    # consumer projects using this script may keep. ship-sop itself archived its
+    # agent memory (P44) and records decisions in the Backlog item, so here the
+    # warning is advisory only; it never fails the run.
     case "${before_status}->${after_status}" in
       "[BLOCKED]->[DEFERRED]"|"[DEFERRED]->[BLOCKED]")
         if [ -z "$BEFORE_FILE" ]; then

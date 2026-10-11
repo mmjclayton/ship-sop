@@ -513,6 +513,9 @@ v2_case block-tests-bad-result-rejected refused ". + {block_tests: [{commit: .he
 v2_case block-tests-short-commit-rejected refused ". + {block_tests: [{commit: \"abc1234\", result: \"FAIL\", evidence: \"x\"}]}"
 v2_case block-tests-no-evidence-rejected refused ". + {block_tests: [{commit: .head, result: \"FAIL\", evidence: \"\"}]}"
 v2_case block-tests-null-rejected refused ". + {block_tests: null}"
+v2_case block-tests-required-when-blocked refused ". + {written_at: \"2026-10-12T00:00:00Z\"}"
+v2_case block-tests-empty-allowed-when-blocked covers ". + {written_at: \"2026-10-12T00:00:00Z\", block_tests: []}"
+v2_case block-tests-not-required-when-unblocked covers ".reviewers |= map(.block_rounds = 0) | . + {written_at: \"2026-10-12T00:00:00Z\"}"
 v2_case block-tests-object-rejected refused ". + {block_tests: {commit: .head, result: \"PASS\", evidence: \"x\"}}"
 
 # ── Library rules: policy, receipts and coverage ──────────────────────────────
@@ -715,37 +718,79 @@ run_hook "$PUSH" "$BYP" "$(push_json 'SOP_SKIP_GATE=1 git push origin feat/b && 
 if refused; then ok "push-bypass-must-cover-every-push"; else bad "push-bypass-must-cover-every-push" "exit $HOOK_EXIT"; fi
 run_hook "$PUSH" "$BYP" "$(push_json 'SOP_SKIP_GATE=1 git push origin feat/b && SOP_SKIP_GATE=1 gh pr create --fill')"
 if allowed && [ "$(wc -l < "$BYP/.ship/bypass.log" | tr -d ' ')" = 1 ]; then ok "push-bypass-on-every-push-allowed"; else bad "push-bypass-on-every-push-allowed" "exit $HOOK_EXIT"; fi
+# Control characters in a bypassed command (newline, ESC, CR) are logged as "?",
+# so one bypass is one line and no terminal sequence reaches the log (P44 review).
+rm -f "$BYP/.ship/bypass.log"
+run_hook "$PUSH" "$BYP" "$(jq_push_json $'SOP_SKIP_GATE=1 git push origin feat/b\necho \e[31mred\r')"
+if allowed && [ "$(wc -l < "$BYP/.ship/bypass.log" | tr -d ' ')" = 1 ] && ! tr -d '\n' < "$BYP/.ship/bypass.log" | LC_ALL=C grep -q '[[:cntrl:]]' \
+   && grep -q 'feat/b?echo ?\[31mred?$' "$BYP/.ship/bypass.log"; then ok "push-bypass-log-control-chars-sanitised"; else bad "push-bypass-log-control-chars-sanitised" "exit $HOOK_EXIT log=$(od -c "$BYP/.ship/bypass.log" | head -5)"; fi
 rm -f "$BYP/.ship/bypass.log"; mkdir -p "$BYP/.ship/bypass.log"
 run_hook "$PUSH" "$BYP" "$(push_json 'SOP_SKIP_GATE=1 git push origin feat/b')"
 if [ "$HOOK_EXIT" = 0 ] && grep -q "warning: gate bypassed, but .*bypass.log could not be written" "$HOOK_ERR"; then ok "push-bypass-log-failure-warns"; else bad "push-bypass-log-failure-warns" "exit $HOOK_EXIT $(cat "$HOOK_ERR")"; fi
 
 # ── Bypass listing for the /ship report (P44) ─────────────────────────────────
-# sop_bypasses_since_receipt lists .ship/bypass.log entries after the newest
-# receipt committed at HEAD: its written_at, else the time of the commit that
-# added it. An uncommitted receipt never counts.
-BL="$TMP/bypass-list"; git init -q -b main "$BL"; mkdir -p "$BL/docs/reviews" "$BL/.ship"
-(cd "$BL" && echo x > a.js && $GIT add -A && $GIT commit -qm init)
-bypasses() { ( . "$HOOKS_DIR/sop-lib.sh"; sop_bypasses_since_receipt "$BL" ); }
+# sop_bypasses_since_receipt lists .ship/bypass.log entries at or after the
+# newest VALID receipt committed at HEAD; its time is the earlier of written_at
+# and the time of the commit that added it, and a future time is ignored.
+BL="$TMP/bypass-list"; make_repo "$BL" code; configure "$BL" "$CFG"
+git -C "$BL" checkout -q -b feat/l; commit_code "$BL" "feat: listed"
+mkdir -p "$BL/.ship" "$BL/sub" "$TMP/nogit"
+bypasses() { ( . "$HOOKS_DIR/sop-lib.sh"; sop_bypasses_since_receipt "${1:-$BL}" ); }
+# commit_receipt <name> <written_at or ""> <commit date>: a valid receipt for HEAD.
+commit_receipt() {
+    make_receipt "$BL" "$TMP/r.json"
+    if [ -n "$2" ]; then jq --arg w "$2" '. + {written_at: $w}' "$TMP/r.json" > "$BL/docs/reviews/$1-ship-auto.json"
+    else cp "$TMP/r.json" "$BL/docs/reviews/$1-ship-auto.json"; fi
+    (cd "$BL" && $GIT add -A docs/reviews && GIT_COMMITTER_DATE="$3" $GIT commit -qm "docs: receipt $1")
+}
+lines() { printf '%s\n' "$1" | grep -c .; }
 [ "$(bypasses)" = none ] && ok "bypass-list-no-log-is-none" || bad "bypass-list-no-log-is-none" "$(bypasses)"
 : > "$BL/.ship/bypass.log"
 [ "$(bypasses)" = none ] && ok "bypass-list-empty-log-is-none" || bad "bypass-list-empty-log-is-none" "$(bypasses)"
-printf '%s\n' '2026-10-12T09:00:00Z aaa SOP_SKIP_GATE=1 git push' '2026-10-12T11:00:00Z bbb SOP_SKIP_GATE=1 git push https://me:s3cret@example.com/r.git' > "$BL/.ship/bypass.log"
+printf '%s\n' '2026-10-01T09:00:00Z aaa SOP_SKIP_GATE=1 git push' \
+    '2026-10-01T10:00:00Z bbb SOP_SKIP_GATE=1 git push' \
+    '2026-10-01T11:00:00Z ccc SOP_SKIP_GATE=1 git push' \
+    '2026-10-01T11:30:00Z m1 SOP_SKIP_GATE=1 git push https://u:pa/ss@h/x' \
+    '2026-10-01T11:30:00Z m2 SOP_SKIP_GATE=1 git push https://u:p@ss@h' \
+    "2026-10-01T11:30:00Z m3 GH_TOKEN=abc123 MY_API_KEY='sec ret' SOP_SKIP_GATE=1 git push" \
+    '2026-10-01T11:30:00Z m4 SOP_SKIP_GATE=1 git push https://h/r.git?token=qwe789&x=1' > "$BL/.ship/bypass.log"
 OUT=$(bypasses)
-if [ "$(printf '%s\n' "$OUT" | wc -l | tr -d ' ')" = 2 ]; then ok "bypass-list-no-receipt-lists-all"; else bad "bypass-list-no-receipt-lists-all" "$OUT"; fi
-if printf '%s' "$OUT" | grep -q 'https://\*\*\*@example.com' && ! printf '%s' "$OUT" | grep -q s3cret; then ok "bypass-list-masks-url-credentials"; else bad "bypass-list-masks-url-credentials" "$OUT"; fi
-printf '{"written_at":"2026-10-12T10:00:00Z"}\n' > "$BL/docs/reviews/20261012-100000-ship-auto.json"
-(cd "$BL" && $GIT add -A && $GIT commit -qm receipt)
+if [ "$(lines "$OUT")" = 7 ]; then ok "bypass-list-no-receipt-lists-all"; else bad "bypass-list-no-receipt-lists-all" "$OUT"; fi
+for leak in 'pa/ss' 'p@ss' 'abc123' 'sec ret' 'qwe789'; do
+    if printf '%s' "$OUT" | grep -qF "$leak"; then bad "bypass-list-masks: $leak" "$OUT"; else ok "bypass-list-masks: $leak"; fi
+done
+if [ "$(printf '%s\n' "$OUT" | grep -c 'SOP_SKIP_GATE=1 git push')" = 7 ] && printf '%s' "$OUT" | grep -q 'https://\*\*\*@h/x'; then ok "bypass-list-masking-keeps-the-command"; else bad "bypass-list-masking-keeps-the-command" "$OUT"; fi
+# A valid receipt at 10:00:00: the entry in that same second is still listed.
+commit_receipt 20261001-100000 2026-10-01T10:00:00Z 2026-10-01T10:30:00Z
 OUT=$(bypasses)
-if [ "$(printf '%s\n' "$OUT" | wc -l | tr -d ' ')" = 1 ] && printf '%s' "$OUT" | grep -q '^2026-10-12T11:00:00Z bbb'; then ok "bypass-list-only-after-previous-receipt"; else bad "bypass-list-only-after-previous-receipt" "$OUT"; fi
-printf '{"written_at":"2026-10-12T12:00:00Z"}\n' > "$BL/docs/reviews/20261012-120000-ship-auto.json"
-if printf '%s' "$(bypasses)" | grep -q '^2026-10-12T11:00:00Z bbb'; then ok "bypass-list-ignores-uncommitted-receipt"; else bad "bypass-list-ignores-uncommitted-receipt" "$(bypasses)"; fi
-rm -f "$BL/docs/reviews/20261012-120000-ship-auto.json"
-# A receipt without written_at falls back to the time of the commit that added it.
-printf '{"schema_version":2}\n' > "$BL/docs/reviews/20261012-130000-ship-auto.json"
-(cd "$BL" && $GIT add -A && GIT_COMMITTER_DATE='2026-10-12T13:00:00Z' $GIT commit -qm older-receipt)
-printf '%s\n' '2026-10-12T14:00:00Z ccc SOP_SKIP_GATE=1 git push' 'garbled line' >> "$BL/.ship/bypass.log"
+if [ "$(lines "$OUT")" = 6 ] && printf '%s' "$OUT" | grep -q '^2026-10-01T10:00:00Z bbb' && ! printf '%s' "$OUT" | grep -q ' aaa '; then ok "bypass-list-after-previous-receipt-same-second-kept"; else bad "bypass-list-after-previous-receipt-same-second-kept" "$OUT"; fi
+if [ "$(bypasses "$BL/sub")" = "$OUT" ]; then ok "bypass-list-from-subdirectory"; else bad "bypass-list-from-subdirectory" "$(bypasses "$BL/sub")"; fi
+if [ "$(bypasses "$TMP/nogit")" = "unreadable: not a git repository" ]; then ok "bypass-list-outside-a-repo-unreadable"; else bad "bypass-list-outside-a-repo-unreadable" "$(bypasses "$TMP/nogit")"; fi
+# Uncommitted, junk or forged receipts never move the cutoff.
+make_receipt "$BL" "$TMP/r.json"; jq '. + {written_at: "2026-10-01T11:15:00Z"}' "$TMP/r.json" > "$BL/docs/reviews/20261001-111500-ship-auto.json"
+if printf '%s' "$(bypasses)" | grep -q ' ccc '; then ok "bypass-list-ignores-uncommitted-receipt"; else bad "bypass-list-ignores-uncommitted-receipt" "$(bypasses)"; fi
+rm -f "$BL/docs/reviews/20261001-111500-ship-auto.json"
+printf '{"written_at":"2026-10-01T11:45:00Z"}\n' > "$BL/docs/reviews/20261001-114500-ship-auto.json"
+printf '{"written_at":"2999-01-01T00:00:00Z"}\n' > "$BL/docs/reviews/29990101-000000-ship-auto.json"
+(cd "$BL" && $GIT add -A docs/reviews && GIT_COMMITTER_DATE='2026-10-01T11:50:00Z' $GIT commit -qm "docs: junk receipts")
+if printf '%s' "$(bypasses)" | grep -q ' m1 '; then ok "bypass-list-ignores-invalid-receipts"; else bad "bypass-list-ignores-invalid-receipts" "$(bypasses)"; fi
+# A valid receipt claiming 2999 counts from its commit time (12:00), the earlier.
+commit_receipt 20261001-120000 2999-01-01T00:00:00Z 2026-10-01T12:00:00Z
+printf '%s\n' '2026-10-01T13:00:00Z ddd SOP_SKIP_GATE=1 git push' >> "$BL/.ship/bypass.log"
 OUT=$(bypasses)
-if [ "$OUT" = "$(printf '2026-10-12T14:00:00Z ccc SOP_SKIP_GATE=1 git push\nunparsed: garbled line')" ]; then ok "bypass-list-commit-time-fallback-and-unparsed"; else bad "bypass-list-commit-time-fallback-and-unparsed" "$OUT"; fi
+if [ "$OUT" = '2026-10-01T13:00:00Z ddd SOP_SKIP_GATE=1 git push' ]; then ok "bypass-list-future-written-at-uses-commit-time"; else bad "bypass-list-future-written-at-uses-commit-time" "$OUT"; fi
+# Both times in the future: the receipt is ignored.
+commit_receipt 29990102-000000 2999-01-02T00:00:00Z 2999-01-02T00:00:00Z
+if [ "$(bypasses)" = '2026-10-01T13:00:00Z ddd SOP_SKIP_GATE=1 git push' ]; then ok "bypass-list-ignores-future-receipt"; else bad "bypass-list-ignores-future-receipt" "$(bypasses)"; fi
+# Control bytes are stripped; a line without a timestamp is shown as unparsed.
+printf '2026-10-01T14:00:00Z eee \033[31mred\r\n' >> "$BL/.ship/bypass.log"
+printf 'garbled line\n' >> "$BL/.ship/bypass.log"
+OUT=$(bypasses)
+if printf '%s' "$OUT" | grep -q 'eee \[31mred$' && ! printf '%s' "$OUT" | tr -d '\n' | LC_ALL=C grep -q '[[:cntrl:]]' && printf '%s' "$OUT" | grep -q '^unparsed: garbled line$'; then ok "bypass-list-strips-control-bytes-and-shows-unparsed"; else bad "bypass-list-strips-control-bytes-and-shows-unparsed" "$(printf '%s' "$OUT" | od -c | head -8)"; fi
+# A processing failure is reported, never "none".
+SHIMSED="$TMP/failsed"; mkdir -p "$SHIMSED"; printf '#!/bin/sh\nexit 1\n' > "$SHIMSED/sed"; chmod +x "$SHIMSED/sed"
+OUT=$( . "$HOOKS_DIR/sop-lib.sh"; PATH="$SHIMSED:$PATH" sop_bypasses_since_receipt "$BL" )
+if printf '%s' "$OUT" | grep -q '^unreadable: .*could not be processed'; then ok "bypass-list-pipeline-failure-unreadable"; else bad "bypass-list-pipeline-failure-unreadable" "$OUT"; fi
 rm -f "$BL/.ship/bypass.log"; mkdir -p "$BL/.ship/bypass.log"
 if bypasses | grep -q '^unreadable: '; then ok "bypass-list-unreadable-log-reported"; else bad "bypass-list-unreadable-log-reported" "$(bypasses)"; fi
 

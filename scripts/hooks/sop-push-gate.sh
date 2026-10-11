@@ -133,7 +133,9 @@ sop_bypass_applies() {
 }
 
 if sop_bypass_applies "$CMD"; then
-    if ! { mkdir -p "$ROOT/.ship" && printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$HEAD" "$CMD" >> "$ROOT/.ship/bypass.log"; } 2>/dev/null; then
+    # One bypass is one line: control characters (newline, CR, ESC) become "?".
+    LOGGED_CMD=${CMD//[[:cntrl:]]/?}
+    if ! { mkdir -p "$ROOT/.ship" && printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$HEAD" "$LOGGED_CMD" >> "$ROOT/.ship/bypass.log"; } 2>/dev/null; then
         printf '[ship-sop] warning: gate bypassed, but %s/.ship/bypass.log could not be written, so this bypass is not recorded.\n' "$ROOT" >&2
     fi
     exit 0

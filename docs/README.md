@@ -11,7 +11,6 @@ product surface, and some are history kept for reference.
 - `feature-map.md` - shipped-features inventory
 - `ship-sop.md` - redirect stub; the spec lives in the top-level `README.md`
 - `benchmark/p40/` - the blind precision sample of ship-gate blocks (P40)
-
 - `build-plans/2026-10-12-gate-value.md` - the plan to measure the gate's cost and value on live work
 
 ## History (read, do not rewrite)

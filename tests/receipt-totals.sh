@@ -30,7 +30,11 @@ jq -e '.[0] | .receipts == 4 and .schema_v2 == 3 and .gates_that_blocked == 2
 printf 'PASS: totals dedupe clones, count v2 and later runs, count findings\n'
 
 bash "$SOURCE/scripts/receipt-totals.sh" "$WORK/alpha" > "$WORK/table" 2>/dev/null
-grep -q '^| alpha | 4 | 3 | 2 | 2 | 5 | 2 | 0 | 1 | 1 | 2 | 1 | 0 | 0 | 0 | 0 / 0 / 0 |$' "$WORK/table"
+grep -q '^| alpha | 4 | 3 | 2 | 2 | 5 | 2 | 0 | 1 | 1 | 2 | 1 | 0 | n/a | n/a | 0 / 0 / 0 / 2 |$' "$WORK/table" \
+    || { echo 'FAIL: alpha table row'; cat "$WORK/table"; exit 1; }
+# No costed change: tokens and minutes are unknown, not 0; two blocked changes lack block tests.
+jq -e '.[0] | .tokens == null and .reviewer_minutes == null and .tokens_by_source == {} and .blocked_without_block_tests == 2' "$WORK/out.json" >/dev/null \
+    || { echo 'FAIL: uncosted totals or no-record count'; cat "$WORK/out.json"; exit 1; }
 printf 'PASS: table output\n'
 
 # Cost and test-catch (P44). A change's tokens and minutes count only when every
@@ -54,7 +58,9 @@ mv "$WORK/g.json" "$WORK/gamma/docs/reviews/20261015-000000-ship-auto.json"
 receipt "$WORK/gamma" 20261016-000000 g4 2 "[$(with_usage "$(reviewer code 1 0 0)" '{"source":"claude-task-notification","tokens":"lots"}')]"
 bash "$SOURCE/scripts/receipt-totals.sh" --json "$WORK/gamma" > "$WORK/cost.json"
 jq -e '.[0] | .receipts == 4 and .changes_with_usage == 2 and .tokens == 41200 and .reviewer_minutes == 4
-    and .tokens_by_source == {"claude-task-notification": 90000, "codex-review": 1200}
+    and .tokens_by_source == {"claude-task-notification": 40000, "codex-review": 1200}
+    and .per_change.reviewer_minutes_min == 1 and .per_change.reviewer_minutes_max == 3
+    and .blocked_without_block_tests == 0
     and .per_change.tokens_median == 20600 and .per_change.tokens_min == 10000 and .per_change.tokens_max == 31200
     and .per_change.block_rounds_median == 0.5 and .per_change.block_rounds_max == 2
     and .block_tests == {"PASS":1,"FAIL":1,"NOT_AVAILABLE":1}
@@ -62,7 +68,7 @@ jq -e '.[0] | .receipts == 4 and .changes_with_usage == 2 and .tokens == 41200 a
     and ([.changes[] | select(.head == "g1")][0] | .tokens == 31200 and .reviewer_minutes == 3)' "$WORK/cost.json" >/dev/null \
     || { echo 'FAIL: cost and test-catch totals'; cat "$WORK/cost.json"; exit 1; }
 bash "$SOURCE/scripts/receipt-totals.sh" "$WORK/gamma" > "$WORK/table"
-grep -q '^| gamma | 4 | 4 | 2 | 3 | 7 | 2 | 0 | 0 | 0 | 0 | 1 | 2 | 41200 | 4 | 1 / 1 / 1 |$' "$WORK/table" \
+grep -q '^| gamma | 4 | 4 | 2 | 3 | 7 | 2 | 0 | 0 | 0 | 0 | 1 | 2 | 41200 | 4 | 1 / 1 / 1 / 0 |$' "$WORK/table" \
     || { echo 'FAIL: cost table row'; cat "$WORK/table"; exit 1; }
 printf 'PASS: tokens, reviewer minutes and block-test results per change and in total\n'
 

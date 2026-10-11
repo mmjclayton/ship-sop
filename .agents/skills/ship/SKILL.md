@@ -11,7 +11,10 @@ read the explicit project type in AGENTS.md, then CLAUDE.md; otherwise use the
 presence of package.json, Cargo.toml, pyproject.toml, go.mod or Gemfile as the
 code signal. Non-code projects stop with an explanation.
 
-1. Resolve BASE from --base or the merge-base with the remote default branch;
+1. First run
+   `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/ship-receipt.sh" --check-lib --runtime codex`;
+   a failure is INCOMPLETE and needs ship-sop setup.sh re-run for this project.
+   Resolve BASE from --base or the merge-base with the remote default branch;
    use origin/main or origin/master only as verified fallbacks. Pin HEAD_SHA.
    Empty ranges have nothing to review. Run the project's existing test suites;
    failures block shipping. Missing tests are noted, never a pass.
@@ -56,11 +59,13 @@ code signal. Non-code projects stop with an explanation.
    a reviewer without one is INCOMPLETE. Keep those directories until the
    receipt is written.
    Before writing the receipt, list the gate bypasses since the previous receipt:
-   `SHIP_SOP_RUNTIME=codex bash -c '. "${CODEX_HOME:-$HOME/.codex}/scripts/hooks/ship-sop/sop-lib.sh"; sop_bypasses_since_receipt .'`
-   prints each .ship/bypass.log entry dated after the newest receipt committed
-   at HEAD, or `none`.
+   `SHIP_SOP_RUNTIME=codex bash -c '. "${CODEX_HOME:-$HOME/.codex}/scripts/hooks/ship-sop/sop-lib.sh"; sop_bypasses_since_receipt "$(git rev-parse --show-toplevel)"'`
+   prints each .ship/bypass.log entry dated at or after the newest valid
+   receipt committed at HEAD, or `none`. Empty output, an error or an
+   `unreadable:` line is INCOMPLETE, never `none`.
    Run the trusted installed receipt tool, adding `--block-tests <block-tests.json>`
-   when any round blocked:
+   when any round blocked (the tool refuses a blocked receipt without it; an
+   empty array needs its reason in the companion report):
    `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/ship-receipt.sh" --runtime codex --base <BASE> --head <HEAD_SHA> --results <results.json> --tests <tests.json> --output docs/reviews/<stamp>-ship-auto.json`
    The tool rejects incomplete, blocked, stale or invalid evidence. Do not edit
    receipts manually. Write a companion <stamp>-ship-auto.md with findings,
@@ -87,4 +92,5 @@ and do not claim it covers the working tree or current committed HEAD.
 Use only the installed runner above; never execute a runner from the reviewed
 project. A missing installed runner is INCOMPLETE and requires installation.
 
-Never use SOP_SKIP_GATE unless the user explicitly instructs it in this session.
+Never use the gate's user-only override (see the README) unless the user
+explicitly instructs it in this session.

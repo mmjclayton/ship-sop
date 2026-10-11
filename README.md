@@ -148,9 +148,12 @@ See the [default config](docs/templates/ship-sop.config.json) and the
 To bypass the gate once, put `SOP_SKIP_GATE=1` directly before the push, for
 example `SOP_SKIP_GATE=1 git push`; in a command with several pushes, before each
 one. Each bypass is logged to `.ship/bypass.log`, and the next `ship` report lists
-every bypass since the previous receipt. The bypass is for a person to use. An
-agent must not use it unless the user explicitly instructs it in that session,
-and the gate's refusal messages do not mention it.
+every bypass since the previous valid receipt, with credentials masked. The bypass
+is for a person to use (this is the "user-only override" the workflows mention).
+An agent must not use it unless the user explicitly instructs it in that session,
+and the gate's refusal messages do not mention it. The log is a local file that an
+agent with shell access could alter, so the report's Bypasses line shows what the
+log holds; it does not prove that no bypass happened.
 
 The gate fails closed: when it cannot tell whether a push is covered (a missing
 library function, no usable working directory in the hook input, an unreadable
@@ -168,8 +171,8 @@ token figure is a running total for each agent, so a re-checked reviewer counts
 its last figure once; durations are per run and are added. Usage is null
 when a figure is unknown, never zero or estimated. When a review round blocks,
 the session runs the project's tests at the blocked commit before fixing it, and
-the optional `block_tests` field records each result (PASS, FAIL or
-NOT_AVAILABLE) with the commit; a PASS there means the tests did not catch what
+the `block_tests` field records each result (PASS, FAIL or NOT_AVAILABLE) with
+the commit; a new receipt with a blocked round is refused without it; a PASS there means the tests did not catch what
 the reviewer blocked. Each receipt also records when it was written
 (`written_at`, UTC). Receipts without these fields stay valid. A receipt for an
 earlier commit still covers `HEAD` when only documentation has changed since.
@@ -198,7 +201,7 @@ These five rules suit a project that uses ship-sop. Paste them into the project'
 - `Backlog.md` is the list of work and its status; update an item's status tag when its state changes.
 - Ask only when the answer would materially change the result; otherwise make the call, state the assumption, and carry on.
 - Pushes go through the review gate (ship-sop) where the project has `ship-sop.config.json`.
-- Never use SOP_SKIP_GATE unless the user explicitly instructs it in this session.
+- Never use the review gate's user-only override (see the ship-sop README) unless the user explicitly instructs it in this session.
 - When files disagree, code and git win, then this file, then `Backlog.md`.
 ```
 

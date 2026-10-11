@@ -148,10 +148,15 @@ claude_receipt docs/reviews/usage-ship-auto.json --block-tests "$WORK/block-test
 jq -e 'all(.reviewers[]; .usage.tokens.total_tokens == 2000 and .usage.duration_ms == 4000)
        and .block_tests == [{"commit": .head, "result": "PASS", "evidence": "bash tests/run.sh: 4 passed"}]' \
     docs/reviews/usage-ship-auto.json >/dev/null || { echo 'FAIL: usage totals or block_tests not recorded'; cat docs/reviews/usage-ship-auto.json; exit 1; }
-if grep -q 'no --block-tests' "$WORK/usage.err"; then echo 'FAIL: warned about block tests that were given'; exit 1; fi
-# A block round without block tests is written, with a warning.
-claude_receipt docs/reviews/no-block-tests-ship-auto.json 2> "$WORK/usage.err"
-grep -q 'no --block-tests file was given' "$WORK/usage.err" || { echo 'FAIL: no warning for a block round without block tests'; exit 1; }
+if grep -q 'no --block-tests' "$WORK/usage.err"; then echo 'FAIL: complained about block tests that were given'; exit 1; fi
+# A block round without block tests is refused (P44 review); an explicit empty
+# array is accepted (the companion report gives the reason).
+if claude_receipt docs/reviews/no-block-tests-ship-auto.json 2> "$WORK/usage.err"; then echo 'FAIL: wrote a blocked receipt without block tests'; exit 1; fi
+grep -q 'no --block-tests file was given' "$WORK/usage.err" || { echo 'FAIL: refusal did not name the missing block tests'; exit 1; }
+test ! -e docs/reviews/no-block-tests-ship-auto.json
+printf '[]\n' > "$WORK/block-tests.json"
+claude_receipt docs/reviews/empty-block-tests-ship-auto.json --block-tests "$WORK/block-tests.json" >/dev/null
+jq -e '.block_tests == []' docs/reviews/empty-block-tests-ship-auto.json >/dev/null || { echo 'FAIL: empty block tests not recorded'; exit 1; }
 for bad in '{"commit":"x"}' 'not json' '[] []'; do
     printf '%s\n' "$bad" > "$WORK/block-tests.json"
     if claude_receipt docs/reviews/bad-block-tests-ship-auto.json --block-tests "$WORK/block-tests.json" 2>/dev/null; then

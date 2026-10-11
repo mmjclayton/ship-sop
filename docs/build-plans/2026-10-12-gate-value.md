@@ -18,7 +18,7 @@
 
 ### Cost: from the receipts
 
-- Each reviewer's `usage` in the receipt: Claude records the tokens and duration that each task-completion notification reports (tokens are a running total per agent, so each agent's last figure counts once); Codex records its runner telemetry. A missing figure is null, never estimated.
+- Each reviewer's `usage` in the receipt: Claude records the tokens and duration that each task-completion notification reports (tokens are a running total per agent, so each agent's last figure counts once); Codex records its runner telemetry. A missing figure is null, never estimated, and the companion report says why.
 - `scripts/receipt-totals.sh --json` over the window's receipts gives, per change: tokens, reviewer minutes and block rounds; and per project: totals, medians and ranges. A change with any unknown usage is left out of the cost figures and counted separately.
 - Reviewer minutes add each reviewer's own run time. Reviewers run in parallel, so this is not wall-clock time.
 - Claude and Codex count tokens differently, so their figures are reported separately.
@@ -60,7 +60,7 @@ This plan does not put a dollar value on a defect; that is a judgement for the o
 ## Order
 
 1. Merge P44 and re-run setup in Edward and RepCanvas. The window starts that day.
-2. Check the first few receipts: usage is filled or null with a reason, and every blocked round has a `block_tests` entry.
+2. Check the first few receipts: usage is filled, or null with the reason stated in the companion report, and every blocked round has a `block_tests` entry (the receipt tool refuses a blocked receipt without the field).
 3. At the end of the window, run `receipt-totals.sh`, then the grading pass.
 4. Write the report and update the README sentence with the measured figures and their limits.
 

@@ -137,10 +137,11 @@ jq -n --arg base "$BASE" --arg head "$HEAD_SHA" --arg tree "$TREE" \
       tests:$tests[0],
       reviewers:($results[0] | map(if type == "object" and has("usage") then .usage |= totals else . end))}
      + (if $block_tests == null then {} else {block_tests: $block_tests} end)' > "$TMP"
-# A blocked round with no test result recorded loses the test-catch measure
-# (P44); say so, without refusing a receipt the policy allows.
+# A blocked round needs its test result recorded (P44); the validator refuses
+# the receipt without one, so name the reason here.
 if [ -z "$BLOCK_TESTS" ] && jq -e 'any(.reviewers[]; (.block_rounds // 0) > 0)' "$TMP" >/dev/null 2>&1; then
-    echo 'warn: a reviewer recorded a block round but no --block-tests file was given; the receipt will not show whether the tests caught it' >&2
+    echo 'INCOMPLETE: a reviewer recorded a block round but no --block-tests file was given; record the test result at each blocked commit (an empty array only with the reason in the companion report)' >&2
+    exit 1
 fi
 if ! sop_receipt_valid "$ROOT" "$TMP"; then
     echo 'BLOCK/INCOMPLETE: results, tests, policy or review range do not qualify; no receipt written' >&2
