@@ -9,7 +9,7 @@ WORK=$(mktemp -d)
 SUITE_DONE=0
 suite_trap() { local rc=$?; [ "$SUITE_DONE" = 1 ] || { echo "FAIL: suite stopped before its last check" >&2; rc=1; }; rm -rf "$WORK"; exit "$rc"; }
 trap suite_trap EXIT
-unset AGENT_SOP_USER_HOME AGENT_SOP_RUNTIME AGENT_SOP_CONFIG_HOME
+unset SHIP_SOP_USER_HOME SHIP_SOP_RUNTIME SHIP_SOP_CONFIG_HOME
 export CODEX_HOME="$WORK/codex"
 mkdir -p "$CODEX_HOME/scripts/hooks/ship-sop"
 cp "$SOP_LIB" "$CODEX_HOME/scripts/hooks/ship-sop/sop-lib.sh"
@@ -126,7 +126,7 @@ mkdir -p "$WORK/user/.claude/scripts/hooks/ship-sop"
 cp "$SOP_LIB" "$WORK/user/.claude/scripts/hooks/ship-sop/sop-lib.sh"
 rm -rf .ship/reviews
 jq 'map(select(.name != "security-reviewer"))' "$WORK/results-original.json" > "$WORK/results.json"
-AGENT_SOP_USER_HOME="$WORK/user" bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --base "$BASE" \
+SHIP_SOP_USER_HOME="$WORK/user" bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --base "$BASE" \
     --results "$WORK/results.json" --tests "$WORK/tests.json" --output docs/reviews/claude-ship-auto.json
 echo 'PASS: real receipts qualify, reject BLOCK, preserve existing evidence, honour reviewer scope and require run counts'
 echo 'PASS: Codex receipts need matching runner evidence (commit, base, clean exit, verdict); Claude unchanged'

@@ -80,14 +80,19 @@ Re-running setup from an updated checkout updates installed files that you have
 not edited and keeps the ones you have, naming each one it keeps. `--force`
 replaces edited files too. An existing `ship-sop.config.json` is never rewritten.
 
-- `--no-hook` installs everything except the push-gate registration, for manual
-  review only. A new Codex config is then created in manual mode.
+- `--no-hook` installs everything but leaves the hook settings untouched, so it
+  adds no registration and removes none; setup lists the push-gate registrations
+  that are there. A new Codex config is then created in manual mode.
+- Codex runs `hooks.json` only with its `hooks` feature on (the default in
+  current Codex CLIs) and asks you to trust a new hook at the next start. Setup
+  checks the feature and fails if it is off.
 - For Claude, ship-sop does not ship a `silent-failure-hunter` profile. If setup
   creates a new Claude-only config and finds none in `~/.claude/agents/` or the
   project's `.claude/agents/`, it disables that reviewer and says so.
-- Setup moves a push gate installed by an earlier version to the ship-sop path,
-  and removes the retired project-scope `scripts/auto-ship-hook.sh` and its
-  settings entry. Edited copies are kept.
+- Re-running setup replaces older installs of the push gate.
+- If another push-gate registration is left in the settings file (for example at
+  a hand-edited path), setup names it and exits non-zero rather than leave two
+  gates running.
 
 ### Removing it
 
@@ -135,7 +140,12 @@ See the [default config](docs/templates/ship-sop.config.json) and the
 [schema](docs/templates/ship-sop.schema.json) for every setting.
 
 To bypass the gate once, put `SOP_SKIP_GATE=1` directly before the push, for
-example `SOP_SKIP_GATE=1 git push`. Each bypass is logged to `.ship/bypass.log`.
+example `SOP_SKIP_GATE=1 git push`; in a command with several pushes, before each
+one. Each bypass is logged to `.ship/bypass.log`.
+
+The gate fails closed: when it cannot tell whether a push is covered (a missing
+library function, no usable working directory in the hook input, an unreadable
+`HEAD`, or a review range it cannot compute) it refuses the push and says why.
 
 ### Reports and receipts
 

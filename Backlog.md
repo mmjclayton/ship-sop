@@ -494,6 +494,8 @@ Since agent-sop P124 (11 Oct 2026), the only parts of agent-sop that do anything
 - A fresh install registers exactly one push gate at the new path, installs both reviewer agents, refuses an uncovered push in an auto-mode project, and `--uninstall` removes the registration
 - An existing agent-sop-style install ends with exactly one registration, at the new path, and its pristine old copies removed
 
+**Review round 1 (11 Oct 2026):** silent-failure-hunter BLOCK, security and code PASS with MEDIUMs. Fixed on the branch, each with a fixture: the gate refuses when a library function is missing, the gate check fails, `cwd` is absent or unusable, `HEAD` is unreadable or the review range cannot be computed; `--check-lib` covers the gate's functions and Claude setup exits non-zero on failure; the installer touches only entries holding a matching command, names a non-array event, refuses (and keeps old copies) when another gate registration remains, never treats an unhashable copy as unedited, and writes settings beside the target with its mode kept; the bypass applies only when every push carries it, and a failed bypass-log write warns; the installed gate is exercised end to end for Claude and Codex; setup reports the Codex `hooks` feature; `AGENT_SOP_*` environment variables are renamed `SHIP_SOP_*`.
+
 **Source:** operator decision 11 Oct 2026 (fold agent-sop into ship-sop; archive agent-sop afterwards).
 
 ---

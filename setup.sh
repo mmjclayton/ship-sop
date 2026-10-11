@@ -404,7 +404,7 @@ uninstall_mode() {
     fi
     echo ""
 
-    local user_claude_dir="${AGENT_SOP_USER_HOME:-$HOME}/.claude"
+    local user_claude_dir="${SHIP_SOP_USER_HOME:-$HOME}/.claude"
 
     remove_if_unmodified "$SCRIPT_DIR/scripts/ship-receipt.sh" "$user_claude_dir/scripts/ship-sop/ship-receipt.sh"
     rmdir "$user_claude_dir/scripts/ship-sop" 2>/dev/null || true
@@ -527,7 +527,7 @@ if [ "$UNINSTALL" = true ]; then
         echo ""
     fi
     # Removing Claude integration must not remove shared Codex configuration.
-    if [ "$RUNTIME" = claude ] && [ -f "${CODEX_HOME:-${AGENT_SOP_USER_HOME:-$HOME}/.codex}/ship-sop.install.json" ]; then
+    if [ "$RUNTIME" = claude ] && [ -f "${CODEX_HOME:-${SHIP_SOP_USER_HOME:-$HOME}/.codex}/ship-sop.install.json" ]; then
         KEEP_CONFIG=true; KEEP_ARTIFACTS=true
     fi
     uninstall_mode "$TARGET"
@@ -574,7 +574,7 @@ fi
 
 # ── Install reference agents (user-scope) ─────────────────────────────────────
 
-USER_CLAUDE_DIR="${AGENT_SOP_USER_HOME:-$HOME}/.claude"
+USER_CLAUDE_DIR="${SHIP_SOP_USER_HOME:-$HOME}/.claude"
 mkdir -p "$USER_CLAUDE_DIR/agents" "$USER_CLAUDE_DIR/commands"
 
 mkdir -p "$USER_CLAUDE_DIR/scripts/ship-sop"
@@ -680,11 +680,14 @@ HOOK_ARGS=(--runtime claude)
 GATE_STATE=ok
 if ! bash "$SCRIPT_DIR/scripts/install-hooks.sh" "${HOOK_ARGS[@]}" | sed 's/^/  /'; then
     GATE_STATE=failed
-    echo "  warn   the push gate could not be installed; see the error above" >&2
+    echo "  warn   the push gate installer reported a problem; see above" >&2
 fi
 
 echo ""
-if [ "$SELF_INSTALL" = true ]; then
+if [ "$GATE_STATE" = failed ] && [ "$NO_HOOK" = false ]; then
+    # The old project-scope handler stays until the gate that replaces it is in place.
+    echo "  keep   legacy project hook (if any): the push gate is not in place yet"
+elif [ "$SELF_INSTALL" = true ]; then
     retire_legacy_hook_entry "$TARGET" || true
 else
     retire_legacy_hook "$TARGET"
@@ -692,15 +695,23 @@ fi
 
 echo ""
 if [ "$GATE_STATE" = failed ]; then
-    echo "Auto-mode is not active: the push gate failed to install. /ship works manually meanwhile." >&2
+    echo "Auto-mode is not active as installed: the push gate installer reported a problem (see above). /ship works manually meanwhile." >&2
 elif [ "$NO_HOOK" = true ]; then
-    echo "Push gate not registered (--no-hook). Use /ship and /release manually."
+    SETTINGS_FILE="$USER_CLAUDE_DIR/settings.json"
+    REGISTERED=''
+    if [ -f "$SETTINGS_FILE" ] && command -v jq >/dev/null 2>&1; then
+        REGISTERED=$(jq -r '[.hooks[]?[]? | .hooks[]? | (.command? // "") | strings | select(test("sop-push-gate|sop-codex-hook"))] | .[]' "$SETTINGS_FILE" 2>/dev/null || echo "(could not read $SETTINGS_FILE)")
+    fi
+    echo "--no-hook: hook settings left unchanged. Push-gate registrations now in $SETTINGS_FILE:"
+    if [ -n "$REGISTERED" ]; then printf '%s\n' "$REGISTERED" | sed 's/^/  /'; else echo "  none (use /ship and /release manually)"; fi
 else
     echo "Push gate registered. It applies while trigger.mode in ship-sop.config.json is \"auto\" (the default); /ship-off turns it off."
 fi
-# Receipts need the installed library; /ship cannot finish a review without it.
+# Receipts and the gate need the installed library; /ship cannot finish a review without it.
+LIB_STATE=ok
 if ! bash "$SCRIPT_DIR/scripts/ship-receipt.sh" --check-lib --runtime claude; then
-    echo "  warn   /ship cannot write receipts until the library problem above is fixed" >&2
+    LIB_STATE=failed
+    echo "  error  the installed library check failed; /ship cannot write receipts and the push gate refuses every push until it is fixed" >&2
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
@@ -747,6 +758,10 @@ if [ "$LEGACY_PENDING" = true ]; then
     exit 1
 fi
 if [ "$GATE_STATE" = failed ]; then
-    echo "Setup finished, but the push gate could not be installed; see the warnings above." >&2
+    echo "Setup finished, but the push gate installer reported a problem; see the warnings above." >&2
+    exit 1
+fi
+if [ "$LIB_STATE" = failed ]; then
+    echo "Setup finished, but the installed library check failed; see the error above." >&2
     exit 1
 fi

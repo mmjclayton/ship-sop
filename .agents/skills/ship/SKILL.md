@@ -17,7 +17,7 @@ code signal. Non-code projects stop with an explanation.
    failures block shipping. Missing tests are noted, never a pass.
 2. Read the in-scope reviewer set from the installed library, never from
    `enabled` alone:
-   `AGENT_SOP_RUNTIME=codex bash -c '. "${CODEX_HOME:-$HOME/.codex}/scripts/hooks/ship-sop/sop-lib.sh"; CFG=$(sop_effective_config .); sop_agents_in_scope "$CFG" "$(sop_changed_files_json . <BASE> <HEAD_SHA>)"'`
+   `SHIP_SOP_RUNTIME=codex bash -c '. "${CODEX_HOME:-$HOME/.codex}/scripts/hooks/ship-sop/sop-lib.sh"; CFG=$(sop_effective_config .); sop_agents_in_scope "$CFG" "$(sop_changed_files_json . <BASE> <HEAD_SHA>)"'`
    prints `[{key, block_on}]`. An enabled agent with `paths` is included only
    when a path changed in the range matches one of its patterns; without
    `paths` it always is. Add --with (it joins regardless of scope). A missing

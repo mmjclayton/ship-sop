@@ -25,7 +25,7 @@ trap suite_trap EXIT
 
 export HOME="$TMP/home"
 mkdir -p "$HOME"
-unset CODEX_HOME AGENT_SOP_USER_HOME
+unset CODEX_HOME SHIP_SOP_USER_HOME
 
 pass=0
 fail=0
@@ -65,14 +65,14 @@ fi
 
 # Defaults: Claude uses ~/.claude/settings.json and ~/.claude/scripts/hooks/ship-sop/.
 DEFHOME="$TMP/defhome"
-AGENT_SOP_USER_HOME="$DEFHOME" bash "$INSTALLER" >/dev/null 2>&1
+SHIP_SOP_USER_HOME="$DEFHOME" bash "$INSTALLER" >/dev/null 2>&1
 if [ "$(jq -r '.hooks.PreToolUse[0].hooks[0].command' "$DEFHOME/.claude/settings.json")" = "bash \"$DEFHOME/.claude/scripts/hooks/ship-sop/sop-push-gate.sh\"" ] \
    && [ -x "$DEFHOME/.claude/scripts/hooks/ship-sop/sop-push-gate.sh" ] && [ ! -e "$DEFHOME/.claude/scripts/hooks/agent-sop" ]; then
     ok "installer-default-claude-path"
 else bad "installer-default-claude-path" "$(cat "$DEFHOME/.claude/settings.json" 2>/dev/null)"; fi
 # Codex: $CODEX_HOME/hooks.json through the dispatcher, and nothing under ~/.claude.
 CODEXHOME="$TMP/codexhome"
-AGENT_SOP_USER_HOME="$CODEXHOME" bash "$INSTALLER" --runtime codex >/dev/null 2>&1
+SHIP_SOP_USER_HOME="$CODEXHOME" bash "$INSTALLER" --runtime codex >/dev/null 2>&1
 if [ "$(jq -r '.hooks.PreToolUse[0].hooks[0].command' "$CODEXHOME/.codex/hooks.json")" = "bash \"$CODEXHOME/.codex/scripts/hooks/ship-sop/sop-codex-hook.sh\" PreToolUse" ] \
    && jq -e '.hooks | keys == ["PreToolUse"]' "$CODEXHOME/.codex/hooks.json" >/dev/null && [ ! -e "$CODEXHOME/.claude" ]; then
     ok "installer-default-codex-path"
@@ -147,11 +147,11 @@ if cmp -s "$TMP/edited-lib" "$EDIT/sop-lib.sh" && [ ! -e "$EDIT/sop-push-gate.sh
    && [ "$(count "$EDITSET" PreToolUse 'sop-push-gate')" = 0 ]; then ok "installer-uninstall-keeps-edited-script"; else bad "installer-uninstall-keeps-edited-script" "$(cat "$TMP/edit-un")"; fi
 # Codex: reinstall and removal preserve a customised script too.
 CXE="$TMP/codex-edit"
-AGENT_SOP_USER_HOME="$CXE" bash "$INSTALLER" --runtime codex >/dev/null 2>&1
+SHIP_SOP_USER_HOME="$CXE" bash "$INSTALLER" --runtime codex >/dev/null 2>&1
 printf '\n# Custom policy\n' >> "$CXE/.codex/scripts/hooks/ship-sop/sop-lib.sh"; cp "$CXE/.codex/scripts/hooks/ship-sop/sop-lib.sh" "$TMP/cx-before"
-AGENT_SOP_USER_HOME="$CXE" bash "$INSTALLER" --runtime codex >/dev/null 2>&1
+SHIP_SOP_USER_HOME="$CXE" bash "$INSTALLER" --runtime codex >/dev/null 2>&1
 CX1=$(cmp -s "$TMP/cx-before" "$CXE/.codex/scripts/hooks/ship-sop/sop-lib.sh" && echo same)
-AGENT_SOP_USER_HOME="$CXE" bash "$INSTALLER" --runtime codex --uninstall >/dev/null 2>&1
+SHIP_SOP_USER_HOME="$CXE" bash "$INSTALLER" --runtime codex --uninstall >/dev/null 2>&1
 if [ "$CX1" = same ] && cmp -s "$TMP/cx-before" "$CXE/.codex/scripts/hooks/ship-sop/sop-lib.sh" && [ "$(count "$CXE/.codex/hooks.json" PreToolUse 'sop-codex-hook')" = 0 ]; then
     ok "installer-codex-preserves-customised-script"
 else bad "installer-codex-preserves-customised-script" "cx1=$CX1"; fi
@@ -208,7 +208,7 @@ jq -n --arg d "bash \"$OLD/" '{model:"m",hooks:{
   Stop:[{matcher:"*",hooks:[{type:"command",command:($d+"sop-stop-drift.sh\"")}]}],
   SessionStart:[{matcher:"*",hooks:[{type:"command",command:($d+"sop-session-context.sh\"")}]}]}}' > "$TMP/mig-settings.json"
 mkdir -p "$MIG/.claude" && cp "$TMP/mig-settings.json" "$MIG/.claude/settings.json"
-AGENT_SOP_USER_HOME="$MIG" bash "$FIXSRC/install-hooks.sh" > "$TMP/mig-out" 2>&1; MIGRC=$?
+SHIP_SOP_USER_HOME="$MIG" bash "$FIXSRC/install-hooks.sh" > "$TMP/mig-out" 2>&1; MIGRC=$?
 NEWCMD="bash \"$MIG/.claude/scripts/hooks/ship-sop/sop-push-gate.sh\""
 if [ "$MIGRC" = 0 ] \
    && [ "$(jq '[.hooks[][].hooks[].command | select(test("sop-push-gate"))] | length' "$MIG/.claude/settings.json")" = 1 ] \
@@ -224,7 +224,7 @@ if [ ! -e "$OLD/sop-lib.sh" ] && [ ! -e "$OLD/sop-push-gate.sh" ] && [ ! -e "$OL
     ok "migration-removes-pristine-copies-and-keeps-edited-ones"
 else bad "migration-removes-pristine-copies-and-keeps-edited-ones" "$(ls "$OLD" 2>&1) $(cat "$TMP/mig-out")"; fi
 # A second run is a no-op and the gate it installed is executable.
-AGENT_SOP_USER_HOME="$MIG" bash "$FIXSRC/install-hooks.sh" > "$TMP/mig-out2" 2>&1
+SHIP_SOP_USER_HOME="$MIG" bash "$FIXSRC/install-hooks.sh" > "$TMP/mig-out2" 2>&1
 if grep -q 'already up to date' "$TMP/mig-out2" && [ -x "$MIG/.claude/scripts/hooks/ship-sop/sop-push-gate.sh" ]; then ok "migration-rerun-is-a-no-op"; else bad "migration-rerun-is-a-no-op" "$(cat "$TMP/mig-out2")"; fi
 
 # With the real list: a real shipped version (the one sop-project-type.sh that was
@@ -258,14 +258,14 @@ printf '\n'
 exit 0
 LEGACY
 REALBLOB=$(git hash-object --no-filters "$REALOLD/.claude/scripts/hooks/agent-sop/sop-project-type.sh")
-AGENT_SOP_USER_HOME="$REALOLD" bash "$INSTALLER" > "$TMP/realold-out" 2>&1
+SHIP_SOP_USER_HOME="$REALOLD" bash "$INSTALLER" > "$TMP/realold-out" 2>&1
 if grep -qx "$REALBLOB sop-project-type.sh" "$LEGACY_LIST" && [ ! -e "$REALOLD/.claude/scripts/hooks/agent-sop" ]; then ok "migration-real-shipped-version-removed"; else bad "migration-real-shipped-version-removed" "blob $REALBLOB; $(cat "$TMP/realold-out")"; fi
 
 # With the real list, a copy whose content matches no shipped version is kept.
 REALMIG="$TMP/realmig"; mkdir -p "$REALMIG/.claude/scripts/hooks/agent-sop"
 printf 'not a shipped version\n' > "$REALMIG/.claude/scripts/hooks/agent-sop/sop-push-gate.sh"
 jq -n --arg c "bash \"$REALMIG/.claude/scripts/hooks/agent-sop/sop-push-gate.sh\"" '{hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:$c}]}]}}' > "$REALMIG/.claude/settings.json"
-AGENT_SOP_USER_HOME="$REALMIG" bash "$INSTALLER" > "$TMP/realmig-out" 2>&1
+SHIP_SOP_USER_HOME="$REALMIG" bash "$INSTALLER" > "$TMP/realmig-out" 2>&1
 if [ -f "$REALMIG/.claude/scripts/hooks/agent-sop/sop-push-gate.sh" ] && ! grep -q 'hooks/agent-sop' "$REALMIG/.claude/settings.json" \
    && [ "$(count "$REALMIG/.claude/settings.json" PreToolUse 'ship-sop/sop-push-gate')" = 1 ]; then ok "migration-edited-copy-kept-registration-moved"; else bad "migration-edited-copy-kept-registration-moved" "$(cat "$TMP/realmig-out")"; fi
 
@@ -277,7 +277,7 @@ cp "$TMP/legacy-list" "$FIXSRC/legacy-agent-sop-hooks.txt"
 jq -n --arg d "bash \"$CXM/.codex/scripts/hooks/agent-sop/" --arg c "bash \"$CXM/.claude/scripts/hooks/agent-sop/" '{hooks:{
   PreToolUse:[{matcher:".*",hooks:[{type:"command",command:($d+"sop-codex-hook.sh\" PreToolUse")}]}],
   Stop:[{matcher:".*",hooks:[{type:"command",command:($c+"sop-stop-drift.sh\"")},{type:"command",command:($d+"sop-codex-hook.sh\" Stop")}]}]}}' > "$CXM/.codex/hooks.json"
-AGENT_SOP_USER_HOME="$CXM" bash "$FIXSRC/install-hooks.sh" --runtime codex > "$TMP/cxm-out" 2>&1
+SHIP_SOP_USER_HOME="$CXM" bash "$FIXSRC/install-hooks.sh" --runtime codex > "$TMP/cxm-out" 2>&1
 if jq -e '.hooks | keys == ["PreToolUse"]' "$CXM/.codex/hooks.json" >/dev/null \
    && [ "$(jq -r '.hooks.PreToolUse[0].hooks[0].command' "$CXM/.codex/hooks.json")" = "bash \"$CXM/.codex/scripts/hooks/ship-sop/sop-codex-hook.sh\" PreToolUse" ] \
    && [ "$(jq '[.hooks[][].hooks[]] | length' "$CXM/.codex/hooks.json")" = 1 ] \
@@ -290,10 +290,82 @@ legacy_install "$NRM" .claude || bad "no-register-fixture" "legacy list lacks a 
 cp "$TMP/legacy-list" "$FIXSRC/legacy-agent-sop-hooks.txt"
 jq -n --arg c "bash \"$NRM/.claude/scripts/hooks/agent-sop/sop-push-gate.sh\"" '{hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:$c}]}]}}' > "$NRM/.claude/settings.json"
 cp "$NRM/.claude/settings.json" "$TMP/nrm-before"
-AGENT_SOP_USER_HOME="$NRM" bash "$FIXSRC/install-hooks.sh" --no-register >/dev/null 2>&1
+SHIP_SOP_USER_HOME="$NRM" bash "$FIXSRC/install-hooks.sh" --no-register >/dev/null 2>&1
 if cmp -s "$TMP/nrm-before" "$NRM/.claude/settings.json" && [ -f "$NRM/.claude/scripts/hooks/agent-sop/sop-push-gate.sh" ] && [ -x "$NRM/.claude/scripts/hooks/ship-sop/sop-lib.sh" ]; then
     ok "migration-skipped-with-no-register"
 else bad "migration-skipped-with-no-register" "$(cat "$NRM/.claude/settings.json")"; fi
+
+# ── Entries that are not ours ─────────────────────────────────────────────────
+# A flat entry and an entry with "hooks": [] in another event, and a flat legacy
+# entry, are left exactly as they were; only entries holding a matching command
+# change.
+SHAPE="$TMP/shape.json"
+jq -n --arg old "bash \"$TMP/shapehome/.claude/scripts/hooks/agent-sop/sop-push-gate.sh\"" '{hooks:{
+  Stop:[{command:"node flat-stop.js"},{matcher:"*",hooks:[]}],
+  PostToolUse:[{matcher:"Write",hooks:[]}],
+  PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:$old},{type:"command",command:"node keep.js"}]},
+              {command:"node flat-pre.js"}]}}' > "$SHAPE"
+mkdir -p "$TMP/shapehome/.claude"; cp "$SHAPE" "$TMP/shapehome/.claude/settings.json"
+SHIP_SOP_USER_HOME="$TMP/shapehome" bash "$INSTALLER" > "$TMP/shape-out" 2>&1; SH=$?
+SS="$TMP/shapehome/.claude/settings.json"
+if [ "$SH" = 0 ] && [ "$(jq -cS '.hooks.Stop' "$SS")" = "$(jq -cS '.hooks.Stop' "$SHAPE")" ] \
+   && [ "$(jq -cS '.hooks.PostToolUse' "$SS")" = "$(jq -cS '.hooks.PostToolUse' "$SHAPE")" ] \
+   && [ "$(jq -c '.hooks.PreToolUse[0]' "$SS")" = '{"matcher":"Bash","hooks":[{"type":"command","command":"node keep.js"}]}' ] \
+   && [ "$(jq -c '.hooks.PreToolUse[1]' "$SS")" = '{"command":"node flat-pre.js"}' ] \
+   && [ "$(count "$SS" PreToolUse 'ship-sop/sop-push-gate')" = 1 ]; then
+    ok "installer-leaves-flat-and-empty-entries-alone"
+else bad "installer-leaves-flat-and-empty-entries-alone" "exit $SH $(jq -c .hooks "$SS") $(cat "$TMP/shape-out")"; fi
+# The uninstall filter leaves them alone too.
+SHIP_SOP_USER_HOME="$TMP/shapehome" bash "$INSTALLER" --uninstall >/dev/null 2>&1
+if [ "$(jq -cS '.hooks.Stop' "$SS")" = "$(jq -cS '.hooks.Stop' "$SHAPE")" ] && [ "$(jq -cS '.hooks.PostToolUse' "$SS")" = "$(jq -cS '.hooks.PostToolUse' "$SHAPE")" ] \
+   && [ "$(count "$SS" PreToolUse 'ship-sop')" = 0 ]; then ok "uninstall-leaves-flat-and-empty-entries-alone"; else bad "uninstall-leaves-flat-and-empty-entries-alone" "$(jq -c .hooks "$SS")"; fi
+# An event that is not an array is named and nothing is written.
+printf '{"hooks":{"Stop":{"command":"x"}}}\n' > "$TMP/notarray.json"; cp "$TMP/notarray.json" "$TMP/notarray.orig"
+if bash "$INSTALLER" --settings "$TMP/notarray.json" --dest "$TMP/dest-na" > "$TMP/na-out" 2>&1; then bad "installer-names-non-array-event" "exit 0"
+elif grep -q '.hooks.Stop is not an array' "$TMP/na-out" && cmp -s "$TMP/notarray.json" "$TMP/notarray.orig"; then ok "installer-names-non-array-event"
+else bad "installer-names-non-array-event" "$(cat "$TMP/na-out")"; fi
+
+# ── Stray registrations ───────────────────────────────────────────────────────
+# A gate registered anywhere but our install dir would run beside ours: setup
+# names it, exits non-zero and leaves the old copies in place.
+for form in 'bash "/elsewhere/agent-sop/sop-push-gate.sh"' 'bash ~/.claude/scripts/hooks/agent-sop/sop-push-gate.sh' 'bash /opt/hooks/sop-push-gate.sh'; do
+    STH="$TMP/stray-$RANDOM"
+    cp "$LEGACY_LIST" "$TMP/legacy-list"
+    legacy_install "$STH" .claude || bad "stray-fixture" "legacy list lacks a file"
+    cp "$TMP/legacy-list" "$FIXSRC/legacy-agent-sop-hooks.txt"
+    jq -n --arg c "$form" '{hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:$c}]}]}}' > "$STH/.claude/settings.json"
+    SHIP_SOP_USER_HOME="$STH" bash "$FIXSRC/install-hooks.sh" > "$TMP/stray-out" 2>&1; ST=$?
+    if [ "$ST" != 0 ] && grep -q 'other push-gate registrations remain' "$TMP/stray-out" && grep -qF "$form" "$TMP/stray-out" \
+       && [ -f "$STH/.claude/scripts/hooks/agent-sop/sop-push-gate.sh" ]; then ok "installer-refuses-stray-registration: $form"
+    else bad "installer-refuses-stray-registration: $form" "exit $ST $(cat "$TMP/stray-out")"; fi
+done
+
+# ── Unreadable installed copies ───────────────────────────────────────────────
+# A copy that cannot be hashed is never treated as unedited (an empty hash used
+# to equal an empty manifest entry).
+if [ "$(id -u)" != 0 ]; then
+    UR="$TMP/unreadable"; URSET="$TMP/unreadable.json"
+    bash "$INSTALLER" --settings "$URSET" --dest "$UR" >/dev/null 2>&1
+    printf 'local edit\n' > "$UR/sop-project-type.sh"; rm -f "$UR/.installed"
+    chmod 000 "$UR/sop-project-type.sh"
+    bash "$INSTALLER" --settings "$URSET" --dest "$UR" > "$TMP/ur-out" 2>&1
+    bash "$INSTALLER" --settings "$URSET" --dest "$UR" --uninstall > "$TMP/ur-un" 2>&1
+    chmod 644 "$UR/sop-project-type.sh"
+    if [ "$(cat "$UR/sop-project-type.sh")" = "local edit" ] && grep -q "keep $UR/sop-project-type.sh" "$TMP/ur-out" && grep -q "keep $UR/sop-project-type.sh" "$TMP/ur-un"; then
+        ok "installer-keeps-unhashable-copy"
+    else bad "installer-keeps-unhashable-copy" "$(cat "$TMP/ur-out" "$TMP/ur-un")"; fi
+else
+    ok "installer-keeps-unhashable-copy (skipped as root: every file is readable)"
+fi
+
+# ── Settings write ────────────────────────────────────────────────────────────
+# The file keeps its mode, and the temporary file is made beside it (an
+# unwritable TMPDIR does not matter).
+MODESET="$TMP/mode/settings.json"; mkdir -p "$TMP/mode" "$TMP/ro-tmp"; printf '{}\n' > "$MODESET"; chmod 640 "$MODESET"; chmod 500 "$TMP/ro-tmp"
+TMPDIR="$TMP/ro-tmp" bash "$INSTALLER" --settings "$MODESET" --dest "$TMP/mode-dest" > "$TMP/mode-out" 2>&1; MD=$?
+chmod 700 "$TMP/ro-tmp"
+MODE_NOW=$(stat -f %Lp "$MODESET" 2>/dev/null || stat -c %a "$MODESET")
+if [ "$MD" = 0 ] && [ "$MODE_NOW" = 640 ] && [ "$(count "$MODESET" PreToolUse 'sop-push-gate')" = 1 ]; then ok "installer-keeps-settings-mode-and-writes-beside-it"; else bad "installer-keeps-settings-mode-and-writes-beside-it" "exit $MD mode $MODE_NOW $(cat "$TMP/mode-out")"; fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""

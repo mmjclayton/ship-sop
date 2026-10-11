@@ -2,12 +2,19 @@
 # Assemble and validate a gate receipt from real reviewer and test results.
 set -euo pipefail
 BASE=''; HEAD_REF=HEAD; RESULTS=''; TESTS=''; OUTPUT=''
-RUNTIME=${AGENT_SOP_RUNTIME:-codex}
+RUNTIME=${SHIP_SOP_RUNTIME:-codex}
 CHECK_LIB=false
 # Functions of the installed push-gate library (scripts/hooks/sop-lib.sh) that
-# ship-sop calls: the first three here, the last two from /ship and $ship. The
-# check is by name only; it catches a missing, broken or hand-edited install.
-REQUIRED_SOP_FUNCTIONS='sop_effective_config sop_policy_digest sop_receipt_valid sop_agents_in_scope sop_changed_files_json'
+# ship-sop calls, here, from /ship and $ship, and from the push gate. This is the
+# gate's own SOP_GATE_FUNCTIONS list, so --check-lib also answers "can the gate
+# run?". The check is by name only; it catches a missing, broken or hand-edited
+# install. tests/push-gate.sh keeps the two lists equal.
+REQUIRED_SOP_FUNCTIONS='sop_have_jq sop_read_input sop_field sop_sha256 sop_repo_root sop_is_gated_repo
+sop_instruction_file sop_claude_prose sop_type_from_file sop_declared_project_type sop_code_signals
+sop_project_type sop_is_code_repo sop_default_branch sop_range_base sop_cmd_matches_push
+sop_is_push_command sop_strip_heredocs sop_instruction_pattern sop_instructions_changed
+sop_code_lines sop_effective_config sop_policy_valid sop_policy_digest sop_changed_files_json
+sop_agents_in_scope sop_receipt_valid sop_shipsop_covered sop_shipsop_gate'
 REINSTALL='re-run ship-sop setup.sh for this project'
 while [ $# -gt 0 ]; do
     if [ "$1" = --check-lib ]; then CHECK_LIB=true; shift; continue; fi
@@ -20,11 +27,11 @@ while [ $# -gt 0 ]; do
     shift 2
 done
 case "$RUNTIME" in
-    codex) CONFIG_HOME=${CODEX_HOME:-${AGENT_SOP_USER_HOME:-$HOME}/.codex} ;;
-    claude) CONFIG_HOME=${AGENT_SOP_USER_HOME:-$HOME}/.claude ;;
+    codex) CONFIG_HOME=${CODEX_HOME:-${SHIP_SOP_USER_HOME:-$HOME}/.codex} ;;
+    claude) CONFIG_HOME=${SHIP_SOP_USER_HOME:-$HOME}/.claude ;;
     *) echo 'runtime must be claude or codex' >&2; exit 2 ;;
 esac
-export AGENT_SOP_RUNTIME="$RUNTIME" AGENT_SOP_CONFIG_HOME="$CONFIG_HOME"
+export SHIP_SOP_RUNTIME="$RUNTIME" SHIP_SOP_CONFIG_HOME="$CONFIG_HOME"
 LIB="$CONFIG_HOME/scripts/hooks/ship-sop/sop-lib.sh"
 [ -f "$LIB" ] || { echo "INCOMPLETE: ship-sop push-gate library not installed at $LIB; $REINSTALL" >&2; exit 1; }
 # Load it once in a throwaway shell so a broken library is reported, not fatal.

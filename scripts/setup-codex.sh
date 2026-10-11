@@ -47,8 +47,25 @@ if [ ! -f "$TARGET/AGENTS.md" ]; then
     printf '# ship-sop\n\nUse $ship to review changes and $release for deliberate releases.\nRead CLAUDE.md for project conventions when present.\nAuto-mode uses the user-scope ship-sop push gate; reviewers use the installed user-scope ship-sop runner.\n' > "$TARGET/AGENTS.md"
 fi
 if ! grep -q '^\.ship/' "$TARGET/.gitignore" 2>/dev/null; then printf '\n# ship-sop runtime artifacts\n.ship/\n' >> "$TARGET/.gitignore"; fi
+CODEX_DIR="${CODEX_HOME:-${SHIP_SOP_USER_HOME:-$HOME}/.codex}"
 if [ "$NO_HOOK" = true ]; then
-    echo 'Codex ship-sop installed in manual mode (push gate not registered). Use $ship. Reload the session for new skills/agents.'
+    echo "Codex ship-sop installed. --no-hook: $CODEX_DIR/hooks.json was left unchanged. Push-gate registrations in it now:"
+    REGISTERED=''
+    [ ! -f "$CODEX_DIR/hooks.json" ] || REGISTERED=$(jq -r '[.hooks[]?[]? | .hooks[]? | (.command? // "") | strings | select(test("sop-push-gate|sop-codex-hook"))] | .[]' "$CODEX_DIR/hooks.json" 2>/dev/null || echo "(could not read $CODEX_DIR/hooks.json)")
+    if [ -n "$REGISTERED" ]; then printf '%s\n' "$REGISTERED" | sed 's/^/  /'; else echo '  none (use $ship manually)'; fi
 else
     echo 'Codex ship-sop installed. Use $ship; the push gate is registered in hooks.json. Reload the session for new skills/agents.'
+    # Codex runs hooks.json only with its `hooks` feature on (stable and on by
+    # default in codex-cli 0.160) and only once the hook is trusted: a new or
+    # changed hook asks for trust at the next session start.
+    if command -v codex >/dev/null 2>&1; then
+        HOOKS_FEATURE=$(codex features list 2>/dev/null | awk '$1 == "hooks" { print $NF; exit }') || HOOKS_FEATURE=''
+        case "$HOOKS_FEATURE" in
+            true) echo 'Codex hooks feature: on. Approve the new hook when Codex asks to trust it.' ;;
+            false) echo 'Codex hooks feature is OFF, so hooks.json is ignored and the push gate will not run. Set hooks = true under [features] in config.toml, then restart Codex.' >&2; exit 1 ;;
+            *) echo 'Could not read the Codex hooks feature state (codex features list); check that hooks are enabled, then approve the new hook when Codex asks to trust it.' >&2 ;;
+        esac
+    else
+        echo 'codex not found on PATH: once installed, check that its hooks feature is on (codex features list) and approve the hook when asked.'
+    fi
 fi

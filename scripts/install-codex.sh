@@ -4,7 +4,7 @@
 # --force replaces locally modified owned assets; uninstall preserves them by default.
 set -euo pipefail
 SOURCE="$(cd "$(dirname "$0")/.." && pwd -P)"
-USER_ROOT="${AGENT_SOP_USER_HOME:-$HOME}"
+USER_ROOT="${SHIP_SOP_USER_HOME:-$HOME}"
 CODEX_DIR="${CODEX_HOME:-$USER_ROOT/.codex}"
 FORCE=false; REMOVE=false
 for arg in "$@"; do

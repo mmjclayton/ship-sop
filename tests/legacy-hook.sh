@@ -8,7 +8,7 @@ WORK=$(mktemp -d)
 SUITE_DONE=0
 suite_trap() { local rc=$?; [ "$SUITE_DONE" = 1 ] || { echo "FAIL: suite stopped before its last check" >&2; rc=1; }; rm -rf "$WORK"; exit "$rc"; }
 trap suite_trap EXIT
-export AGENT_SOP_USER_HOME="$WORK/user"
+export SHIP_SOP_USER_HOME="$WORK/user"
 unset CODEX_HOME
 OTHER_HOOK='{"type":"command","command":"scripts/other-stop.sh"}'
 
@@ -84,18 +84,38 @@ printf 'PASS: without jq the entry and its script are kept and setup exits non-z
 
 # Unreadable user settings: the gate cannot be registered, setup says so and exits
 # non-zero, and the user's file is left as it was.
-mkdir -p "$AGENT_SOP_USER_HOME/.claude"
-printf '{not json\n' > "$AGENT_SOP_USER_HOME/.claude/settings.json"
-cp "$AGENT_SOP_USER_HOME/.claude/settings.json" "$WORK/bad-settings-before"
+mkdir -p "$SHIP_SOP_USER_HOME/.claude"
+printf '{not json\n' > "$SHIP_SOP_USER_HOME/.claude/settings.json"
+cp "$SHIP_SOP_USER_HOME/.claude/settings.json" "$WORK/bad-settings-before"
 mkdir -p "$WORK/badsettings"
 if bash "$SOURCE/setup.sh" "$WORK/badsettings" --runtime claude < /dev/null > "$WORK/badsettings.log" 2>&1; then
     echo 'FAIL: setup reported success without registering the gate'; exit 1
 fi
 grep -q 'could not parse' "$WORK/badsettings.log"
-grep -q 'push gate could not be installed' "$WORK/badsettings.log"
-cmp "$WORK/bad-settings-before" "$AGENT_SOP_USER_HOME/.claude/settings.json"
-rm "$AGENT_SOP_USER_HOME/.claude/settings.json"
+grep -q 'push gate installer reported a problem' "$WORK/badsettings.log"
+cmp "$WORK/bad-settings-before" "$SHIP_SOP_USER_HOME/.claude/settings.json"
+rm "$SHIP_SOP_USER_HOME/.claude/settings.json"
 printf 'PASS: unreadable user settings are reported and left untouched\n'
+
+# A stale or nonstandard gate registration stops setup before anything is retired:
+# two gates would run, so setup says so, exits non-zero and leaves the old project
+# handler in place.
+for stale in 'bash /elsewhere/agent-sop/sop-push-gate.sh' 'bash ~/.claude/scripts/hooks/agent-sop/sop-push-gate.sh'; do
+    mkdir -p "$SHIP_SOP_USER_HOME/.claude"
+    jq -n --arg c "$stale" '{hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:$c}]}]}}' > "$SHIP_SOP_USER_HOME/.claude/settings.json"
+    rm -rf "$WORK/stale"
+    legacy_project stale
+    cp "$WORK/stale/.claude/settings.json" "$WORK/stale-before"
+    if bash "$SOURCE/setup.sh" "$WORK/stale" --runtime claude < /dev/null > "$WORK/stale.log" 2>&1; then
+        echo "FAIL: stale registration accepted: $stale"; exit 1
+    fi
+    grep -q 'other push-gate registrations remain' "$WORK/stale.log"
+    grep -qF "$stale" "$WORK/stale.log"
+    cmp "$WORK/stale-before" "$WORK/stale/.claude/settings.json"
+    test -f "$WORK/stale/scripts/auto-ship-hook.sh"
+    rm "$SHIP_SOP_USER_HOME/.claude/settings.json"
+done
+printf 'PASS: a stale gate registration stops setup and retires nothing\n'
 
 # An entry under another event is removed too, and a regular file keeps its mode.
 legacy_project other-event

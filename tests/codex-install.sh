@@ -5,36 +5,66 @@ WORK=$(mktemp -d)
 SUITE_DONE=0
 suite_trap() { local rc=$?; [ "$SUITE_DONE" = 1 ] || { echo "FAIL: suite stopped before its last check" >&2; rc=1; }; rm -rf "$WORK"; exit "$rc"; }
 trap suite_trap EXIT
-export AGENT_SOP_USER_HOME="$WORK/user"
+export SHIP_SOP_USER_HOME="$WORK/user"
 unset CODEX_HOME
+# A stand-in codex that reports the hooks feature on, so the suite does not
+# depend on the machine's Codex install.
+mkdir -p "$WORK/featbin"
+printf '#!/bin/sh\n[ "$1 $2" = "features list" ] && echo "hooks                                    stable             true"\n' > "$WORK/featbin/codex"
+chmod +x "$WORK/featbin/codex"
+export PATH="$WORK/featbin:$PATH"
 mkdir -p "$WORK/project" "$WORK/auto"
 # Auto mode needs nothing installed beforehand: setup installs and registers the gate.
 bash "$SOURCE/setup.sh" "$WORK/auto" --runtime codex > "$WORK/auto.log"
-jq -e --arg c "bash \"$AGENT_SOP_USER_HOME/.codex/scripts/hooks/ship-sop/sop-codex-hook.sh\" PreToolUse" \
-    '.hooks | keys == ["PreToolUse"] and ([.PreToolUse[].hooks[].command] == [$c])' "$AGENT_SOP_USER_HOME/.codex/hooks.json" >/dev/null
-test -x "$AGENT_SOP_USER_HOME/.codex/scripts/hooks/ship-sop/sop-push-gate.sh"
+jq -e --arg c "bash \"$SHIP_SOP_USER_HOME/.codex/scripts/hooks/ship-sop/sop-codex-hook.sh\" PreToolUse" \
+    '.hooks | keys == ["PreToolUse"] and ([.PreToolUse[].hooks[].command] == [$c])' "$SHIP_SOP_USER_HOME/.codex/hooks.json" >/dev/null
+test -x "$SHIP_SOP_USER_HOME/.codex/scripts/hooks/ship-sop/sop-push-gate.sh"
 jq -e '.trigger.mode == "auto"' "$WORK/auto/ship-sop.config.json" >/dev/null
-test -f "$AGENT_SOP_USER_HOME/.codex/agents/security-reviewer.toml"
-test -f "$AGENT_SOP_USER_HOME/.codex/agents/code-reviewer.toml"
+test -f "$SHIP_SOP_USER_HOME/.codex/agents/security-reviewer.toml"
+test -f "$SHIP_SOP_USER_HOME/.codex/agents/code-reviewer.toml"
 bash "$SOURCE/setup.sh" "$WORK/auto" --runtime codex > "$WORK/auto2.log"
-jq -e '[.hooks[][].hooks[]] | length == 1' "$AGENT_SOP_USER_HOME/.codex/hooks.json" >/dev/null
-test ! -e "$AGENT_SOP_USER_HOME/.claude"
+jq -e '[.hooks[][].hooks[]] | length == 1' "$SHIP_SOP_USER_HOME/.codex/hooks.json" >/dev/null
+test ! -e "$SHIP_SOP_USER_HOME/.claude"
 printf 'PASS: Codex auto install registers one push gate and both gate reviewers, idempotently\n'
+# The command written to hooks.json, run as Codex runs it, refuses an uncovered
+# push through sop-codex-hook.sh PreToolUse.
+GIT="git -c user.email=t@t -c user.name=t -c commit.gpgsign=false"
+$GIT init -q --bare -b main "$WORK/origin.git"
+$GIT clone -q "$WORK/origin.git" "$WORK/e2e" 2>/dev/null
+echo '{ "name": "e2e", "private": true }' > "$WORK/e2e/package.json"
+cp "$SOURCE/docs/templates/ship-sop.config.json" "$WORK/e2e/ship-sop.config.json"
+(cd "$WORK/e2e" && $GIT add -A && $GIT commit -qm init && $GIT push -q -u origin main 2>/dev/null)
+(cd "$WORK/e2e" && git checkout -q -b feat/x && for i in $(seq 1 20); do echo "console.log($i)" >> app.js; done && $GIT add -A && $GIT commit -qm "feat: code")
+REGISTERED=$(jq -r '.hooks.PreToolUse[].hooks[].command' "$SHIP_SOP_USER_HOME/.codex/hooks.json")
+case "$REGISTERED" in *"sop-codex-hook.sh\" PreToolUse") ;; *) echo "FAIL: unexpected Codex command: $REGISTERED"; exit 1 ;; esac
+jq -nc --arg cwd "$WORK/e2e" '{session_id:"e2e",cwd:$cwd,hook_event_name:"PreToolUse",tool_name:"Bash",tool_input:{command:"git push -u origin feat/x"}}' > "$WORK/push.json"
+rc=0; sh -c "$REGISTERED" < "$WORK/push.json" > /dev/null 2> "$WORK/push.err" || rc=$?
+[ "$rc" = 2 ] || { echo "FAIL: installed Codex gate exit $rc: $(cat "$WORK/push.err")"; exit 1; }
+grep -q 'ship skill' "$WORK/push.err"
+printf 'PASS: the installed Codex gate refuses an uncovered push through the dispatcher\n'
+# Codex runs hooks.json only with its hooks feature on: setup says which.
+grep -q 'Codex hooks feature: on' "$WORK/auto.log"
+printf '#!/bin/sh\n[ "$1 $2" = "features list" ] && echo "hooks                                    stable             false"\n' > "$WORK/featbin/codex"
+if PATH="$WORK/featbin:$PATH" bash "$SOURCE/setup.sh" "$WORK/auto" --runtime codex > "$WORK/feature-off.log" 2>&1; then echo 'FAIL: setup succeeded with Codex hooks off'; exit 1; fi
+grep -q 'Codex hooks feature is OFF' "$WORK/feature-off.log"
+printf 'PASS: setup reports the Codex hooks feature and fails when it is off\n'
 bash "$SOURCE/setup.sh" "$WORK/auto" --runtime codex --uninstall > "$WORK/auto-uninstall"
-jq -e '[.hooks[]?[]?.hooks[]?] | length == 0' "$AGENT_SOP_USER_HOME/.codex/hooks.json" >/dev/null
-test ! -e "$AGENT_SOP_USER_HOME/.codex/scripts/hooks/ship-sop"
+jq -e '[.hooks[]?[]?.hooks[]?] | length == 0' "$SHIP_SOP_USER_HOME/.codex/hooks.json" >/dev/null
+test ! -e "$SHIP_SOP_USER_HOME/.codex/scripts/hooks/ship-sop"
 printf 'PASS: Codex uninstall removes the push gate registration and scripts\n'
 bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex --no-hook > "$WORK/install"
-jq -e '[.hooks[]?[]?.hooks[]?] | length == 0' "$AGENT_SOP_USER_HOME/.codex/hooks.json" >/dev/null
-test -x "$AGENT_SOP_USER_HOME/.codex/scripts/hooks/ship-sop/sop-lib.sh"
-test ! -e "$AGENT_SOP_USER_HOME/.claude"
+jq -e '[.hooks[]?[]?.hooks[]?] | length == 0' "$SHIP_SOP_USER_HOME/.codex/hooks.json" >/dev/null
+grep -q -- '--no-hook: .*hooks.json was left unchanged' "$WORK/install"
+grep -qF 'none (use $ship manually)' "$WORK/install"
+test -x "$SHIP_SOP_USER_HOME/.codex/scripts/hooks/ship-sop/sop-lib.sh"
+test ! -e "$SHIP_SOP_USER_HOME/.claude"
 jq -e '.trigger.mode == "manual"' "$WORK/project/ship-sop.config.json" >/dev/null
 test -f "$WORK/project/scripts/codex-review.sh"
-test -f "$AGENT_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
-test -x "$AGENT_SOP_USER_HOME/.codex/scripts/ship-sop/codex-usage.sh"
-jq -e '.trigger.mode == "manual" and (.agents | has("code-reviewer"))' "$AGENT_SOP_USER_HOME/.codex/ship-sop.config.json" >/dev/null
+test -f "$SHIP_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
+test -x "$SHIP_SOP_USER_HOME/.codex/scripts/ship-sop/codex-usage.sh"
+jq -e '.trigger.mode == "manual" and (.agents | has("code-reviewer"))' "$SHIP_SOP_USER_HOME/.codex/ship-sop.config.json" >/dev/null
 jq -e '.agents["silent-failure-hunter"].enabled == true' "$WORK/project/ship-sop.config.json" >/dev/null
-jq -e 'has("local_path")' "$AGENT_SOP_USER_HOME/.codex/ship-sop.source.json" >/dev/null
+jq -e 'has("local_path")' "$SHIP_SOP_USER_HOME/.codex/ship-sop.source.json" >/dev/null
 for alias in "$SOURCE"/.agents/skills/source-command-*/SKILL.md; do
     name="$(basename "$(dirname "$alias")")"; name="${name#source-command-}"
     test -f "$(dirname "$alias")/../$name/SKILL.md"
@@ -89,7 +119,7 @@ printf 'developer_instructions = "UNTRUSTED_REVIEW_POLICY"\n' > "$WORK/project/.
 printf 'echo example\n' > "$WORK/project/example.sh"
 git -C "$WORK/project" add .
 git -C "$WORK/project" -c user.name=Test -c user.email=test@example.invalid -c commit.gpgsign=false commit -qm changed
-(cd "$WORK/project" && bash "$AGENT_SOP_USER_HOME/.codex/scripts/ship-sop/codex-review.sh" --base "$BASE" --agent silent-failure-hunter) > "$WORK/review"
+(cd "$WORK/project" && bash "$SHIP_SOP_USER_HOME/.codex/scripts/ship-sop/codex-review.sh" --base "$BASE" --agent silent-failure-hunter) > "$WORK/review"
 grep -q '^--ignore-user-config$' "$WORK/args"
 grep -q '^plugins$' "$WORK/args"
 grep -q '^apps$' "$WORK/args"
@@ -104,13 +134,13 @@ printf 'PASS: reviewer runs in independent clone with read-only sandbox and clea
 EVIDENCE=$(sed -n 's/^Review evidence: //p' "$WORK/review")
 jq -e '.usage[0].input_tokens == 12 and .timed_out == false and .exit_code == 0 and .telemetry_status == "available"' "$EVIDENCE/metadata.json" >/dev/null
 test -s "$EVIDENCE/events.jsonl"; test -s "$EVIDENCE/result.md"
-(cd "$WORK/project" && MOCK_BAD_TELEMETRY=true bash "$AGENT_SOP_USER_HOME/.codex/scripts/ship-sop/codex-review.sh" --base "$BASE" --agent silent-failure-hunter) > "$WORK/bad-telemetry" 2>&1
+(cd "$WORK/project" && MOCK_BAD_TELEMETRY=true bash "$SHIP_SOP_USER_HOME/.codex/scripts/ship-sop/codex-review.sh" --base "$BASE" --agent silent-failure-hunter) > "$WORK/bad-telemetry" 2>&1
 EVIDENCE=$(sed -n 's/^Review evidence: //p' "$WORK/bad-telemetry")
 jq -e '.telemetry_status == "error" and .usage == null' "$EVIDENCE/metadata.json" >/dev/null
 grep -q 'telemetry parsing failed' "$WORK/bad-telemetry"
 test -s "$EVIDENCE/telemetry-error.log"
 start=$(date +%s)
-if (cd "$WORK/project" && MOCK_HANG=true SHIP_REVIEW_TIMEOUT_SECONDS=1 bash "$AGENT_SOP_USER_HOME/.codex/scripts/ship-sop/codex-review.sh" --base "$BASE" --agent silent-failure-hunter) > "$WORK/timeout" 2>&1; then
+if (cd "$WORK/project" && MOCK_HANG=true SHIP_REVIEW_TIMEOUT_SECONDS=1 bash "$SHIP_SOP_USER_HOME/.codex/scripts/ship-sop/codex-review.sh" --base "$BASE" --agent silent-failure-hunter) > "$WORK/timeout" 2>&1; then
     echo 'FAIL: timed-out reviewer passed'; exit 1
 fi
 test "$(( $(date +%s) - start ))" -lt 10
@@ -119,11 +149,11 @@ jq -e '.timed_out == true and .exit_code == 124 and .usage == null' "$EVIDENCE/m
 printf 'PASS: telemetry retained and TERM-resistant reviewer times out with explicit status\n'
 
 export MOCK_VERDICT=$'Verdict: PASS\nVerdict: BLOCK'
-if (cd "$WORK/project" && bash "$AGENT_SOP_USER_HOME/.codex/scripts/ship-sop/codex-review.sh" --base "$BASE" --agent silent-failure-hunter) > "$WORK/conflict" 2>&1; then
+if (cd "$WORK/project" && bash "$SHIP_SOP_USER_HOME/.codex/scripts/ship-sop/codex-review.sh" --base "$BASE" --agent silent-failure-hunter) > "$WORK/conflict" 2>&1; then
     echo 'FAIL: conflicting verdicts accepted'; exit 1
 fi
 unset MOCK_VERDICT
-if (cd "$WORK/project" && bash "$AGENT_SOP_USER_HOME/.codex/scripts/ship-sop/codex-review.sh" --base "$BASE" --agent nonexistent) > "$WORK/unknown" 2>&1; then echo 'FAIL: unknown reviewer accepted'; exit 1; fi
+if (cd "$WORK/project" && bash "$SHIP_SOP_USER_HOME/.codex/scripts/ship-sop/codex-review.sh" --base "$BASE" --agent nonexistent) > "$WORK/unknown" 2>&1; then echo 'FAIL: unknown reviewer accepted'; exit 1; fi
 grep -q INCOMPLETE "$WORK/unknown"
 printf '# ship-sop runtime artifacts\n.ship/\n' > "$WORK/project/.gitignore"
 mkdir -p "$WORK/project/.ship"
@@ -134,20 +164,20 @@ test -f "$WORK/project/.ship/state"
 test -f "$WORK/project/ship-sop.config.json"
 bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex --uninstall > "$WORK/uninstall"
 test -f "$WORK/project/AGENTS.md"; test -f "$WORK/project/ship-sop.config.json"
-test ! -f "$AGENT_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
-test ! -f "$AGENT_SOP_USER_HOME/.codex/scripts/ship-sop/codex-usage.sh"
+test ! -f "$SHIP_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
+test ! -f "$SHIP_SOP_USER_HOME/.codex/scripts/ship-sop/codex-usage.sh"
 printf 'PASS: missing reviewers fail and uninstall preserves project data\n'
 
 
 # Other tools' hooks are left alone; ours is added beside them, in both runtimes.
-printf '{"hooks":{"PreToolUse":[{"hooks":[{"command":"bash /elsewhere/other-hook.sh PreToolUse"}]}]}}\n' > "$AGENT_SOP_USER_HOME/.codex/hooks.json"
+printf '{"hooks":{"PreToolUse":[{"hooks":[{"command":"bash /elsewhere/other-hook.sh PreToolUse"}]}]}}\n' > "$SHIP_SOP_USER_HOME/.codex/hooks.json"
 bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex > "$WORK/foreign-codex"
-jq -e '[.hooks.PreToolUse[].hooks[].command] | length == 2 and any(test("other-hook")) and any(test("ship-sop/sop-codex-hook"))' "$AGENT_SOP_USER_HOME/.codex/hooks.json" >/dev/null
-mkdir -p "$AGENT_SOP_USER_HOME/.claude" "$WORK/project/.claude"
-printf '{"hooks":{"PreToolUse":[{"hooks":[{"command":"bash /elsewhere/other-gate.sh"}]}]}}\n' > "$AGENT_SOP_USER_HOME/.claude/settings.json"
+jq -e '[.hooks.PreToolUse[].hooks[].command] | length == 2 and any(test("other-hook")) and any(test("ship-sop/sop-codex-hook"))' "$SHIP_SOP_USER_HOME/.codex/hooks.json" >/dev/null
+mkdir -p "$SHIP_SOP_USER_HOME/.claude" "$WORK/project/.claude"
+printf '{"hooks":{"PreToolUse":[{"hooks":[{"command":"bash /elsewhere/other-gate.sh"}]}]}}\n' > "$SHIP_SOP_USER_HOME/.claude/settings.json"
 printf '{"hooks":{"Stop":[{"hooks":[{"command":"scripts/auto-ship-hook.sh"}]}]}}\n' > "$WORK/project/.claude/settings.json"
 bash "$SOURCE/setup.sh" "$WORK/project" --runtime claude > "$WORK/foreign-claude" 2>&1
-jq -e '[.hooks.PreToolUse[].hooks[].command] | length == 2 and any(test("other-gate")) and any(test("ship-sop/sop-push-gate"))' "$AGENT_SOP_USER_HOME/.claude/settings.json" >/dev/null
+jq -e '[.hooks.PreToolUse[].hooks[].command] | length == 2 and any(test("other-gate")) and any(test("ship-sop/sop-push-gate"))' "$SHIP_SOP_USER_HOME/.claude/settings.json" >/dev/null
 if jq -e '[.. | objects | select(.command? == "scripts/auto-ship-hook.sh")] | length > 0' "$WORK/project/.claude/settings.json" >/dev/null; then
     echo 'FAIL: legacy project hook entry left in place'; exit 1
 fi

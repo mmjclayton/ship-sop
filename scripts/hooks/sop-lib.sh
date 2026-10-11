@@ -153,30 +153,43 @@ sop_project_type() {
 sop_is_code_repo() { [ "$(sop_project_type "$1")" = "code" ]; }
 
 # sop_default_branch <root> — "origin/main" style ref, or empty.
-# origin/HEAD when set, else the first of origin/main, master, develop.
+# origin/HEAD when set, else the first of origin/main, master, develop. Empty
+# with status 0 only when there are no origin remote-tracking refs at all (a
+# first push). Status 1 when git fails, or when origin refs exist but none is a
+# recognisable default branch: the review range cannot be known, and callers
+# must not read that as "nothing to review".
 sop_default_branch() {
-    local root="$1" ref cand
-    ref=$(git -C "$root" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+    local root="$1" ref='' cand rc=0 refs
+    ref=$(git -C "$root" symbolic-ref -q refs/remotes/origin/HEAD 2>/dev/null) || rc=$?
+    [ "$rc" -le 1 ] || return 1
+    ref=${ref#refs/remotes/}
     if [ -z "$ref" ]; then
         for cand in origin/main origin/master origin/develop; do
-            if git -C "$root" rev-parse --verify "$cand" >/dev/null 2>&1; then
+            if git -C "$root" rev-parse -q --verify "$cand^{commit}" >/dev/null 2>&1; then
                 ref="$cand"
                 break
             fi
         done
     fi
+    if [ -z "$ref" ]; then
+        refs=$(git -C "$root" for-each-ref --format='%(refname)' refs/remotes/origin/ 2>/dev/null) || return 1
+        [ -z "$refs" ] || return 1
+    fi
     printf '%s' "$ref"
 }
 
 # sop_range_base <root> — merge-base of default branch and HEAD when the
-# branch has diverged; empty when on the default branch or no origin.
+# branch has diverged; empty when on the default branch or with no origin refs.
+# Status 1 when the range cannot be computed (git failure, unrelated histories,
+# an unrecognisable default branch).
 sop_range_base() {
     local root="$1" ref base head
-    ref=$(sop_default_branch "$root")
-    [ -n "$ref" ] || { printf ''; return; }
-    base=$(git -C "$root" merge-base "$ref" HEAD 2>/dev/null)
-    head=$(git -C "$root" rev-parse HEAD 2>/dev/null)
-    if [ -z "$base" ] || [ "$base" = "$head" ]; then
+    ref=$(sop_default_branch "$root") || return 1
+    [ -n "$ref" ] || { printf ''; return 0; }
+    head=$(git -C "$root" rev-parse -q --verify 'HEAD^{commit}' 2>/dev/null) || return 1
+    base=$(git -C "$root" merge-base "$ref" HEAD 2>/dev/null) || return 1
+    [ -n "$base" ] || return 1
+    if [ "$base" = "$head" ]; then
         printf ''
     else
         printf '%s' "$base"
@@ -327,9 +340,9 @@ sop_code_lines() {
 sop_effective_config() {
     if [ -f "$1/ship-sop.config.json" ]; then printf '%s/ship-sop.config.json' "$1"; return; fi
     local config_home
-    if [ "${AGENT_SOP_RUNTIME:-claude}" = codex ]; then
-        config_home=${AGENT_SOP_CONFIG_HOME:-${CODEX_HOME:-${AGENT_SOP_USER_HOME:-$HOME}/.codex}}
-    else config_home=${AGENT_SOP_CONFIG_HOME:-${AGENT_SOP_USER_HOME:-$HOME}/.claude}; fi
+    if [ "${SHIP_SOP_RUNTIME:-claude}" = codex ]; then
+        config_home=${SHIP_SOP_CONFIG_HOME:-${CODEX_HOME:-${SHIP_SOP_USER_HOME:-$HOME}/.codex}}
+    else config_home=${SHIP_SOP_CONFIG_HOME:-${SHIP_SOP_USER_HOME:-$HOME}/.claude}; fi
     printf '%s/ship-sop.config.json' "$config_home"
 }
 
@@ -432,7 +445,7 @@ sop_receipt_valid() {
     tree=$(git -C "$root" rev-parse "$sha^{tree}" 2>/dev/null) || return 1
     [ "$tree" = "$(jq -r .tree "$receipt")" ] || return 1
     git -C "$root" merge-base --is-ancestor "$base" "$sha" 2>/dev/null || return 1
-    required=$(sop_range_base "$root")
+    required=$(sop_range_base "$root") || return 1
     [ -n "$required" ] || required=$(git -C "$root" rev-parse HEAD)
     git -C "$root" merge-base --is-ancestor "$base" "$required" 2>/dev/null
 }
@@ -482,7 +495,10 @@ sop_shipsop_gate() {
         if printf '%s' "$branch" | grep -Eq -- "$pat"; then printf ''; return; fi
     done < <(jq -r '.trigger.throttle.skip_branch_patterns[]? // empty' "$cfg")
 
-    base=$(sop_range_base "$root")
+    if ! base=$(sop_range_base "$root"); then
+        printf 'ship-sop gate could not be evaluated: the review range against the default branch cannot be computed (no recognisable origin default branch, unrelated history, or a git error). Run `git remote set-head origin -a` or fetch, then retry.\n'
+        return
+    fi
     [ -n "$base" ] || { printf ''; return; }
     head=$(git -C "$root" rev-parse HEAD 2>/dev/null)
     # An unreadable range is not an empty one: every count below reads this diff (review finding).
@@ -528,7 +544,7 @@ sop_shipsop_gate() {
         "$lines" "${branch:-HEAD}" "$(sop_default_branch "$root")" "$(printf '%s' "$base" | cut -c1-7)" "$(printf '%s' "$head" | cut -c1-7)"
     printf '  Run these agents against that range, collect every result (they run in the background), then write %s and a validated companion JSON receipt for %s (a Covers: line alone is not coverage):\n' "$report" "$head"
     printf '%s\n' "$agents"
-    if [ "${AGENT_SOP_RUNTIME:-claude}" = codex ]; then
+    if [ "${SHIP_SOP_RUNTIME:-claude}" = codex ]; then
         printf '  Use the ship skill: run reviewers in separate checkouts with a read-only sandbox; collect every result, then write the report in the parent. Never substitute a worktree path in a prompt for enforced isolation.\n'
         return
     fi

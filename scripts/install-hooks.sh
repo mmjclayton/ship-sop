@@ -54,7 +54,7 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-USER_ROOT="${AGENT_SOP_USER_HOME:-$HOME}"
+USER_ROOT="${SHIP_SOP_USER_HOME:-$HOME}"
 case "$RUNTIME" in
     claude) RUNTIME_HOME="$USER_ROOT/.claude"; SETTINGS="${SETTINGS:-$RUNTIME_HOME/settings.json}" ;;
     codex)  RUNTIME_HOME="${CODEX_HOME:-$USER_ROOT/.codex}"; SETTINGS="${SETTINGS:-$RUNTIME_HOME/hooks.json}" ;;
@@ -101,10 +101,20 @@ backup_settings() {
     cp "$target" "$target.bak-$(date +%Y%m%d-%H%M%S)" || { echo "install-hooks: could not back up $target" >&2; exit 1; }
 }
 
+# file_mode <path>: octal permission bits (BSD stat, then GNU stat).
+file_mode() { stat -f %Lp "$1" 2>/dev/null || stat -c %a "$1" 2>/dev/null; }
+
+# The temporary file sits beside the target, so the rename is atomic and stays on
+# one file system, and it takes the original file's mode.
 write_settings() {
-    local tmp target
+    local tmp target mode
     target=$(resolve_settings_target)
-    tmp=$(mktemp) || { echo "install-hooks: could not create a temporary file" >&2; exit 1; }
+    tmp=$(mktemp "$target.XXXXXX") || { echo "install-hooks: could not create a temporary file beside $target" >&2; exit 1; }
+    if [ -f "$target" ]; then
+        mode=$(file_mode "$target") && chmod "$mode" "$tmp" || { rm -f "$tmp"; echo "install-hooks: could not copy the mode of $target" >&2; exit 1; }
+    else
+        chmod 600 "$tmp" || { rm -f "$tmp"; exit 1; }
+    fi
     if printf '%s' "$1" > "$tmp" && jq empty "$tmp" 2>/dev/null; then
         mv "$tmp" "$target" || { rm -f "$tmp"; echo "install-hooks: could not write $target" >&2; exit 1; }
     else
@@ -122,25 +132,48 @@ read_settings() {
     [ ! -f "$SETTINGS" ] || CURRENT=$(cat "$SETTINGS") || { echo "install-hooks: could not read $SETTINGS" >&2; exit 1; }
     # An empty file reads as {}; jq prints nothing on empty input.
     case "$CURRENT" in *[![:space:]]*) ;; *) CURRENT='{}' ;; esac
+    check_shape "$CURRENT"
 }
 
-# jq: drop every hook command starting with one of $prefixes, then any entry or
-# event that removal emptied. Other hooks are kept.
-JQ_DROP='def drop_prefixes($prefixes):
-    .hooks = ((.hooks // {}) | with_entries(.value |= map(
-          .hooks = ((.hooks // []) | map(select((.command // "") as $c | any($prefixes[]; . as $p | $c | startswith($p)) | not)))
-        ) | .value |= map(select((.hooks | length) > 0)))
-      | with_entries(select((.value | length) > 0)));'
+# check_shape <json>: the settings must be an object whose .hooks, when present,
+# maps each event to an array. Anything else is named, not rewritten.
+check_shape() {
+    local bad
+    bad=$(printf '%s' "$1" | jq -r 'if type != "object" then "the top level is not an object"
+        elif (.hooks // {} | type) != "object" then ".hooks is not an object"
+        else (.hooks // {} | to_entries[] | select(.value | type != "array") | ".hooks.\(.key) is not an array") end' 2>/dev/null) \
+        || { echo "install-hooks: could not parse $SETTINGS" >&2; exit 1; }
+    [ -z "$bad" ] || { printf 'install-hooks: %s is not in the expected shape: %s. Fix it by hand; nothing was changed.\n' "$SETTINGS" "$(printf '%s' "$bad" | paste -sd ';' -)" >&2; exit 1; }
+}
+
+# same_json <a> <b>: true when the two documents are equal as JSON.
+same_json() { [ "$(printf '%s' "$1" | jq -cS . 2>/dev/null)" = "$(printf '%s' "$2" | jq -cS . 2>/dev/null)" ]; }
+
+# jq: drop_hooks(f) removes the hook commands for which f is true. Only entries
+# that contain such a command are touched: an entry or event is dropped only when
+# that removal emptied it. Flat entries, entries with "hooks": [] and every other
+# hook are left as they were.
+JQ_DROP='def hit(f): type == "object" and ((.command? // null) | if type == "string" then f else false end);
+def drop_hooks(f):
+    if .hooks == null then . else
+    .hooks |= with_entries(. as $e | .value |= map(
+        if type == "object" and ((.hooks? // null) | type) == "array" and any(.hooks[]; hit(f))
+        then (.hooks |= map(select(hit(f) | not))) | select((.hooks | length) > 0)
+        else . end)
+      | select(($e.value | length) == 0 or (.value | length) > 0))
+    end;
+def drop_prefixes($prefixes): drop_hooks(. as $c | any($prefixes[]; . as $p | $c | startswith($p)));'
 
 # ── Uninstall ────────────────────────────────────────────────────────────────
 if [ "$UNINSTALL" = true ]; then
     if [ -f "$SETTINGS" ]; then
+        read_settings
         # Only entries this installer wrote: commands that run a script under $DEST.
-        NEW=$(jq --arg d "bash \"$DEST/" "$JQ_DROP"' drop_prefixes([$d])' "$SETTINGS" 2>/dev/null) \
+        NEW=$(jq --arg d "bash \"$DEST/" "$JQ_DROP"' drop_prefixes([$d])' <<< "$CURRENT" 2>/dev/null) \
             || { echo "install-hooks: could not parse $SETTINGS" >&2; exit 1; }
         if [ "$DRY_RUN" = true ]; then
             printf '%s\n' "$NEW"
-        elif [ "$NEW" != "$(jq . "$SETTINGS")" ]; then
+        elif ! same_json "$NEW" "$CURRENT"; then
             backup_settings
             write_settings "$NEW"
         fi
@@ -149,8 +182,8 @@ if [ "$UNINSTALL" = true ]; then
     for f in $FILES; do
         [ -f "$DEST/$f" ] || continue
         if [ "$SRC/$f" -ef "$DEST/$f" ]; then continue; fi
-        cur=$(blob "$DEST/$f")
-        if [ "$cur" = "$(blob "$SRC/$f")" ] || [ "$cur" = "$(recorded "$f")" ]; then
+        cur=$(blob "$DEST/$f") || cur=''
+        if [ -n "$cur" ] && { [ "$cur" = "$(blob "$SRC/$f")" ] || [ "$cur" = "$(recorded "$f")" ]; }; then
             rm -f "$DEST/$f" || exit 1
         else
             echo "keep $DEST/$f (edited locally; delete it yourself)"
@@ -170,8 +203,9 @@ if [ "$DRY_RUN" = false ]; then
         want=$(blob "$SRC/$f") || { rm -f "$NEXT_MANIFEST"; echo "install-hooks: cannot hash $SRC/$f" >&2; exit 1; }
         if [ "$SRC/$f" -ef "$DEST/$f" ]; then printf '%s %s\n' "$want" "$f" >> "$NEXT_MANIFEST"; continue; fi
         if [ -f "$DEST/$f" ]; then
-            cur=$(blob "$DEST/$f")
-            if [ "$cur" != "$want" ] && [ "$cur" != "$(recorded "$f")" ]; then
+            cur=$(blob "$DEST/$f") || cur=''
+            # An unreadable copy (empty hash) is never treated as unedited.
+            if [ -z "$cur" ] || { [ "$cur" != "$want" ] && [ "$cur" != "$(recorded "$f")" ]; }; then
                 echo "keep $DEST/$f (edited locally; compare it with $SRC/$f and reconcile by hand)"
                 [ -z "$(recorded "$f")" ] || printf '%s %s\n' "$(recorded "$f")" "$f" >> "$NEXT_MANIFEST"
                 continue
@@ -206,11 +240,7 @@ NEW=$(jq --argjson prefixes "$LEGACY_PREFIXES" --arg dest "bash \"$DEST/" --arg 
             end);
     drop_prefixes($prefixes)
     # Retired hook registrations under our own $dest (any event) go too.
-    | .hooks |= with_entries(.value |= map(
-          .hooks = ((.hooks // []) | map(select(((.command // "") | startswith($dest)) and
-                               ((.command // "") | test("(sop-session-context|sop-stop-drift|sop-memory-index|sop-worktree-claim)\\.sh|sop-codex-hook\\.sh\"? (SessionStart|UserPromptSubmit|Stop)$")) | not)))
-        ) | .value |= map(select((.hooks | length) > 0)))
-    | .hooks |= with_entries(select((.value | length) > 0))
+    | drop_hooks(startswith($dest) and test("(sop-session-context|sop-stop-drift|sop-memory-index|sop-worktree-claim)\\.sh|sop-codex-hook\\.sh\"? (SessionStart|UserPromptSubmit|Stop)$"))
     | ensure("PreToolUse"; "Bash"; $push; 10)
 ' <<< "$CURRENT" 2>/dev/null) || { echo "install-hooks: could not parse $SETTINGS" >&2; exit 1; }
 
@@ -220,7 +250,7 @@ if [ "$DRY_RUN" = true ]; then
 fi
 
 [ -n "$NEW" ] || { echo "install-hooks: no settings produced from $SETTINGS" >&2; exit 1; }
-if [ "$NEW" != "$CURRENT" ] || [ ! -f "$SETTINGS" ] || [ ! -s "$SETTINGS" ]; then
+if ! same_json "$NEW" "$CURRENT" || [ ! -f "$SETTINGS" ] || [ ! -s "$SETTINGS" ]; then
     mkdir -p "$(dirname "$(resolve_settings_target)")" || { echo "install-hooks: could not create the directory for $SETTINGS" >&2; exit 1; }
     backup_settings
     write_settings "$NEW"
@@ -249,6 +279,20 @@ retire_legacy_copies() {
     done
     rmdir "$LEGACY_DEST" 2>/dev/null || true
 }
+# A gate registered anywhere else (an older install at a nonstandard path, a
+# ~ or unquoted form) would run beside ours, so it is named and the old copies
+# are left for the user to reconcile.
+STRAY=$(jq -r --arg d "bash \"$DEST/" '[.. | objects | .command? | strings | select(startswith($d) | not)
+    | select(test("hooks/agent-sop|sop-push-gate\\.sh|sop-codex-hook\\.sh"))] | .[]' <<< "$NEW" 2>/dev/null) \
+    || { echo "install-hooks: could not re-read $SETTINGS" >&2; exit 1; }
+if [ -n "$STRAY" ]; then
+    {
+        echo "install-hooks: other push-gate registrations remain in $SETTINGS; two gates would run:"
+        printf '%s\n' "$STRAY" | sed 's/^/  /'
+        echo "Remove them by hand, then re-run setup. Older copies under $LEGACY_DEST were left in place."
+    } >&2
+    exit 1
+fi
 retire_legacy_copies
 echo "install-hooks: scripts in $DEST"
 echo "  PreToolUse(Bash) -> sop-push-gate.sh (refuses push/PR when ship-sop auto-mode has no receipt for HEAD)"

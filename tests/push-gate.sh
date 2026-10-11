@@ -36,8 +36,8 @@ trap suite_trap EXIT
 
 export HOME="$TMP/home"
 mkdir -p "$HOME"
-unset CODEX_HOME AGENT_SOP_RUNTIME AGENT_SOP_CONFIG_HOME
-export AGENT_SOP_USER_HOME="$HOME"
+unset CODEX_HOME SHIP_SOP_RUNTIME SHIP_SOP_CONFIG_HOME
+export SHIP_SOP_USER_HOME="$HOME"
 
 GIT="git -c user.email=t@t -c user.name=t -c commit.gpgsign=false"
 
@@ -116,7 +116,7 @@ run_hook() {
     # Suite-wide invariant: the gate may only exit 0 (silently) or 2 (refusing).
     if [ "$script" = "${PUSH:-}" ]; then
         case "$HOOK_EXIT" in
-            0) [ ! -s "$HOOK_ERR" ] || bad "push-gate-invariant" "exit 0 with stderr '$(head -2 "$HOOK_ERR")' for $extra" ;;
+            0) if [ -s "$HOOK_ERR" ] && grep -qv '^\[ship-sop\] warning: ' "$HOOK_ERR"; then bad "push-gate-invariant" "exit 0 with stderr '$(head -2 "$HOOK_ERR")' for $extra"; fi ;;
             2) ;;
             *) bad "push-gate-invariant" "exit $HOOK_EXIT for $extra: $(head -2 "$HOOK_ERR")" ;;
         esac
@@ -574,6 +574,96 @@ for ev in SessionStart UserPromptSubmit Stop; do
 done
 bash "$CODEX_HOOK" Unknown < /dev/null > /dev/null 2> "$TMP/cx.err"; CX=$?
 if [ "$CX" = 1 ] && grep -q 'expected PreToolUse' "$TMP/cx.err"; then ok "codex-dispatcher-rejects-unknown-event"; else bad "codex-dispatcher-rejects-unknown-event" "exit $CX"; fi
+
+# ── Fail closed: the library ──────────────────────────────────────────────────
+# The gate's function list, the receipt tool's list and the functions the
+# library defines are one set.
+GATE_LIST=$(sed -n "/^SOP_GATE_FUNCTIONS='/,/'\$/p" "$PUSH" | tr -d "'" | sed 's/^SOP_GATE_FUNCTIONS=//' | tr ' ' '\n' | grep . | sort)
+RECEIPT_LIST=$(sed -n "/^REQUIRED_SOP_FUNCTIONS='/,/'\$/p" "$SOURCE/scripts/ship-receipt.sh" | tr -d "'" | sed 's/^REQUIRED_SOP_FUNCTIONS=//' | tr ' ' '\n' | grep . | sort)
+LIB_LIST=$(grep -oE '^sop_[a-z0-9_]+\(\)' "$HOOKS_DIR/sop-lib.sh" | tr -d '()' | sort)
+if [ -n "$GATE_LIST" ] && [ "$GATE_LIST" = "$LIB_LIST" ] && [ "$GATE_LIST" = "$RECEIPT_LIST" ]; then ok "function-lists-match-the-library"; else bad "function-lists-match-the-library" "gate/lib/receipt differ"; fi
+# With any one function missing, a push that the intact gate allows is refused
+# and the function named.
+for fn in $LIB_LIST; do
+    MISS="$TMP/miss-$fn"; mkdir -p "$MISS"; cp "$PUSH" "$HOOKS_DIR/sop-lib.sh" "$MISS/"
+    printf '\nunset -f %s\n' "$fn" >> "$MISS/sop-lib.sh"
+    SAVED_PUSH=$PUSH; PUSH="$MISS/sop-push-gate.sh"
+    run_hook "$PUSH" "$CODE_T" "$(push_json 'git push origin main')"
+    PUSH=$SAVED_PUSH
+    if [ "$HOOK_EXIT" = 2 ] && grep -q "lacks: $fn" "$HOOK_ERR"; then ok "push-missing-$fn-refuses"; else bad "push-missing-$fn-refuses" "exit $HOOK_EXIT $(head -1 "$HOOK_ERR")"; fi
+done
+run_hook "$PUSH" "$CODE_T" "$(push_json 'git push origin main')"
+if allowed; then ok "push-intact-library-allows-the-same-push"; else bad "push-intact-library-allows-the-same-push" "exit $HOOK_EXIT"; fi
+MISSLIB="$TMP/no-lib"; mkdir -p "$MISSLIB"; cp "$PUSH" "$MISSLIB/"
+run_hook "$MISSLIB/sop-push-gate.sh" "$CODE_T" "$(push_json 'git push origin main')"
+if [ "$HOOK_EXIT" = 2 ] && grep -q "library is missing" "$HOOK_ERR"; then ok "push-missing-library-refuses"; else bad "push-missing-library-refuses" "exit $HOOK_EXIT"; fi
+# A gate check that fails (non-zero, no output) is a refusal, not "no demand".
+FAILGATE="$TMP/failgate"; mkdir -p "$FAILGATE"; cp "$PUSH" "$HOOKS_DIR/sop-lib.sh" "$FAILGATE/"
+printf '\nsop_shipsop_gate() { return 3; }\n' >> "$FAILGATE/sop-lib.sh"
+run_hook "$FAILGATE/sop-push-gate.sh" "$GATED" "$(push_json 'git push origin feat/push')"
+if [ "$HOOK_EXIT" = 2 ] && grep -q "gate check failed" "$HOOK_ERR"; then ok "push-failing-gate-check-refuses"; else bad "push-failing-gate-check-refuses" "exit $HOOK_EXIT $(cat "$HOOK_ERR")"; fi
+
+# ── Fail closed: input and repository ─────────────────────────────────────────
+nocwd() { printf '%s' "$1" > "$TMP/raw-input"; ( cd "$GATED" && bash "$PUSH" < "$TMP/raw-input" > /dev/null 2> "$TMP/err" ); HOOK_EXIT=$?; HOOK_ERR="$TMP/err"; }
+nocwd '{"tool_name":"Bash","tool_input":{"command":"git push origin feat/push"}}'
+if [ "$HOOK_EXIT" = 2 ] && grep -q "no usable cwd" "$HOOK_ERR"; then ok "push-without-cwd-refused"; else bad "push-without-cwd-refused" "exit $HOOK_EXIT"; fi
+nocwd '{"cwd":42,"tool_name":"Bash","tool_input":{"command":"git push origin feat/push"}}'
+if [ "$HOOK_EXIT" = 2 ] && grep -q "no usable cwd" "$HOOK_ERR"; then ok "push-with-non-string-cwd-refused"; else bad "push-with-non-string-cwd-refused" "exit $HOOK_EXIT"; fi
+run_hook "$PUSH" "$TMP/does-not-exist" "$(push_json 'git push origin feat/push')"
+if [ "$HOOK_EXIT" = 2 ] && grep -q "no usable cwd" "$HOOK_ERR"; then ok "push-with-missing-cwd-dir-refused"; else bad "push-with-missing-cwd-dir-refused" "exit $HOOK_EXIT"; fi
+nocwd '{"cwd": "x", "tool_name": "Bash", "tool_input": {"command": "git push'
+if [ "$HOOK_EXIT" = 2 ] && grep -q "not a JSON object" "$HOOK_ERR"; then ok "push-in-unparseable-input-refused"; else bad "push-in-unparseable-input-refused" "exit $HOOK_EXIT"; fi
+nocwd '{"cwd": "x", "tool_name": "Bash", "tool_input": {"command": "ls'
+if [ "$HOOK_EXIT" = 0 ]; then ok "non-push-in-unparseable-input-allowed"; else bad "non-push-in-unparseable-input-allowed" "exit $HOOK_EXIT"; fi
+nocwd '{"tool_name":"Bash","tool_input":{"command":"ls -la"}}'
+if [ "$HOOK_EXIT" = 0 ]; then ok "non-push-without-cwd-allowed"; else bad "non-push-without-cwd-allowed" "exit $HOOK_EXIT"; fi
+
+# HEAD cannot be read in a gated repository (no commits yet).
+EMPTYREPO="$TMP/emptyrepo"; git init -q -b main "$EMPTYREPO"; cp "$CFG" "$EMPTYREPO/ship-sop.config.json"; echo '{}' > "$EMPTYREPO/package.json"
+run_hook "$PUSH" "$EMPTYREPO" "$(push_json 'git push -u origin main')"
+if [ "$HOOK_EXIT" = 2 ] && grep -q "cannot read HEAD" "$HOOK_ERR"; then ok "push-unreadable-head-refused"; else bad "push-unreadable-head-refused" "exit $HOOK_EXIT $(cat "$HOOK_ERR")"; fi
+
+# Origin refs exist but no recognisable default branch: the range is unknown.
+NODEF="$TMP/nodefault"; make_repo "$NODEF" code
+configure "$NODEF" "$CFG"
+git -C "$NODEF" checkout -q -b feat/x
+commit_code "$NODEF" "feat: code"
+git -C "$NODEF" update-ref refs/remotes/origin/trunk "$(git -C "$NODEF" rev-parse origin/main)"
+git -C "$NODEF" symbolic-ref -d refs/remotes/origin/HEAD 2>/dev/null || true
+git -C "$NODEF" update-ref -d refs/remotes/origin/main
+run_hook "$PUSH" "$NODEF" "$(push_json 'git push origin feat/x')"
+if [ "$HOOK_EXIT" = 2 ] && grep -q "review range" "$HOOK_ERR"; then ok "push-unknown-default-branch-refused"; else bad "push-unknown-default-branch-refused" "exit $HOOK_EXIT $(cat "$HOOK_ERR")"; fi
+# No origin refs at all (a first push) stays ungated.
+FIRST="$TMP/firstpush"; git init -q -b main "$FIRST"; cp "$CFG" "$FIRST/ship-sop.config.json"; echo '{}' > "$FIRST/package.json"
+(cd "$FIRST" && for i in $(seq 1 12); do echo "x$i" >> a.js; done && $GIT add -A && $GIT commit -qm init)
+run_hook "$PUSH" "$FIRST" "$(push_json 'git push -u origin main')"
+if allowed; then ok "push-first-push-without-origin-refs-allowed"; else bad "push-first-push-without-origin-refs-allowed" "exit $HOOK_EXIT $(cat "$HOOK_ERR")"; fi
+# git failing to compute the merge base refuses.
+SHIM="$TMP/gitshim"; mkdir -p "$SHIM"
+printf '#!/bin/sh\nfor a in "$@"; do [ "$a" = merge-base ] && { echo "fatal: fixture merge-base failure" >&2; exit 128; }; done\nexec "%s" "$@"\n' "$(command -v git)" > "$SHIM/git"; chmod +x "$SHIM/git"
+git -C "$NODEF" update-ref refs/remotes/origin/main "$(git -C "$NODEF" rev-parse origin/trunk)"
+run_hook "$PUSH" "$NODEF" "$(push_json 'git push origin feat/x')" PATH="$SHIM:$PATH"
+if [ "$HOOK_EXIT" = 2 ] && grep -q "review range" "$HOOK_ERR"; then ok "push-merge-base-failure-refused"; else bad "push-merge-base-failure-refused" "exit $HOOK_EXIT $(cat "$HOOK_ERR")"; fi
+# Unrelated history (no merge base) refuses.
+git -C "$NODEF" checkout -q --orphan feat/orphan
+(cd "$NODEF" && for i in $(seq 1 12); do echo "y$i" >> b.js; done && $GIT add -A && $GIT commit -qm orphan)
+run_hook "$PUSH" "$NODEF" "$(push_json 'git push origin feat/orphan')"
+if [ "$HOOK_EXIT" = 2 ] && grep -q "review range" "$HOOK_ERR"; then ok "push-unrelated-history-refused"; else bad "push-unrelated-history-refused" "exit $HOOK_EXIT $(cat "$HOOK_ERR")"; fi
+
+# ── Bypass scope ──────────────────────────────────────────────────────────────
+BYP="$TMP/bypass"; make_repo "$BYP" code
+configure "$BYP" "$CFG"
+git -C "$BYP" checkout -q -b feat/b
+commit_code "$BYP" "feat: code"
+run_hook "$PUSH" "$BYP" "$(push_json 'SOP_SKIP_GATE=1 git log --grep push; git push origin feat/b')"
+if refused && [ ! -s "$BYP/.ship/bypass.log" ]; then ok "push-bypass-on-another-segment-refused"; else bad "push-bypass-on-another-segment-refused" "exit $HOOK_EXIT"; fi
+run_hook "$PUSH" "$BYP" "$(push_json 'SOP_SKIP_GATE=1 git push origin feat/b && git push origin HEAD:other')"
+if refused; then ok "push-bypass-must-cover-every-push"; else bad "push-bypass-must-cover-every-push" "exit $HOOK_EXIT"; fi
+run_hook "$PUSH" "$BYP" "$(push_json 'SOP_SKIP_GATE=1 git push origin feat/b && SOP_SKIP_GATE=1 gh pr create --fill')"
+if allowed && [ "$(wc -l < "$BYP/.ship/bypass.log" | tr -d ' ')" = 1 ]; then ok "push-bypass-on-every-push-allowed"; else bad "push-bypass-on-every-push-allowed" "exit $HOOK_EXIT"; fi
+rm -f "$BYP/.ship/bypass.log"; mkdir -p "$BYP/.ship/bypass.log"
+run_hook "$PUSH" "$BYP" "$(push_json 'SOP_SKIP_GATE=1 git push origin feat/b')"
+if [ "$HOOK_EXIT" = 0 ] && grep -q "warning: gate bypassed, but .*bypass.log could not be written" "$HOOK_ERR"; then ok "push-bypass-log-failure-warns"; else bad "push-bypass-log-failure-warns" "exit $HOOK_EXIT $(cat "$HOOK_ERR")"; fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""

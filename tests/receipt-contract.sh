@@ -34,4 +34,9 @@ sop_receipt_valid() {
 }
 sop_shipsop_covered() { sop_receipt_valid "$1" "$1/docs/reviews/valid-ship-auto.json"; }
 STUB
+# ship-receipt.sh checks every library function by name; the ones receipt
+# assembly never calls are present but fail loudly if they ever are.
+for fn in $(sed -n "/^REQUIRED_SOP_FUNCTIONS='/,/'\$/p" "$SOURCE/scripts/ship-receipt.sh" | tr -d "'" | sed 's/^REQUIRED_SOP_FUNCTIONS=//'); do
+    grep -q "^$fn()" "$WORK/stub/sop-lib.sh" || printf '%s() { echo "stub: %s is not used by receipt assembly" >&2; return 99; }\n' "$fn" "$fn" >> "$WORK/stub/sop-lib.sh"
+done
 SOP_LIB="$WORK/stub/sop-lib.sh" bash "$SOURCE/tests/receipt-integration.sh"

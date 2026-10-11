@@ -4,9 +4,9 @@ set -euo pipefail
 SOURCE="$(cd "$(dirname "$0")/.." && pwd -P)"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-export AGENT_SOP_USER_HOME="$WORK/user"
+export SHIP_SOP_USER_HOME="$WORK/user"
 unset CODEX_HOME
-PROFILE="$AGENT_SOP_USER_HOME/.claude/agents/silent-failure-hunter.md"
+PROFILE="$SHIP_SOP_USER_HOME/.claude/agents/silent-failure-hunter.md"
 mkdir -p "$(dirname "$PROFILE")"
 
 install_claude() {
