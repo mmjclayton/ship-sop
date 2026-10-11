@@ -1,5 +1,5 @@
 ---
-description: Disable ship-sop auto-mode. Sets trigger.mode to "manual" so the agent-sop push gate (`sop-push-gate.sh`, user-scope) stops demanding a review. /ship and /release continue to work manually.
+description: Disable ship-sop auto-mode. Sets trigger.mode to "manual" so the ship-sop push gate (`sop-push-gate.sh`, user-scope) stops demanding a review. /ship and /release continue to work manually.
 ship_sop_version: "2026-04-25"
 ---
 
@@ -36,4 +36,4 @@ Re-running `/ship-off` when already off is a no-op with a confirmation message.
 ## Side effects
 
 - Modifies `ship-sop.config.json` (one field).
-- Does not unwire the hook from `.claude/settings.json`. Run setup.sh with `--uninstall-hook` to remove the wiring entirely.
+- Does not unwire the hook from `.claude/settings.json`. Run `setup.sh <project> --uninstall` to remove the gate and its registration entirely.

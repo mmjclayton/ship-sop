@@ -36,13 +36,13 @@
             "skip_docs_only": {
               "type": "boolean",
               "default": true,
-              "description": "Accepted for older configs; no longer read by the trigger. Since 2026-09-04 (agent-sop P102) the automatic gate always excludes documentation extensions from the line count and fires only on code projects."
+              "description": "Accepted for older configs; no longer read by the trigger. Since 2026-09-04 the automatic gate always excludes documentation extensions from the line count and fires only on code projects."
             },
             "cooldown_seconds": {
               "type": "integer",
               "minimum": 0,
               "default": 300,
-              "description": "Deprecated, unread: belonged to the retired project-scope hook; agent-sop's trigger throttles by commit state."
+              "description": "Deprecated, unread: belonged to the retired project-scope hook; the push gate throttles by commit state."
             },
             "skip_branch_patterns": {
               "type": "array",

@@ -14,10 +14,10 @@ See CLAUDE.md Key Documents & Dispatch table.
 
 | Area | File |
 |------|------|
-| Reviewer agents (the gates' prompts) | `.claude/agents/{compliance-reviewer,diagram-builder,release-notes-writer}.md` |
+| Reviewer agents (the gates' prompts) | `.claude/agents/{security-reviewer,code-reviewer,compliance-reviewer,diagram-builder,release-notes-writer}.md` |
 | Slash commands | `.claude/commands/{ship,release,audit,ship-on,ship-off}.md` |
-| Automatic trigger | agent-sop user-scope `sop-stop-drift.sh` and `sop-push-gate.sh` (project hook retired, P25) |
-| Installer (with self-install detection) | `setup.sh` |
+| Automatic trigger | `scripts/hooks/sop-push-gate.sh`, installed user-scope by `scripts/install-hooks.sh` (project hook retired, P25; gate brought into this repo, P41) |
+| Installer (with self-install detection) | `setup.sh`, `scripts/install-hooks.sh`, `scripts/install-codex.sh` |
 | Default config + JSON schema | `docs/templates/ship-sop.{config,schema}.json` |
 | Public spec + pitch | `README.md` (canonical post-P11; `docs/ship-sop.md` is now a redirect stub) |
 
@@ -72,7 +72,7 @@ Earlier (2026-04-25):
 
 ## ship-sop's Preferences
 
-- **Terse review writing.** compliance-reviewer and security-reviewer findings should follow the agent-sop code-reviewer "Finding Voice" style — exact line numbers, exact symbol names, concrete fixes. No hedging, no "I noticed that...", no restating what the diff already says.
+- **Terse review writing.** compliance-reviewer and security-reviewer findings should follow the code-reviewer agent's "Finding Voice" style — exact line numbers, exact symbol names, concrete fixes. No hedging, no "I noticed that...", no restating what the diff already says.
 - **No `intent-reviewer` or `pm-reviewer` until evidence accumulates.** Per the dropped-agents decision. Don't propose adding them on speculation.
 - **Stay narrow on `diagram-builder`.** Mermaid + API catalog + Δ log only. Codemap and README work belongs to `doc-updater`. Resist scope creep.
 - **`/release` always manual.** No auto-publish via hooks. If that ever changes it must be explicit, not default.

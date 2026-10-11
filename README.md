@@ -1,80 +1,112 @@
 # ship-sop
 
-Code review gates for Claude Code and Codex, with isolated reviewers, validated
-review receipts and usage telemetry. Run your project's tests, inspect the
-committed change and collect findings with evidence tied to the reviewed code.
+Code review gates for Claude Code and Codex. ship-sop runs your tests and a set
+of isolated reviewer agents against the committed change, records the result in
+a validated receipt tied to that commit, and can refuse an agent's push until
+such a receipt exists.
 
-[MIT licensed](LICENSE). Companion to
-[agent-sop](https://github.com/mmjclayton/agent-sop), which manages session context,
-project records and the hooks used for automatic review.
+[MIT licensed](LICENSE).
 
 ## What it does
 
-- Runs configurable reviewers for correctness, security and silent failures.
-- Offers optional test-coverage, compliance and architecture reviews.
-- Produces a JSON receipt, checked for completeness and binding to the commit, and a readable report with findings and dispositions.
-- Rejects receipts that are blocked, incomplete or written for different code. The session reports reviewer verdicts and test results itself; see [What a receipt proves](#what-a-receipt-proves).
-- Retains Codex reviewer usage, timing and timeout diagnostics.
-- Provides a whole-repository compliance audit and a separate release workflow.
+- **Review gate (`ship`).** Runs the project's tests, then the reviewers you
+  enable (security, correctness, silent failures, and optionally test coverage,
+  compliance and architecture) against the diff from the default branch to
+  `HEAD`. Reviewers are read-only and isolated: Claude subagents run in their own
+  worktrees, Codex reviewers in independent clones with a read-only sandbox. The
+  session collects every result and writes one report.
+- **Receipts.** Each run produces a readable report and a JSON receipt that binds
+  the reviewer verdicts, findings and test result to the commit, tree, review base
+  and policy. A receipt that is blocked, incomplete or written for different code
+  is rejected.
+- **Push gate.** A user-scope `PreToolUse` hook refuses the agent's `git push` and
+  `gh pr create` in an auto-mode project until a valid receipt covers `HEAD`. It
+  ignores prose-only changes and non-code projects, and fails closed on internal
+  errors.
+- **Audit and release.** A whole-repository compliance audit (`audit`) and a
+  deliberate release workflow (`release`) that can prepare notes without
+  publishing. `ship` itself never commits, pushes or publishes.
 
-`ship` does not commit, push or publish. Releases are deliberate actions through
-`release`, with support for preparing notes without publishing.
+In a blind sample of 29 blocking findings from one project, both graders rated 14
+as real defects and 2 as false positives; see the
+[P40 report](docs/benchmark/p40/report.md) for the method and its limits.
+
+## Who it is for
+
+Developers who let Claude Code or Codex write and push code and want a
+consistent review step before that code leaves the machine, with a record of what
+was reviewed. It is a discipline aid for an agent that follows the workflow. It is
+not a control against a session that sets out to skip review; that needs reviewers
+that run outside the session, for example in CI.
 
 ## Quick start
 
-You need Git, Bash, `jq`, and Claude Code or Codex. Codex reviews use an
-authenticated Codex CLI; GitHub release publication also needs `gh`.
-
-Install agent-sop first (commit `0a1e5ee` of 24 September 2026 or later), then
-ship-sop into the same existing project:
+You need Git, Bash and `jq`, plus Claude Code or Codex. Codex reviews use an
+authenticated Codex CLI; publishing a GitHub release also needs `gh`.
 
 ```bash
-git clone https://github.com/mmjclayton/agent-sop.git
 git clone https://github.com/mmjclayton/ship-sop.git
-
-bash agent-sop/setup.sh /path/to/project --runtime codex --code
-bash ship-sop/setup.sh /path/to/project --runtime codex
-
-codex -C /path/to/project
+bash ship-sop/setup.sh /path/to/project --runtime claude   # or codex, or both
 ```
 
-Use `--runtime claude` for Claude Code or `--runtime both` for both integrations.
-Claude is the default when the flag is omitted. Restart your agent session after
-installation and complete any hook trust review it requests.
-
-For manual-only Codex setup, add `--no-hook` to ship-sop's setup command. This
-creates a new project config in manual mode; it does not reset an existing config.
-
-Codex installs include the default reviewers. For Claude, `code-reviewer` and
-`security-reviewer` come from agent-sop. ship-sop does not ship a Claude
-`silent-failure-hunter`: when setup creates a new Claude-only config and finds no
-`silent-failure-hunter.md` in `~/.claude/agents/` or the project's `.claude/agents/`,
-it disables that reviewer and says so. Supply the profile and set `enabled` back
-to `true` to use it. Writing that config needs `jq`; without it, setup stops
-before writing one.
-
-## Everyday use
-
-Type these in your agent session:
+Claude is the default runtime. Restart your agent session after installing and
+complete any hook trust review it asks for. Then, in the project:
 
 | Task | Claude Code | Codex |
 |---|---|---|
 | Review the committed code diff | `/ship` | `$ship` |
-| Audit the whole repository for compliance issues | `/audit` | `$audit` |
-| Enable automatic review | `/ship-on` | `$ship-on` |
+| Turn automatic review on (the default) | `/ship-on` | `$ship-on` |
 | Switch to manual review | `/ship-off` | `$ship-off` |
+| Audit the whole repository for compliance issues | `/audit` | `$audit` |
 | Prepare or publish a release | `/release` | `$release` |
 
-Use `ship --base <ref>` to choose a diff base, or `ship --with <agent>` to include
-an optional reviewer. Use the `/` or `$` prefix for your runtime.
+Use `ship --base <ref>` to choose a diff base, or `ship --with <agent>` to add a
+reviewer for one run. The review range ends at committed `HEAD`; uncommitted
+changes are not covered.
 
-The review range ends at committed `HEAD`. Uncommitted changes are not covered by
-a report for that commit. Codex reviewers run in independent clones with a
-read-only sandbox; the parent session collects the results and writes the report.
+## What setup changes
 
-## Configuration and reports
+| Where | What | Runtime |
+|---|---|---|
+| `~/.claude/agents/` | `security-reviewer`, `code-reviewer`, `compliance-reviewer`, `diagram-builder`, `release-notes-writer` | Claude |
+| `~/.claude/commands/` | `ship`, `ship-on`, `ship-off`, `audit`, `release` | Claude |
+| `~/.agents/skills/`, `$CODEX_HOME/agents/` | The same workflows as skills, and the reviewer profiles | Codex |
+| `~/.claude/scripts/hooks/ship-sop/` (Codex: `$CODEX_HOME/scripts/hooks/ship-sop/`) | The push gate and its library | Both |
+| `~/.claude/settings.json` (Codex: `$CODEX_HOME/hooks.json`) | One `PreToolUse` entry for the push gate; other hooks are kept and the file is backed up first | Both |
+| `~/.claude/scripts/ship-sop/`, `$CODEX_HOME/scripts/ship-sop/` | The receipt tool and, for Codex, the reviewer runner | Both |
+| The project | `ship-sop.config.json`, `docs/templates/ship-sop.schema.json`, `docs/reviews/`, and `.ship/` added to `.gitignore` | Both |
 
-Edit `ship-sop.config.json` in your project. The defaults are:
+Re-running setup from an updated checkout updates installed files that you have
+not edited and keeps the ones you have, naming each one it keeps. `--force`
+replaces edited files too. An existing `ship-sop.config.json` is never rewritten.
+
+- `--no-hook` installs everything except the push-gate registration, for manual
+  review only. A new Codex config is then created in manual mode.
+- For Claude, ship-sop does not ship a `silent-failure-hunter` profile. If setup
+  creates a new Claude-only config and finds none in `~/.claude/agents/` or the
+  project's `.claude/agents/`, it disables that reviewer and says so.
+- Setup moves a push gate installed by an earlier version to the ship-sop path,
+  and removes the retired project-scope `scripts/auto-ship-hook.sh` and its
+  settings entry. Edited copies are kept.
+
+### Removing it
+
+```bash
+bash ship-sop/setup.sh /path/to/project --runtime claude --uninstall
+bash ship-sop/setup.sh /path/to/project --runtime codex --uninstall
+```
+
+Uninstall removes the push-gate registration and scripts, the agents, commands
+or skills you have not edited, and (Claude) the project config and `.ship/`. Add
+`--keep-config` and `--keep-artifacts` to keep those, or `--force` to remove
+edited files as well. Review history in `docs/reviews/` is never removed.
+User-scope files are shared by every project on the machine, so removing them
+affects all of them. To stop automatic review in one project only, run
+`/ship-off` there instead.
+
+## Configuration
+
+Edit `ship-sop.config.json` in the project. The defaults:
 
 | Reviewer | Enabled | Blocks on | Runs when the diff touches |
 |---|---|---|---|
@@ -85,143 +117,80 @@ Edit `ship-sop.config.json` in your project. The defaults are:
 | `compliance-reviewer` | No | CRITICAL | any code |
 | `diagram-builder` | No | Advisory | any code |
 
-Set `enabled` per reviewer and use `block_on: "never"` for advisory findings.
-Set `paths` (an array of regular expressions) to scope a reviewer to the files
-where it earns its run: with `paths`, the reviewer joins the gate only when a
-path changed in the review range matches one of the patterns; without `paths`
-it runs on every code diff; an empty array never runs it. The push gate,
-the receipt validator and `ship` read the same rule, so a receipt is complete
-when it carries every reviewer in scope for its own range. `ship --with <agent>`
-adds a reviewer for one run regardless of scope. The default `paths` on
-`security-reviewer` come from the 2026-09-24 gate-yield review (zero blocking
-findings in eleven gates on a TypeScript viewer, a CRITICAL on shell scripts);
-tune them per project.
-See the [default config](docs/templates/ship-sop.config.json) and
-[config schema](docs/templates/ship-sop.schema.json) for the full settings.
+- `enabled` and `block_on` set each reviewer; `block_on: "never"` makes it advisory.
+- `paths` (an array of regular expressions) scopes a reviewer: it joins only when
+  a changed path matches. Without `paths` it runs on every code diff; an empty
+  array never runs it. The push gate, the receipt check and `ship` read the same
+  rule.
+- `trigger.mode` is `auto` (push gate active), `manual` or `off`.
+- `trigger.throttle.min_diff_lines` (default 10) and `skip_branch_patterns`
+  (default `^wip/`, `^spike/`, `^exp/`) decide when the push gate applies.
+  Documentation-only changes never trigger it; changes to executable instructions
+  (skills, commands, agent profiles, `AGENTS.md`, `CLAUDE.md`) always do.
+- The gate applies to code projects only. Declare `**Project type:** code` (or
+  `non-code`) in `AGENTS.md` or `CLAUDE.md` to override the detection, which
+  otherwise looks for a manifest such as `package.json` or a test command.
 
-Reports go in `docs/reviews/<timestamp>-ship-auto.md`. They record tests,
-reviewer results and findings. A validated companion `*-ship-auto.json` receipt binds completion, tests and
-findings to the commit, tree, review base and policy, and (schema version 2,
-since 2026-09-24) records per reviewer how many agents were launched, how many
-re-checks ran and how many rounds blocked, so gate cost rests on counts rather
-than estimates. Under Codex, `usage` is the sum of the reviewer's run telemetry
-produced by `scripts/codex-usage.sh` from the runner's evidence directories, or
-null when any run lacked telemetry; under Claude it is null, since the runtime
-reports no subagent usage.
-Markdown `Covers:` lines
-are informational and old Markdown-only reports no longer satisfy the gate.
-An ancestor receipt remains usable only when no code or executable instructions changed. Missing or failed reviewer results are incomplete, not a pass.
+See the [default config](docs/templates/ship-sop.config.json) and the
+[schema](docs/templates/ship-sop.schema.json) for every setting.
 
-## What a receipt proves
+To bypass the gate once, put `SOP_SKIP_GATE=1` directly before the push, for
+example `SOP_SKIP_GATE=1 git push`. Each bypass is logged to `.ship/bypass.log`.
 
-A receipt that passes validation proves that a complete set of results was
-recorded for this commit and its review range, under the current policy, with no
-blocking findings. The session gathers reviewer verdicts and test results and
-passes them to `scripts/ship-receipt.sh`. Test results are never checked against
-a test run.
+### Reports and receipts
 
-When `scripts/ship-receipt.sh` writes the receipt, what else it checks depends on
-the runtime:
+Reports go in `docs/reviews/<timestamp>-ship-auto.md`, with a companion
+`*-ship-auto.json` receipt written by `scripts/ship-receipt.sh`. The receipt
+records each reviewer's verdict, findings, launches, re-checks and blocking rounds,
+and, under Codex, token usage from the runner's telemetry (null when unknown,
+never zero). A receipt for an earlier commit still covers `HEAD` when only
+documentation has changed since.
 
-| `--runtime` | Reviewer verdicts checked against | A hand-written `PASS` result file |
-|---|---|---|
-| `codex` | The runner's record in this repository's `.ship/reviews/`: each reviewer needs a run by `codex-review.sh` on the same commit and base, with a clean exit, no timeout and the same final verdict | Refused by `ship-receipt.sh` unless matching run records are also written by hand |
-| `claude` | Nothing; Claude subagents leave no record ship-sop can read | Produces a receipt that passes validation |
+A valid receipt proves that a complete set of results was recorded for that
+commit and range, under the current policy, with no blocking findings. Test
+results are reported by the session and are not re-run. Under Codex,
+`ship-receipt.sh` also checks each verdict against the runner's own record in
+`.ship/reviews/`; Claude subagents leave no such record. The push gate checks the
+receipt, not the run records.
 
-The run-record check happens only in `ship-receipt.sh`. agent-sop's Stop and push
-gates validate the receipt itself (commit, tree, base, policy, reviewers in scope,
-no blocking findings) and do not look at `.ship/reviews/`, so a receipt written
-straight into `docs/reviews/` without `ship-receipt.sh` satisfies the gates under
-either runtime. The calling session also chooses `--runtime` and can write
-`.ship/`. The Codex check makes a false receipt harder to produce through the
-supported tool; it does not stop a session that bypasses the tool.
+`scripts/receipt-totals.sh REPO_ROOT...` totals receipts across projects: gates,
+blocking rounds, reviewer launches and findings by severity (`--json` for raw
+output). `SHIP_REVIEW_MODEL` selects the Codex reviewer model and
+`SHIP_REVIEW_TIMEOUT_SECONDS` bounds a reviewer run (default 600, maximum 3600).
 
-ship-sop is a discipline aid for an agent that follows the workflow, in line with
-agent-sop's cooperative hooks. It is not a control against a session that chooses
-to skip review. Enforcing review against such a session needs reviewers that run
-outside it, for example in CI.
+## Optional: working rules for your project
 
-## Automatic review
+These four rules suit a project that uses ship-sop. Paste them into the project's
+`CLAUDE.md` or `AGENTS.md` if you want them:
 
-Auto-mode uses **agent-sop's user-scope push gate**. Before supported `git push`
-and `gh pr create` calls it checks that a validated receipt covers HEAD, and
-refuses the push until the configured review has run.
+```markdown
+## Working rules
 
-By default it applies to code projects with at least 10 changed code lines.
-Executable instruction changes, including applicable Markdown skills, commands
-and policy files, require review even below that threshold. Ordinary prose-only
-changes and branches starting with `wip/`, `spike/` or `exp/` are skipped.
-Invalid configured policy produces an error. Set `trigger.mode` to `manual` to
-disable automatic review.
-
-**Earlier Codex runtime verification:** a fresh-session test completed the automatic cycle:
-production Stop continuation, all configured reviewers, a covering report and a
-successful push to a local Git remote. See the [runtime test record](docs/reviews/2026-09-08_codex-auto-runtime.md).
-That test predates structured receipts. The
-[hardening review and verification record](docs/reviews/20260908-hardening-ship-auto.md)
-covers the subsequent receipt contract, installation and timeout checks, together
-with independent source reviews. These checks do not establish a general quality
-or cost advantage over native agent workflows.
-Start Codex in the project root; other installations still need working, trusted hooks.
-
-ship-sop no longer ships a project-scope hook. Re-running setup on a project
-installed before 2026-10-10 removes the old `.claude/settings.json` entry, keeping
-any other hooks, and then the old `scripts/auto-ship-hook.sh` unless it was edited
-locally. Setup stops first if agent-sop's hook registration is stale, and exits
-non-zero if it could not finish the removal.
-
-## Updates and removal
-
-Re-run setup from an updated checkout. Existing project configuration is retained;
-Codex preserves customized skill and reviewer files. `--force` replaces distributed
-assets, including locally edited ones, so review those changes first.
-
-To remove the Codex integration, run from the ship-sop checkout:
-
-```bash
-bash setup.sh /path/to/project --runtime codex --uninstall
+- `Backlog.md` is the list of work and its status; update an item's status tag when its state changes.
+- Ask only when the answer would materially change the result; otherwise make the call, state the assumption, and carry on.
+- Pushes go through the review gate (ship-sop) where the project has `ship-sop.config.json`.
+- When files disagree, code and git win, then this file, then `Backlog.md`.
 ```
 
-This preserves project instructions, configuration, review history and shared
-agent-sop hooks. Set the project's trigger mode to `manual` if you also want to
-stop automatic review requests. User-scope skill removal affects all projects.
-
-Claude removal uses `--runtime claude --uninstall`; add `--keep-config` and
-`--keep-artifacts` to retain configuration and runtime files. Review history is
-preserved. Shared agent-sop files are maintained through `update-agent-sop`.
+`scripts/validate-state-transitions.sh` checks `Backlog.md` status changes against
+those tags, and `scripts/archive-backlog.sh` moves old closed items to
+`docs/backlog-archive.md`.
 
 ## Contributing
 
 See [project conventions](CLAUDE.md). The fixtures are the `tests/*.sh` scripts;
-`tests/receipt-integration.sh` also needs `AGENT_SOP_SOURCE` set to an agent-sop
-checkout, and `tests/legacy-hook.sh` needs a full clone.
+`tests/legacy-hook.sh` and `tests/install-agents.sh` need a full clone. Run them
+all with:
 
-The [CI workflow](.github/workflows/ci.yml) runs every fixture, checks shell
-scripts and JSON, and runs the cross-package test against agent-sop `main` and
-against the oldest supported agent-sop. Propose changes through a pull request.
+```bash
+for t in tests/*.sh; do bash "$t" || echo "FAILED: $t"; done
+shellcheck -S warning setup.sh scripts/*.sh scripts/hooks/*.sh tests/*.sh
+```
 
-ship-sop is maintained by one person, alongside agent-sop. There is no support
-commitment or release schedule; pin a commit if you depend on it.
+The [CI workflow](.github/workflows/ci.yml) runs every fixture and checks the
+shell scripts and JSON. Propose changes through a pull request. When you change a
+reviewer agent in `.claude/agents/`, add its new blob to
+`scripts/shipped-agents.txt` so installed copies of it keep updating.
 
-## Evidence and cost diagnostics
-
-Codex reviews retain events, results and usage under `.ship/reviews/`. Unknown
-usage is null, never zero. `SHIP_REVIEW_MODEL` selects an explicit model;
-`SHIP_REVIEW_TIMEOUT_SECONDS` bounds a reviewer run (default 600, maximum 3600).
-The three-reviewer default is unchanged pending measured defect yield and cost.
-
-`scripts/receipt-totals.sh REPO_ROOT...` totals the receipts in one or more
-projects: receipts, gates that blocked at least once, block rounds, reviewer
-launches and re-checks, and findings by severity (`--json` for raw output). A
-receipt present in several clones counts once. It exits 1 when a file could not
-be read or a root has no receipts. It
-measures what the gates recorded. It does not show what would have happened
-without them; that needs a comparison run.
-
-Receipt generation needs the agent-sop library. `ship-receipt.sh --check-lib`
-reports whether the installed library loads and defines every function ship-sop
-calls, naming any that is missing and the minimum agent-sop. It checks names, not
-behaviour; CI covers behaviour by running the cross-package test at the minimum
-agent-sop and at `main`. Setup runs the check.
-Upgrade both projects together.
-See `docs/build-plans/review-hardening.md` for the contract and evaluation plan.
+ship-sop is maintained by one person. There is no support commitment or release
+schedule; pin a commit if you depend on it.

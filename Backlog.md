@@ -473,6 +473,31 @@ From review v2 (2026-10-10). The gates' block rate (edward: 98 of 142 schema-2 r
 
 ---
 
+### P41 - Fold agent-sop's push gate and reviewer agents into ship-sop
+
+`[IN PROGRESS] [Refactor]`
+
+Since agent-sop P124 (11 Oct 2026), the only parts of agent-sop that do anything are the push gate (`sop-push-gate.sh`, `sop-lib.sh`, `sop-project-type.sh`, the Codex dispatcher `sop-codex-hook.sh`, registered by `install-hooks.sh`), the library `ship-receipt.sh` loads to validate receipts, and the `security-reviewer` and `code-reviewer` agents the gate runs. All of them serve ship-sop. Keeping them in a second repository meant two installs, a sync layer (`/update-agent-sop`, `sync-sop-files.sh`, `.claude/agent-sop.config.json`), CI checkouts of agent-sop at `main` and at a minimum commit, and a compatibility check between the two. Operator decision 11 Oct 2026: fold them into ship-sop; agent-sop then becomes private and archived, and ship-sop must stand on its own.
+
+**Design:**
+- **Code.** The four hook scripts move to `scripts/hooks/`, the installer to `scripts/install-hooks.sh`. The installed location becomes `~/.claude/scripts/hooks/ship-sop/` (Codex: `$CODEX_HOME/scripts/hooks/ship-sop/`). `sop-lib.sh` keeps only what the gate, the project-type check and receipt validation use. Function names (`sop_*`) and the `SOP_SKIP_GATE` bypass are unchanged, and the gate still fails closed.
+- **Migration.** The installer removes every registration that points at `.../scripts/hooks/agent-sop/sop-*.sh` (Codex also at the Claude copies), then deletes the old copies whose git blob is a shipped agent-sop version (`scripts/legacy-agent-sop-hooks.txt`, built from agent-sop's full history). Edited copies are kept and named, and deletion happens after the settings write. The retired-hook registration cleanup is kept.
+- **Setup.** `setup.sh` and `setup-codex.sh` install and register the gate and the two reviewer agents themselves; the "install agent-sop first" preconditions go. Agents are installed where absent or byte-identical to a shipped version (`scripts/shipped-agents.txt`) and kept when edited. `--no-hook` installs the scripts without registering the gate; `--uninstall` removes the registration and the scripts. `install-codex.sh` knows only the ship-sop package.
+- **Sync layer retired.** `.claude/agent-sop.config.json`, `scripts/detect-trackers.sh` and the archived agent-sop guide are deleted; `validate-state-transitions.sh` loses its drift and replication modes and stays as ship-sop's own file, with `archive-backlog.sh`.
+- **Tests and CI.** The agent-sop push-gate, project-type, dispatcher, library and installer fixtures are ported to `tests/push-gate.sh` and `tests/install-hooks.sh`, with the `SUITE_DONE` early-stop guard; retired-hook cases are left out. `tests/receipt-integration.sh` uses the shipped library and `tests/receipt-lib-check.sh` replaces the agent-sop compatibility test (no minimum agent-sop). CI runs every suite with no agent-sop checkout, shellchecks the hooks as first-party code, and fails if a script or test names an external checkout.
+- **Docs.** The README describes only what ship-sop does, with an optional working-rules snippet; CLAUDE.md, AGENTS.md, the docs index, the feature map and the commands and skills point at the new paths.
+
+**Acceptance criteria:**
+- Every `tests/*.sh` passes with no `AGENT_SOP_SOURCE` set and no agent-sop checkout readable
+- `shellcheck -S warning` passes on `setup.sh`, `scripts/`, `scripts/hooks/` and `tests/`
+- `git grep agent-sop` outside history lists only the migration code, its data and its tests, and the CI guard
+- A fresh install registers exactly one push gate at the new path, installs both reviewer agents, refuses an uncovered push in an auto-mode project, and `--uninstall` removes the registration
+- An existing agent-sop-style install ends with exactly one registration, at the new path, and its pristine old copies removed
+
+**Source:** operator decision 11 Oct 2026 (fold agent-sop into ship-sop; archive agent-sop afterwards).
+
+---
+
 ## Shipped Archive
 
 *Items below are shipped or verified. Never removed. Move items here when Backlog.md exceeds ~2,000 lines and items are older than 90 days.*

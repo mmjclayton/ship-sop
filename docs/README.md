@@ -1,40 +1,31 @@
 # `docs/` orientation
 
-Audience: anyone landing in this tree without context. Some files are ship-sop's own product surface, some are pristine replicas synced from upstream agent-sop, and some are SOP-generated history. Knowing which is which avoids breaking integrations.
+Audience: anyone landing in this tree without context. Some files are ship-sop's
+product surface, and some are history kept for reference.
 
-## ship-sop's own surface (modify freely in this repo)
+## Product surface (modify in this repo)
 
-- `ship-sop.md` — redirect stub; the spec lives in the top-level `README.md` post-P11
-- `feature-map.md` — shipped-features inventory
-- `agent-memory.md` — narrative cross-session context
-- `templates/ship-sop.config.json` — default config
-- `templates/ship-sop.schema.json` — JSON Schema for the config
+- `templates/ship-sop.config.json` - default config
+- `templates/ship-sop.schema.json` - JSON Schema for the config
+- `templates/review-template.md` - review-artifact template
+- `feature-map.md` - shipped-features inventory
+- `ship-sop.md` - redirect stub; the spec lives in the top-level `README.md`
+- `benchmark/p40/` - the blind precision sample of ship-gate blocks (P40)
 
-## agent-sop pristine replicas (do **not** modify in this repo)
+## History (read, do not rewrite)
 
-These files are SHA-tracked against upstream `agent-sop` via `.claude/agent-sop.config.json` and synced via `/update-agent-sop`. Edits belong in the agent-sop repo, then re-synced here.
-
-- `sop/{claude-agent-sop,security,sandboxing,harness-configuration,compliance-checklist}.md` — agent-sop's SOP corpus
-- `guides/{optional-patterns,multi-agent-context-routing,multi-agent-parallel-sessions,managed-agents-integration,sop-hill-climbing,sop-common-mistakes}.md` — agent-sop's how-to library
-- `templates/review-template.md` — agent-sop's review-artifact template
-- `agent-memory/in-flight/README.md` — convention doc
-
-## SOP-generated (per agent-sop conventions)
-
-Written by `/update-sop` on session-end. Browse for project history; the rollup in the top-level `CLAUDE.md` is regenerated from these.
-
-- `recent-work/YYYY-MM-DD_<agent-id>_<slug>.md` — per-session summaries
-- `agent-memory/decisions/YYYY-MM-DD_<agent-id>_<slug>.md` — locked architectural decisions
-- `agent-memory/gotchas/YYYY-MM-DD_<agent-id>_<slug>.md` — gotchas and lessons
-- `build-plans/phase-N.md` — per-phase batch logs
+- `agent-memory.md`, `agent-memory/decisions/`, `agent-memory/gotchas/` - decisions and lessons, as reference reading
+- `recent-work/`, `RECENT-WORK.md` - earlier session records; no longer written
+- `build-plans/` - phase plans and batch logs; planning context
+- `backlog-archive.md` - closed Backlog items moved by `scripts/archive-backlog.sh`
 
 ## Runtime artifacts
 
-`reviews/` accumulates gate output. Two filename conventions coexist — pruning logic must respect both:
+`reviews/` accumulates review output. Two filename conventions coexist:
 
 | Pattern | Origin | Lifecycle |
 |---|---|---|
-| `YYYY-MM-DD_<agent-id>_P<n>.md` | agent-sop's `/update-sop` Step 2c | **Permanent audit trail; never auto-pruned** |
-| `YYYYMMDD-HHMMSS-<gate>.md` (and `<stamp>-ship-auto.md`) | ship-sop's gate artifacts | Not pruned automatically; delete old reports by hand if needed |
+| `YYYY-MM-DD_<agent-id>_P<n>.md` | Earlier per-item review records | Permanent audit trail; never auto-pruned |
+| `YYYYMMDD-HHMMSS-<gate>.md`, `<stamp>-ship-auto.md` and `.json` | `/ship` reports and receipts | Not pruned automatically; delete old reports by hand if needed |
 
-Automatic pruning went with the retired project hook (P25); `artifacts.retain_ship_artifact_days` is a deprecated schema key and is not read.
+`artifacts.retain_ship_artifact_days` is a deprecated schema key and is not read.
