@@ -517,8 +517,9 @@ sop_shipsop_covered() {
 #     timestamp is listed as "unparsed: <line>". A log that cannot be read or
 #     processed prints "unreadable: ...", never "none".
 #   - Control bytes are stripped. Credentials are masked: URL user info up to the
-#     last @, NAME=value for names containing TOKEN, KEY, SECRET, PASSWORD,
-#     PASSWD or CREDENTIAL, and query values for similar names.
+#     last @, scheme-less user:pw@host, NAME=value for names containing TOKEN,
+#     KEY, SECRET, PASSWORD, PASSWD, PASS, AUTH or CREDENTIAL, query values for
+#     similar names, and the value after "Authorization:" or "Bearer".
 # The log is a local file an agent with shell access could alter, so the listing
 # reports what the log holds; it does not prove no bypass happened.
 sop_bypasses_since_receipt() {
@@ -552,9 +553,14 @@ sop_bypasses_since_receipt() {
     fi
     if [ ! -e "$log" ]; then printf 'none\n'; return 0; fi
     if [ ! -f "$log" ] || [ ! -r "$log" ]; then printf 'unreadable: %s\n' "$log"; return 0; fi
-    local mask="s#([[:alnum:]+.-]+://)[^[:space:]]*@#\\1***@#g
+    # Order matters: scheme-less user:pw@host first (a URL's "://" never matches
+    # it), then URL user info, query secrets, NAME=value and auth headers.
+    local mask="s#(^|[[:space:]\"'=])[^[:space:]\"'/:@]+:[^/[:space:]][^[:space:]]*@#\\1***@#g
+s#([[:alnum:]+.-]+://)[^[:space:]]*@#\\1***@#g
 s#([?&;][^=&[:space:]]*(token|key|secret|pass|pwd|auth|sig|credential)[^=&[:space:]]*=)[^&[:space:]]*#\\1***#gI
-s#(^|[^[:alnum:]_])([A-Za-z_][A-Za-z0-9_]*(token|key|secret|password|passwd|credential)[A-Za-z0-9_]*=)(\"[^\"]*\"|'[^']*'|[^[:space:]]*)#\\1\\2***#gI"
+s#(^|[^[:alnum:]_])([A-Za-z0-9_]*(token|key|secret|password|passwd|pass|auth|credential)[A-Za-z0-9_]*=)(\"[^\"]*\"|'[^']*'|[^[:space:]]*)#\\1\\2***#gI
+s#(authorization:[[:space:]]*((bearer|basic|token)[[:space:]]+)?)[^\"'[:space:]]+#\\1***#gI
+s#(bearer[[:space:]]+)[^\"'[:space:]*]+#\\1***#gI"
     if ! raw=$(awk -v since="$since" '
             NF == 0 { next }
             $1 ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$/ { if ($1 >= since) print; next }

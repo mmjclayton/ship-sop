@@ -753,17 +753,22 @@ printf '%s\n' '2026-10-01T09:00:00Z aaa SOP_SKIP_GATE=1 git push' \
     '2026-10-01T11:30:00Z m1 SOP_SKIP_GATE=1 git push https://u:pa/ss@h/x' \
     '2026-10-01T11:30:00Z m2 SOP_SKIP_GATE=1 git push https://u:p@ss@h' \
     "2026-10-01T11:30:00Z m3 GH_TOKEN=abc123 MY_API_KEY='sec ret' SOP_SKIP_GATE=1 git push" \
-    '2026-10-01T11:30:00Z m4 SOP_SKIP_GATE=1 git push https://h/r.git?token=qwe789&x=1' > "$BL/.ship/bypass.log"
+    '2026-10-01T11:30:00Z m4 SOP_SKIP_GATE=1 git push https://h/r.git?token=qwe789&x=1' \
+    '2026-10-01T11:30:00Z m5 PASS=hunter2 SOP_SKIP_GATE=1 git push' \
+    '2026-10-01T11:30:00Z m6 SOP_SKIP_GATE=1 git -c http.extraheader="Authorization: Bearer zzz111" push' \
+    '2026-10-01T11:30:00Z m7 SOP_SKIP_GATE=1 git push deploy:pw999@host:repo.git' > "$BL/.ship/bypass.log"
 OUT=$(bypasses)
-if [ "$(lines "$OUT")" = 7 ]; then ok "bypass-list-no-receipt-lists-all"; else bad "bypass-list-no-receipt-lists-all" "$OUT"; fi
-for leak in 'pa/ss' 'p@ss' 'abc123' 'sec ret' 'qwe789'; do
+if [ "$(lines "$OUT")" = 10 ]; then ok "bypass-list-no-receipt-lists-all"; else bad "bypass-list-no-receipt-lists-all" "$OUT"; fi
+for leak in 'pa/ss' 'p@ss' 'abc123' 'sec ret' 'qwe789' 'hunter2' 'zzz111' 'pw999'; do
     if printf '%s' "$OUT" | grep -qF "$leak"; then bad "bypass-list-masks: $leak" "$OUT"; else ok "bypass-list-masks: $leak"; fi
 done
-if [ "$(printf '%s\n' "$OUT" | grep -c 'SOP_SKIP_GATE=1 git push')" = 7 ] && printf '%s' "$OUT" | grep -q 'https://\*\*\*@h/x'; then ok "bypass-list-masking-keeps-the-command"; else bad "bypass-list-masking-keeps-the-command" "$OUT"; fi
+if [ "$(printf '%s\n' "$OUT" | grep -c 'SOP_SKIP_GATE=1 git')" = 10 ] && printf '%s' "$OUT" | grep -q 'https://\*\*\*@h/x' \
+   && printf '%s' "$OUT" | grep -q '^2026-10-01T11:30:00Z m7 SOP_SKIP_GATE=1 git push \*\*\*@host:repo.git$' \
+   && printf '%s' "$OUT" | grep -q 'Authorization: Bearer \*\*\*" push$'; then ok "bypass-list-masking-keeps-the-command"; else bad "bypass-list-masking-keeps-the-command" "$OUT"; fi
 # A valid receipt at 10:00:00: the entry in that same second is still listed.
 commit_receipt 20261001-100000 2026-10-01T10:00:00Z 2026-10-01T10:30:00Z
 OUT=$(bypasses)
-if [ "$(lines "$OUT")" = 6 ] && printf '%s' "$OUT" | grep -q '^2026-10-01T10:00:00Z bbb' && ! printf '%s' "$OUT" | grep -q ' aaa '; then ok "bypass-list-after-previous-receipt-same-second-kept"; else bad "bypass-list-after-previous-receipt-same-second-kept" "$OUT"; fi
+if [ "$(lines "$OUT")" = 9 ] && printf '%s' "$OUT" | grep -q '^2026-10-01T10:00:00Z bbb' && ! printf '%s' "$OUT" | grep -q ' aaa '; then ok "bypass-list-after-previous-receipt-same-second-kept"; else bad "bypass-list-after-previous-receipt-same-second-kept" "$OUT"; fi
 if [ "$(bypasses "$BL/sub")" = "$OUT" ]; then ok "bypass-list-from-subdirectory"; else bad "bypass-list-from-subdirectory" "$(bypasses "$BL/sub")"; fi
 if [ "$(bypasses "$TMP/nogit")" = "unreadable: not a git repository" ]; then ok "bypass-list-outside-a-repo-unreadable"; else bad "bypass-list-outside-a-repo-unreadable" "$(bypasses "$TMP/nogit")"; fi
 # Uncommitted, junk or forged receipts never move the cutoff.
@@ -779,9 +784,15 @@ commit_receipt 20261001-120000 2999-01-01T00:00:00Z 2026-10-01T12:00:00Z
 printf '%s\n' '2026-10-01T13:00:00Z ddd SOP_SKIP_GATE=1 git push' >> "$BL/.ship/bypass.log"
 OUT=$(bypasses)
 if [ "$OUT" = '2026-10-01T13:00:00Z ddd SOP_SKIP_GATE=1 git push' ]; then ok "bypass-list-future-written-at-uses-commit-time"; else bad "bypass-list-future-written-at-uses-commit-time" "$OUT"; fi
-# Both times in the future: the receipt is ignored.
-commit_receipt 29990102-000000 2999-01-02T00:00:00Z 2999-01-02T00:00:00Z
-if [ "$(bypasses)" = '2026-10-01T13:00:00Z ddd SOP_SKIP_GATE=1 git push' ]; then ok "bypass-list-ignores-future-receipt"; else bad "bypass-list-ignores-future-receipt" "$(bypasses)"; fi
+# Both times in the future: the receipt is ignored. The fixture is a receipt that
+# passes sop_receipt_valid and is really committed with a future committer date
+# (2099: git rejects some far-future dates), so only the future-time guard can
+# keep it from hiding the 13:00 entry.
+commit_receipt 20990102-000000 2099-01-02T00:00:00Z 2099-01-02T00:00:00Z
+FUTURE_OK=0
+if [ "$(TZ=UTC git -C "$BL" log -1 --format=%cd --date=format-local:%Y -- docs/reviews/20990102-000000-ship-auto.json)" = 2099 ] \
+   && ( . "$HOOKS_DIR/sop-lib.sh"; sop_receipt_valid "$BL" "$BL/docs/reviews/20990102-000000-ship-auto.json" ); then FUTURE_OK=1; fi
+if [ "$FUTURE_OK" = 1 ] && [ "$(bypasses)" = '2026-10-01T13:00:00Z ddd SOP_SKIP_GATE=1 git push' ]; then ok "bypass-list-ignores-future-receipt"; else bad "bypass-list-ignores-future-receipt" "fixture-valid=$FUTURE_OK $(bypasses)"; fi
 # Control bytes are stripped; a line without a timestamp is shown as unparsed.
 printf '2026-10-01T14:00:00Z eee \033[31mred\r\n' >> "$BL/.ship/bypass.log"
 printf 'garbled line\n' >> "$BL/.ship/bypass.log"
