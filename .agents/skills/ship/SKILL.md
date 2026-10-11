@@ -35,8 +35,9 @@ code signal. Non-code projects stop with an explanation.
    version (reviewer definition SHA), model (actual model if known, otherwise
    runtime-default-unresolved), verdict (PASS/BLOCK/INCOMPLETE), findings, and
    the run counts (P34): launches (runner invocations for this reviewer, at
-   least 1), rechecks (re-reviews of a fix commit), block_rounds (rounds that
-   returned BLOCK, never more than launches plus rechecks), and usage. For
+   least 1), rechecks (re-reviews of a fix commit), block_rounds (rounds with a
+   finding at or above that reviewer's block_on, never more than launches plus
+   rechecks), and usage. For
    usage, collect every "Review evidence:" directory the runner printed for
    that reviewer (launches and rechecks alike) and run
    `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/codex-usage.sh" --agent <name> <dir>...`;
@@ -61,7 +62,10 @@ code signal. Non-code projects stop with an explanation.
    of that HEAD. Do not stamp an old review with a newer SHA. Do not commit, push,
    tag or publish as part of ship. Do not file findings into Backlog automatically.
    Fix only findings at or above their reviewer's threshold; list the rest in the
-   report as notes, unfixed, so they never trigger a re-review. Count a block
+   report as notes, unfixed, so they never trigger a re-review. Record a fixed
+   threshold finding as INFO with the fix commit: the final receipt holds no
+   finding at or above any block_on. End with a line counting the notes, and name
+   any security-reviewer note. Count a block
    round only when a finding met the threshold. Report blocking findings first. Cite the same report from the Backlog
    entry's `review:` line.
 
