@@ -400,8 +400,8 @@ sop_agents_in_scope() {
 # Validate completion and derive threshold decisions, independently of prose verdicts.
 # schema_version 1 receipts stay valid; version 2 (ship-sop P34) adds per-reviewer
 # run counts - launches (fresh agents, at least one), rechecks (re-reviews with
-# context intact), block_rounds (rounds that returned BLOCK, never more than the
-# runs) - and an optional usage object the runtime may supply; null when it cannot.
+# context intact), block_rounds (rounds with a finding at or above the reviewer's
+# block_on, never more than the runs) - and an optional usage object the runtime may supply; null when it cannot.
 sop_receipt_valid() {
     local root="$1" receipt="$2" cfg sha base required tree scope
     cfg=$(sop_effective_config "$root")
@@ -545,8 +545,8 @@ sop_shipsop_gate() {
     printf '  Run these agents against that range, collect every result (they run in the background), then write %s and a validated companion JSON receipt for %s (a Covers: line alone is not coverage):\n' "$report" "$head"
     printf '%s\n' "$agents"
     if [ "${SHIP_SOP_RUNTIME:-claude}" = codex ]; then
-        printf '  Use the ship skill: run reviewers in separate checkouts with a read-only sandbox; collect every result, then write the report in the parent. Never substitute a worktree path in a prompt for enforced isolation.\n'
+        printf '  Use the ship skill: run reviewers in separate checkouts with a read-only sandbox, each with --block-on set to its block_on above; collect every result, then write the report in the parent. Never substitute a worktree path in a prompt for enforced isolation.\n'
         return
     fi
-    printf '  Rules: launch each agent with isolation: "worktree", read-only; wait for every result; write the report after any fix commit so it covers HEAD; CRITICAL/HIGH at the top of your next reply with file:line, MEDIUM/LOW stay in the report; file nothing to Backlog.md.\n'
+    printf '  Rules: launch each agent with isolation: "worktree", read-only; wait for every result; write the report after any fix commit so it covers HEAD; give each reviewer its block_on above and the severity rule from /ship; findings at or above a reviewer'"'"'s block_on at the top of your next reply with file:line, the rest stay in the report as notes; file nothing to Backlog.md.\n'
 }

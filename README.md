@@ -111,18 +111,22 @@ affects all of them. To stop automatic review in one project only, run
 
 ## Configuration
 
-Edit `ship-sop.config.json` in the project. The defaults:
+Edit `ship-sop.config.json` in the project. A reviewer blocks on findings at or above its threshold. The defaults:
 
 | Reviewer | Enabled | Blocks on | Runs when the diff touches |
 |---|---|---|---|
-| `security-reviewer` | Yes | CRITICAL | shell, server/auth/route code, HTML templates, env and container files, workflows, SQL |
-| `silent-failure-hunter` | Yes | HIGH or CRITICAL | any code |
-| `code-reviewer` | Yes | HIGH or CRITICAL | any code |
+| `security-reviewer` | Yes | HIGH | shell, server/auth/route code, HTML templates, env and container files, workflows, SQL |
+| `silent-failure-hunter` | Yes | HIGH | any code |
+| `code-reviewer` | Yes | HIGH | any code |
 | `pr-test-analyzer` | No | Advisory | any code |
 | `compliance-reviewer` | No | CRITICAL | any code |
 | `diagram-builder` | No | Advisory | any code |
 
 - `enabled` and `block_on` set each reviewer; `block_on: "never"` makes it advisory.
+  Only findings at or above a reviewer's `block_on` block and get fixed in that
+  ship; the rest are recorded as notes. Reviewers rate a finding CRITICAL or HIGH
+  only when it has user or data impact, so the default thresholds (HIGH for
+  security, code and silent-failure) block on impact, not style.
 - `paths` (an array of regular expressions) scopes a reviewer: it joins only when
   a changed path matches. Without `paths` it runs on every code diff; an empty
   array never runs it. The push gate, the receipt check and `ship` read the same

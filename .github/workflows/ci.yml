@@ -53,6 +53,8 @@ jobs:
       - name: Push gate installer and migration
         run: bash tests/install-hooks.sh
 
+      - name: Severity rule shared by Claude and Codex
+        run: bash tests/severity-rule.sh
       - name: Claude agents and gate install
         run: bash tests/install-agents.sh
 
