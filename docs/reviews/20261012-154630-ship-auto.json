@@ -1,0 +1,140 @@
+{
+  "schema_version": 2,
+  "base": "eaa5a2104177c5db4c0f6e49fd8b208fb51a87a2",
+  "head": "0bc34a4d847b5da5113b9ddcd295c6efcd5a2858",
+  "tree": "5b159c24e5da413e657cdef4682c3fe5bd6262c7",
+  "policy_sha256": "76049105bc652b9a92fb3e34c6424e1c38bf8e198780f112ba52e07253717025",
+  "written_at": "2026-10-12T04:48:12Z",
+  "tests": {
+    "status": "PASS",
+    "evidence": "At 0bc34a4 on macOS: claude-install PASS; codex-install PASS; codex-usage PASS; install-agents PASS; install-hooks PASS; legacy-hook PASS; push-gate PASS; receipt-contract PASS; receipt-integration PASS; receipt-lib-check PASS; receipt-totals PASS; severity-rule PASS; validate-state-transitions PASS. The old sop-lib.sh fails the 23 new push-gate checks; the fresh-install refusal names /ship and both reminders."
+  },
+  "reviewers": [
+    {
+      "name": "security-reviewer",
+      "version": "0f8a59958459703fc4108ecf1977f4638b6a4565",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 0,
+      "usage": {
+        "source": "claude-task-notification",
+        "runs": [
+          {
+            "instance": 1,
+            "tokens": 50604,
+            "duration_ms": 57612
+          },
+          {
+            "instance": 1,
+            "tokens": 63306,
+            "duration_ms": 33785
+          }
+        ],
+        "tokens": {
+          "total_tokens": 63306
+        },
+        "duration_ms": 91397
+      },
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/hooks/sop-lib.sh",
+          "line": 576,
+          "message": "pattern masking cannot catch an unrecognisable secret such as a short-flag value; documented"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/hooks/sop-lib.sh",
+          "line": 564,
+          "message": "fixed: bypass entries in committed receipts missed header, flag, JSON and prefixed tokens; usage_note uncapped"
+        }
+      ]
+    },
+    {
+      "name": "code-reviewer",
+      "version": "cb5fe962fe950203b8f3b3c259f2d94fd65b8fbd",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 0,
+      "usage": {
+        "source": "claude-task-notification",
+        "runs": [
+          {
+            "instance": 1,
+            "tokens": 59308,
+            "duration_ms": 157120
+          },
+          {
+            "instance": 1,
+            "tokens": 71911,
+            "duration_ms": 119479
+          }
+        ],
+        "tokens": {
+          "total_tokens": 71911
+        },
+        "duration_ms": 276599
+      },
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/ship-receipt.sh",
+          "line": 86,
+          "message": "an unnamed null-usage reviewer gives a receipt the validator refuses, with a generic message"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/hooks/sop-lib.sh",
+          "line": 445,
+          "message": "zero-usage rule checked: no existing receipt in any repo carries Claude usage, so none is invalidated"
+        }
+      ]
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "46bcbfc7adb8b13d1e0f0d9bcdf16d512b165d89",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 0,
+      "usage": {
+        "source": "claude-task-notification",
+        "runs": [
+          {
+            "instance": 1,
+            "tokens": 65485,
+            "duration_ms": 318154
+          },
+          {
+            "instance": 1,
+            "tokens": 79277,
+            "duration_ms": 311301
+          }
+        ],
+        "tokens": {
+          "total_tokens": 79277
+        },
+        "duration_ms": 629455
+      },
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/hooks/sop-lib.sh",
+          "line": 460,
+          "message": "validator does not require usage_unavailable to list every null-usage reviewer; the tool always does"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/receipt-totals.sh",
+          "line": 151,
+          "message": "fixed: totals table could not tell none, unreadable and never recorded apart; unreadable logs were silent"
+        }
+      ]
+    }
+  ]
+}
