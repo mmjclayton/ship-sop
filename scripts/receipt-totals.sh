@@ -23,6 +23,12 @@
 # Test-catch (P44). block_tests results are counted: PASS (the suite passed at
 # the blocked commit, so the tests missed what blocked), FAIL and NOT_AVAILABLE;
 # a blocked change (v2+) with no block_tests field counts as "no record".
+# Recording gaps and bypasses (P45). Receipts carrying a usage_note (a Claude
+# reviewer's usage was unavailable, with the reason) are counted. bypasses counts
+# the bypass-log entries the receipt tool recorded, over receipts that carry the
+# field; an "unreadable: ..." entry is not a bypass and is counted separately.
+# With no receipt carrying the field, both are null in --json and n/a in the
+# table. A non-string entry (a hand edit) is ignored, never a crash.
 # --json adds a per-change list, and medians and ranges per change.
 # Exit status: 0 when every file was read, 1 when a file was skipped or no
 # receipts were found (the totals still print), 2 on bad arguments.
@@ -61,6 +67,8 @@ ROW_FILTER='
         schema: (.schema_version // 1),
         block_tests: [(.block_tests // [] | if type == "array" then .[] else empty end) | objects | .result | strings],
         block_tests_recorded: has("block_tests"),
+        usage_note: ((.usage_note | type) == "string"),
+        bypasses: (if (.bypasses | type) == "array" then [.bypasses[] | strings] else null end),
         reviewers: [.reviewers[] | {launches, rechecks, block_rounds,
           usage: (.usage | cost),
           findings: [(.findings // [])[] | objects | .severity | strings]}]}
@@ -102,7 +110,7 @@ summary=$(jq -s '
                            | map({key: .[0].source, value: ([.[].tokens] | add)}) | from_entries else null end),
       blocked: (.schema >= 2 and any(.reviewers[]; (.block_rounds // 0) > 0)),
       block_tests_recorded,
-      block_tests: .block_tests};
+      block_tests: .block_tests, usage_note, bypasses};
   unique_by(.key)
   | group_by(.root)
   | map(
@@ -134,14 +142,20 @@ summary=$(jq -s '
         block_rounds_max: ([$changes[].block_rounds | numbers] | max)},
       block_tests: ([.[].block_tests[]] | group_by(.) | map({key: .[0], value: length}) | from_entries),
       blocked_without_block_tests: ([$changes[] | select(.blocked and (.block_tests_recorded | not))] | length),
+      receipts_with_usage_note: (map(select(.usage_note)) | length),
+      receipts_with_bypass_record: (map(select(.bypasses != null)) | length),
+      bypasses: (if any(.[]; .bypasses != null) then
+          ([.[].bypasses // [] | .[] | select(startswith("unreadable:") | not)] | length) else null end),
+      unreadable_bypass_listings: (if any(.[]; .bypasses != null) then
+          (map(select(any(.bypasses // [] | .[]; startswith("unreadable:")))) | length) else null end),
       changes: $changes
     })' "$rows")
 
 if [ "$FORMAT" = json ]; then
     printf '%s\n' "$summary"
 else
-    printf '| Project | Receipts | v2+ | Gates that blocked (v2+) | Block rounds | Launches | Re-checks | CRITICAL | HIGH | MEDIUM | LOW | INFO | Changes with usage | Tokens | Reviewer minutes | Tests at blocks: pass / fail / n.a. / no record |\n'
-    printf '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n'
-    jq -r '.[] | "| \(.project) | \(.receipts) | \(.schema_v2) | \(.gates_that_blocked) | \(.block_rounds) | \(.launches) | \(.rechecks) | \(.findings.CRITICAL // 0) | \(.findings.HIGH // 0) | \(.findings.MEDIUM // 0) | \(.findings.LOW // 0) | \(.findings.INFO // 0) | \(.changes_with_usage) | \(.tokens // "n/a") | \(.reviewer_minutes // "n/a") | \(.block_tests.PASS // 0) / \(.block_tests.FAIL // 0) / \(.block_tests.NOT_AVAILABLE // 0) / \(.blocked_without_block_tests) |"' <<< "$summary"
+    printf '| Project | Receipts | v2+ | Gates that blocked (v2+) | Block rounds | Launches | Re-checks | CRITICAL | HIGH | MEDIUM | LOW | INFO | Changes with usage | Tokens | Reviewer minutes | Tests at blocks: pass / fail / n.a. / no record | Usage notes / receipts | Receipts with bypass record | Bypasses | Unreadable bypass listings |\n'
+    printf '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n'
+    jq -r '.[] | "| \(.project) | \(.receipts) | \(.schema_v2) | \(.gates_that_blocked) | \(.block_rounds) | \(.launches) | \(.rechecks) | \(.findings.CRITICAL // 0) | \(.findings.HIGH // 0) | \(.findings.MEDIUM // 0) | \(.findings.LOW // 0) | \(.findings.INFO // 0) | \(.changes_with_usage) | \(.tokens // "n/a") | \(.reviewer_minutes // "n/a") | \(.block_tests.PASS // 0) / \(.block_tests.FAIL // 0) / \(.block_tests.NOT_AVAILABLE // 0) / \(.blocked_without_block_tests) | \(.receipts_with_usage_note) / \(.receipts) | \(.receipts_with_bypass_record) | \(.bypasses // "n/a") | \(.unreadable_bypass_listings // "n/a") |"' <<< "$summary"
 fi
 [ "$problems" = 0 ] || { echo "$problems problem(s) reading receipts; see above" >&2; exit 1; }

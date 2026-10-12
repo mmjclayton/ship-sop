@@ -229,6 +229,11 @@ run_hook "$PUSH" "$GATED" "$(push_json 'git push -u origin feat/push')"
 if refused && ! grep -qi "SOP_SKIP_GATE\|bypass" "$HOOK_ERR" && grep -q "ship-auto.md" "$HOOK_ERR" && grep -q "@security-reviewer" "$HOOK_ERR" && grep -q "@code-reviewer" "$HOOK_ERR" && ! grep -q "diagram-builder" "$HOOK_ERR"; then ok "push-uncovered-refused-names-enabled-agents"; else bad "push-uncovered-refused-names-enabled-agents" "exit $HOOK_EXIT stderr='$(cat "$HOOK_ERR")'"; fi
 # The demand tells the session how to run the agents and never to file findings to Backlog.md.
 if grep -q 'isolation: "worktree"' "$HOOK_ERR" && grep -q "file nothing to Backlog.md" "$HOOK_ERR"; then ok "push-demand-names-isolation-and-no-backlog-filing"; else bad "push-demand-names-isolation-and-no-backlog-filing" "stderr='$(cat "$HOOK_ERR")'"; fi
+# P45: the demand points at /ship and names the two records sessions skip.
+if grep -q 'Run /ship (it covers reviewers, usage and block tests)' "$HOOK_ERR" \
+   && grep -q "record each reviewer's token and duration figures" "$HOOK_ERR" \
+   && grep -q "run the project's tests at the blocked commit before fixing it" "$HOOK_ERR" \
+   && ! grep -qi 'SOP_SKIP_GATE\|bypass' "$HOOK_ERR"; then ok "push-demand-names-ship-usage-and-block-tests"; else bad "push-demand-names-ship-usage-and-block-tests" "stderr='$(cat "$HOOK_ERR")'"; fi
 
 run_hook "$PUSH" "$GATED" "$(push_json 'gh pr create --fill')"
 if refused; then ok "push-gh-pr-create-refused"; else bad "push-gh-pr-create-refused" "exit $HOOK_EXIT"; fi
@@ -517,6 +522,33 @@ v2_case block-tests-required-when-blocked refused ". + {written_at: \"2026-10-12
 v2_case block-tests-empty-allowed-when-blocked covers ". + {written_at: \"2026-10-12T00:00:00Z\", block_tests: []}"
 v2_case block-tests-not-required-when-unblocked covers ".reviewers |= map(.block_rounds = 0) | . + {written_at: \"2026-10-12T00:00:00Z\"}"
 v2_case block-tests-object-rejected refused ". + {block_tests: {commit: .head, result: \"PASS\", evidence: \"x\"}}"
+# usage_note and bypasses (P45): optional, so receipts written before P45 (null
+# usage, no note, no listing, with written_at) still qualify; malformed ones do not.
+v2_case pre-p45-null-usage-no-note-accepted covers ".reviewers |= map(.block_rounds = 0) | . + {written_at: \"2026-10-12T00:00:00Z\"}"
+v2_case usage-note-accepted covers ". + {block_tests: [], usage_note: \"notifications lost on compaction\"}"
+v2_case usage-note-empty-rejected refused ". + {block_tests: [], usage_note: \"\"}"
+v2_case usage-note-number-rejected refused ". + {block_tests: [], usage_note: 5}"
+v2_case usage-note-null-rejected refused ". + {block_tests: [], usage_note: null}"
+# P45 review: a note of 10 to 500 characters with no control characters; the
+# tool's list of reviewers without usage; no zero figures in a Claude run.
+v2_case usage-note-short-rejected refused ". + {block_tests: [], usage_note: \"too short\"}"
+v2_case usage-note-ten-accepted covers ". + {block_tests: [], usage_note: \"0123456789\"}"
+v2_case usage-note-long-rejected refused ". + {block_tests: [], usage_note: (\"x\" * 501)}"
+v2_case usage-note-500-accepted covers ". + {block_tests: [], usage_note: (\"x\" * 500)}"
+v2_case usage-note-control-rejected refused ". + {block_tests: [], usage_note: \"lost on\\u001b[31m compaction\"}"
+v2_case usage-unavailable-accepted covers ". + {block_tests: [], usage_unavailable: [.reviewers[0].name]}"
+v2_case usage-unavailable-unknown-name-rejected refused ". + {block_tests: [], usage_unavailable: [\"no-such-reviewer\"]}"
+v2_case usage-unavailable-reviewer-with-usage-rejected refused ".reviewers[0].usage = $CLAUDE_USAGE | . + {block_tests: [], usage_unavailable: [.reviewers[0].name]}"
+v2_case usage-unavailable-duplicate-rejected refused ". + {block_tests: [], usage_unavailable: [.reviewers[0].name, .reviewers[0].name]}"
+v2_case usage-unavailable-empty-rejected refused ". + {block_tests: [], usage_unavailable: []}"
+v2_case usage-unavailable-string-rejected refused ". + {block_tests: [], usage_unavailable: .reviewers[0].name}"
+v2_case claude-usage-zero-tokens-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs[0].tokens = 0))"
+v2_case claude-usage-zero-duration-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs[0].duration_ms = 0 | .duration_ms = 2000))"
+v2_case bypasses-empty-accepted covers ". + {block_tests: [], bypasses: []}"
+v2_case bypasses-strings-accepted covers ". + {block_tests: [], bypasses: [\"2026-10-12T01:00:00Z abc git push\", \"unreadable: .ship/bypass.log\"]}"
+v2_case bypasses-string-rejected refused ". + {block_tests: [], bypasses: \"none\"}"
+v2_case bypasses-number-entry-rejected refused ". + {block_tests: [], bypasses: [1]}"
+v2_case bypasses-null-rejected refused ". + {block_tests: [], bypasses: null}"
 
 # ── Library rules: policy, receipts and coverage ──────────────────────────────
 LIBREPO="$TMP/librepo"
@@ -613,6 +645,9 @@ if [ -n "$(lib sop_shipsop_gate "$LIBREPO")" ]; then ok "lib-nested-instructions
 CODEX_INPUT=$(jq -nc --arg cwd "$GATED" '{cwd:$cwd,session_id:"codex-fixture",tool_name:"Bash",tool_input:{command:"git push origin HEAD"}}')
 printf '%s' "$CODEX_INPUT" | CODEX_HOME="$TMP/codex" bash "$CODEX_HOOK" PreToolUse > "$TMP/cx.out" 2> "$TMP/cx.err"; CX=$?
 if [ "$CX" = 2 ] && grep -q '\[ship-sop\] push refused' "$TMP/cx.err" && grep -q 'ship skill' "$TMP/cx.err"; then ok "codex-dispatcher-refuses-uncovered-push"; else bad "codex-dispatcher-refuses-uncovered-push" "exit $CX: $(cat "$TMP/cx.err")"; fi
+# P45: the Codex demand names the same two records and no bypass.
+if grep -q 'Review evidence:" directory' "$TMP/cx.err" && grep -q "tests at the blocked commit before fixing it" "$TMP/cx.err" \
+   && ! grep -qi 'SOP_SKIP_GATE\|bypass\|/ship' "$TMP/cx.err"; then ok "codex-demand-names-usage-and-block-tests"; else bad "codex-demand-names-usage-and-block-tests" "$(cat "$TMP/cx.err")"; fi
 for ev in SessionStart UserPromptSubmit Stop; do
     printf '%s' "$CODEX_INPUT" | bash "$CODEX_HOOK" "$ev" > "$TMP/cx.out" 2> "$TMP/cx.err"; CX=$?
     if [ "$CX" = 0 ] && [ ! -s "$TMP/cx.out" ] && [ ! -s "$TMP/cx.err" ]; then ok "codex-dispatcher-retired-$ev-is-a-no-op"; else bad "codex-dispatcher-retired-$ev-is-a-no-op" "exit $CX"; fi
@@ -798,6 +833,31 @@ printf '2026-10-01T14:00:00Z eee \033[31mred\r\n' >> "$BL/.ship/bypass.log"
 printf 'garbled line\n' >> "$BL/.ship/bypass.log"
 OUT=$(bypasses)
 if printf '%s' "$OUT" | grep -q 'eee \[31mred$' && ! printf '%s' "$OUT" | tr -d '\n' | LC_ALL=C grep -q '[[:cntrl:]]' && printf '%s' "$OUT" | grep -q '^unparsed: garbled line$'; then ok "bypass-list-strips-control-bytes-and-shows-unparsed"; else bad "bypass-list-strips-control-bytes-and-shows-unparsed" "$(printf '%s' "$OUT" | od -c | head -8)"; fi
+# P45 review: more credential forms are masked, bidi overrides and line
+# separators are stripped, and each entry is cut to 300 characters.
+: > "$BL/.ship/bypass.log"
+printf '%s\n' \
+    '2026-10-01T15:00:00Z n1 git -c http.extraheader="X-Api-Key: hdrsecret1" push' \
+    '2026-10-01T15:00:00Z n2 tool --password flagsecret2 git push' \
+    "2026-10-01T15:00:00Z n3 tool --api-token 'flag secret3' git push" \
+    '2026-10-01T15:00:00Z n4 GH ghp_ghpsecret4AAAA git push' \
+    '2026-10-01T15:00:00Z n5 X github_pat_patsecret5_BBBB git push' \
+    '2026-10-01T15:00:00Z n6 OPENAI sk-sksecret6CCCC git push' \
+    '2026-10-01T15:00:00Z n7 slack xoxb-123-slacksecret7 git push' \
+    '2026-10-01T15:00:00Z n8 aws AKIAABCDEFGHIJKLMNOP git push' \
+    '2026-10-01T15:00:00Z n9 body {"access_token":"jsonsecret9","x":1} git push' \
+    '2026-10-01T15:00:00Z n10 gho_ghosecret10 ghs_ghssecret11 git push' >> "$BL/.ship/bypass.log"
+printf '2026-10-01T15:00:00Z b1 a\xe2\x80\xaeb\xe2\x81\xa6c\xe2\x80\xa8d git push\n' >> "$BL/.ship/bypass.log"
+printf '2026-10-01T15:00:00Z long %s\n' "$(printf 'x%.0s' $(seq 1 400))" >> "$BL/.ship/bypass.log"
+OUT=$(bypasses)
+for leak in hdrsecret1 flagsecret2 'flag secret3' ghpsecret4 patsecret5 sksecret6 slacksecret7 ABCDEFGHIJKLMNOP jsonsecret9 ghosecret10 ghssecret11; do
+    if printf '%s' "$OUT" | grep -qF "$leak"; then bad "bypass-list-masks-p45: $leak" "$OUT"; else ok "bypass-list-masks-p45: $leak"; fi
+done
+if printf '%s' "$OUT" | grep -q 'X-Api-Key: \*\*\*" push$' && printf '%s' "$OUT" | grep -q -- '--password \*\*\* git push$' \
+   && printf '%s' "$OUT" | grep -q '"access_token":"\*\*\*"' && printf '%s' "$OUT" | grep -q 'AKIA\*\*\* git push$'; then ok "bypass-list-p45-masking-keeps-the-command"; else bad "bypass-list-p45-masking-keeps-the-command" "$OUT"; fi
+if printf '%s' "$OUT" | grep -q ' b1 abcd git push$' && ! printf '%s' "$OUT" | LC_ALL=C grep -q $'\xe2\x80[\xa8-\xae]\|\xe2\x81[\xa6-\xa9]'; then ok "bypass-list-strips-bidi-and-line-separators"; else bad "bypass-list-strips-bidi-and-line-separators" "$(printf '%s' "$OUT" | grep ' b1 ' | od -c | head -4)"; fi
+LONG=$(printf '%s\n' "$OUT" | grep ' long ')
+if [ "${#LONG}" = 303 ] && [ "${LONG: -3}" = '...' ]; then ok "bypass-list-entry-capped-at-300"; else bad "bypass-list-entry-capped-at-300" "length ${#LONG}"; fi
 # A processing failure is reported, never "none".
 SHIMSED="$TMP/failsed"; mkdir -p "$SHIMSED"; printf '#!/bin/sh\nexit 1\n' > "$SHIMSED/sed"; chmod +x "$SHIMSED/sed"
 OUT=$( . "$HOOKS_DIR/sop-lib.sh"; PATH="$SHIMSED:$PATH" sop_bypasses_since_receipt "$BL" )

@@ -553,6 +553,27 @@ Matt approved three changes on 12 Oct 2026. First, an independent review found t
 
 review: docs/reviews/20261012-110353-ship-auto.md
 
+### P45 - Receipt tool enforces the live-measurement record
+
+`[SHIPPED - 2026-10-12] [Bug]`
+
+P44 added live measurement, but the first 6 real receipts from Edward on 12 Oct 2026 all lack it: every reviewer's usage is null, no companion report has a `Bypasses:` line, and blocked rounds have `block_tests` recorded as NOT_AVAILABLE after the fact ("logs overwritten") rather than a test run at the blocked commit before fixing. Edward's sessions do not run `/ship`; they answer the push gate's refusal, which gave reviewers their threshold and severity rule but said nothing about usage, bypasses or block tests, and the receipt tool enforced only that `block_tests` was present. Instructions alone are not reliable, so the tool now enforces what the measurement needs.
+
+Decisions: the Claude demand reads "Run /ship (it covers reviewers, usage and block tests)" without "and the bypass listing", because P44's fixtures forbid any mention of a bypass in a refusal. An `unreadable:` bypass listing is stored in the receipt as that string (the listing ran and says the log cannot be read); only a missing function, a non-zero exit or empty output is refused. `--usage-unavailable` with every usage present is refused, so a `usage_note` always explains a real gap. Codex keeps optional usage because `codex-usage.sh` prints null when a run lacked telemetry.
+
+**Acceptance criteria:**
+- The push gate's demand points at the full workflow (Claude: "Run /ship"; Codex: "Use the ship skill"), keeps the reviewer list, thresholds and existing rules, and names the two steps sessions skip: record each reviewer's token and duration figures as they arrive, and run the tests at a blocked commit before fixing it. It names no bypass
+- Under Claude, `ship-receipt.sh` refuses a receipt in which any reviewer's usage is null or absent unless `--usage-unavailable "<reason>"` is given, and stores the reason as `usage_note`; Codex behaviour is unchanged
+- `ship-receipt.sh` runs `sop_bypasses_since_receipt` from the repository toplevel and stores the result as `bypasses` (`none` becomes `[]`); a missing function, failure or empty output is INCOMPLETE. `/ship` and the Codex skill copy the receipt's `bypasses` into the `Bypasses:` line
+- The validator accepts receipts without `usage_note` or `bypasses`, and rejects a `usage_note` that is not a non-empty string and a `bypasses` that is not an array of strings
+- `/ship`, the skill and the demand say NOT_AVAILABLE is only for a project with no runnable suite
+- `receipt-totals.sh` counts receipts carrying `usage_note`, recorded bypass entries and unreadable listings
+- The gate-value plan says the measurement window restarts when P45 is installed
+
+**Review round 1 (12 Oct 2026, on `afc0166`):** security, code and silent-failure PASS with MEDIUM and LOW notes, fixed on the branch, each with a fixture. Bypass entries now land in a committed receipt, so the listing also masks header-style secrets, `--flag value` secrets, JSON `"token":"..."` pairs and well-known token prefixes, strips bidi overrides and U+2028/2029, and cuts each entry to 300 characters. `usage_note` is stripped of control characters and must be 10 to 500 characters; the tool records `usage_unavailable` (reviewers with null usage) itself; a Claude run with 0 tokens or 0 duration is rejected. An unreadable bypass log prints a warning and the workflows say so in the report. `receipt-totals.sh` separates bypass records, entries and unreadable listings (n/a without the field) and shows usage notes against receipts. The plan's window starts at P45 and its limits name Codex null usage and self-reported block tests.
+
+review: docs/reviews/20261012-154630-ship-auto.md
+
 ---
 
 ## Shipped Archive

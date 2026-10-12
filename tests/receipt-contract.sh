@@ -33,6 +33,14 @@ sop_receipt_valid() {
          (.block_rounds | type == "number" and . >= 0) and .block_rounds <= .launches + .rechecks) else true end)' "$2" >/dev/null
 }
 sop_shipsop_covered() { sop_receipt_valid "$1" "$1/docs/reviews/valid-ship-auto.json"; }
+# The receipt tool records this listing (P45); the stub keeps the library's
+# outputs for the cases the integration test builds: no log, entries, unreadable.
+sop_bypasses_since_receipt() {
+    local log; log="$(git -C "$1" rev-parse --show-toplevel)/.ship/bypass.log"
+    if [ ! -e "$log" ]; then echo none
+    elif [ -f "$log" ]; then if [ -s "$log" ]; then cat "$log"; else echo none; fi
+    else echo "unreadable: $log"; fi
+}
 STUB
 # ship-receipt.sh checks every library function by name; the ones receipt
 # assembly never calls are present but fail loudly if they ever are.
