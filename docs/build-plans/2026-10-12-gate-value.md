@@ -53,9 +53,11 @@ This plan does not put a dollar value on a defect; that is a judgement for the o
 
 ## Decision rule, set before the data
 
-- A reviewer that catches no real defect the tests missed, across all sampled changes, is path-scoped or turned off.
+- The rules below apply only to a reviewer with at least 10 graded blocks in the window. A reviewer with fewer is reported as "insufficient data" and stays as configured.
+- A reviewer that catches no real defect the tests missed is path-scoped or turned off. The security-reviewer is never turned off: its findings are rare but severe, so at most it is path-scoped, on the same 10-block minimum.
 - A reviewer whose blocks are more than half minor or false positive is flagged for a severity-rule change.
 - Otherwise the gate stays as configured.
+- This rule was fixed on 12 Oct 2026, before any data in the window, and is not changed once data arrives.
 
 ## Order
 
@@ -69,6 +71,7 @@ The grading cost is not known yet; P40 is the only comparison, and it graded 29 
 ## What this will not show
 
 - Defects neither the gate nor the tests caught.
+- The gate's effect on code before review: an agent that knows it will be reviewed may write different code. Only what the gate catches is measured.
 - Whether a missed defect would ever have been noticed by a user.
 - Results for projects unlike Edward.
 - Whether a defect the tests missed at the blocked commit would have been caught by a test written later without the gate.
