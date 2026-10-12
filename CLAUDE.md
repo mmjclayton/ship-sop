@@ -12,6 +12,7 @@ on project details.
 - `Backlog.md` is the list of work and its status. Update an item's status tag when its state changes.
 - Ask only when the answer would materially change the result; otherwise make the call, state the assumption, and carry on.
 - Pushes go through the review gate (ship-sop) where the project has `ship-sop.config.json`.
+- Never use the gate's user-only override (see the README) unless the user explicitly instructs it in this session.
 - When files disagree, code and git win, then this file, then `Backlog.md`.
 
 ## Key Documents & Dispatch
@@ -27,8 +28,8 @@ on project details.
 | Change installation | `setup.sh`, `scripts/install-hooks.sh`, `scripts/install-codex.sh` | Preserve customisations and self-install protection |
 | Change a reviewer agent, a slash command or the receipt tool | `.claude/agents/`, `.codex/agents/`, `.claude/commands/`, `scripts/ship-receipt.sh` | Add the new blob to `scripts/shipped-user-files.txt` |
 | Change policy | `docs/templates/ship-sop.config.json` | Validated by `sop_policy_valid` in `sop-lib.sh` |
-| Recover project knowledge | `docs/agent-memory/` | Decisions and gotchas, as reference reading |
-| Review current architecture work | `docs/build-plans/review-hardening.md` | Older phase plans are historical |
+| Plan or check the gate-value measurement | `docs/build-plans/2026-10-12-gate-value.md` | Live measurement on Edward work |
+| Read history from before ship-sop was self-contained | `archive/` | Old session records, agent memory and phase plans; nothing reads them |
 
 ## Stack
 
@@ -72,7 +73,7 @@ Read the work item and implementation, add a discriminating fixture for behaviou
 changes and run the checks above.
 The coordinating session owns records; specialists return findings.
 Ship via a branch and PR; main is protected. Publication needs user authorisation.
-New non-obvious decisions belong in `docs/agent-memory/`. Earlier session records
-stay in `docs/recent-work/` as history and are no longer written; status is in
-`Backlog.md`. Feature inventory changes when work merges. Build plans are
-planning context.
+New non-obvious decisions belong in the Backlog item that makes them. Earlier
+session records and agent memory are in `archive/` as history and are no longer
+written; status is in `Backlog.md`. Feature inventory changes when work merges.
+Build plans are planning context.

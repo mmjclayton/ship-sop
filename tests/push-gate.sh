@@ -117,7 +117,8 @@ run_hook() {
     if [ "$script" = "${PUSH:-}" ]; then
         case "$HOOK_EXIT" in
             0) if [ -s "$HOOK_ERR" ] && grep -qv '^\[ship-sop\] warning: ' "$HOOK_ERR"; then bad "push-gate-invariant" "exit 0 with stderr '$(head -2 "$HOOK_ERR")' for $extra"; fi ;;
-            2) ;;
+            # P44: stderr reaches the model, so no refusal names the bypass.
+            2) if grep -q 'SOP_SKIP_GATE' "$HOOK_ERR"; then bad "push-refusal-names-no-bypass" "stderr '$(head -3 "$HOOK_ERR")' for $extra"; fi ;;
             *) bad "push-gate-invariant" "exit $HOOK_EXIT for $extra: $(head -2 "$HOOK_ERR")" ;;
         esac
     fi
@@ -225,7 +226,7 @@ configure "$GATED" "$CFG"
 git -C "$GATED" checkout -q -b feat/push
 commit_code "$GATED" "feat: needs review"
 run_hook "$PUSH" "$GATED" "$(push_json 'git push -u origin feat/push')"
-if refused && grep -q "SOP_SKIP_GATE=1" "$HOOK_ERR" && grep -q "ship-auto.md" "$HOOK_ERR" && grep -q "@security-reviewer" "$HOOK_ERR" && grep -q "@code-reviewer" "$HOOK_ERR" && ! grep -q "diagram-builder" "$HOOK_ERR"; then ok "push-uncovered-refused-names-enabled-agents"; else bad "push-uncovered-refused-names-enabled-agents" "exit $HOOK_EXIT stderr='$(cat "$HOOK_ERR")'"; fi
+if refused && ! grep -qi "SOP_SKIP_GATE\|bypass" "$HOOK_ERR" && grep -q "ship-auto.md" "$HOOK_ERR" && grep -q "@security-reviewer" "$HOOK_ERR" && grep -q "@code-reviewer" "$HOOK_ERR" && ! grep -q "diagram-builder" "$HOOK_ERR"; then ok "push-uncovered-refused-names-enabled-agents"; else bad "push-uncovered-refused-names-enabled-agents" "exit $HOOK_EXIT stderr='$(cat "$HOOK_ERR")'"; fi
 # The demand tells the session how to run the agents and never to file findings to Backlog.md.
 if grep -q 'isolation: "worktree"' "$HOOK_ERR" && grep -q "file nothing to Backlog.md" "$HOOK_ERR"; then ok "push-demand-names-isolation-and-no-backlog-filing"; else bad "push-demand-names-isolation-and-no-backlog-filing" "stderr='$(cat "$HOOK_ERR")'"; fi
 
@@ -308,9 +309,10 @@ for c in "git stash push" "git log --format=push" "npm run push-stats" "bash -c 
     run_hook "$PUSH" "$GATED" "$(jq_push_json "$c")"
     if [ "$HOOK_EXIT" = 0 ]; then ok "push-lookalike-allowed: $c"; else bad "push-lookalike-allowed: $c" "exit $HOOK_EXIT"; fi
 done
-# The bypass form the refusal message suggests does bypass.
+# The bypass form the README documents for people does bypass, and is logged.
+: > "$GATED/.ship/bypass.log"
 run_hook "$PUSH" "$GATED" "$(push_json 'cd . && SOP_SKIP_GATE=1 git push origin feat/push')"
-if [ "$HOOK_EXIT" = 0 ]; then ok "push-suggested-bypass-form-works"; else bad "push-suggested-bypass-form-works" "exit $HOOK_EXIT"; fi
+if [ "$HOOK_EXIT" = 0 ] && grep -q "$(head_of "$GATED") cd . && SOP_SKIP_GATE=1 git push origin feat/push" "$GATED/.ship/bypass.log"; then ok "push-documented-bypass-form-works-and-logs"; else bad "push-documented-bypass-form-works-and-logs" "exit $HOOK_EXIT"; fi
 # The bypass counts only on the push itself: a message that mentions it is not one.
 : > "$GATED/.ship/bypass.log"
 run_hook "$PUSH" "$GATED" "$(push_json 'git commit -m \"SOP_SKIP_GATE=1\" && git push origin feat/push')"
@@ -473,6 +475,49 @@ jq '.schema_version = 2 | .reviewers |= map(. + {launches: 1, rechecks: 2, block
 run_hook "$PUSH" "$V2" "$(push_json 'git push origin feat/counted')"
 if allowed; then ok "push-v2-receipt-with-counts-covers"; else bad "push-v2-receipt-with-counts-covers" "exit $HOOK_EXIT stderr='$(cat "$HOOK_ERR")'"; fi
 
+# Usage and block_tests shapes (P44). v2_case <label> <expect: covers|refused> <jq edit>
+v2_case() {
+    jq ".schema_version = 2 | .reviewers |= map(. + {launches: 1, rechecks: 1, block_rounds: 1, usage: null}) | $3" \
+        "$TMP/v2-base.json" > "$V2/docs/reviews/20260924-130000-ship-auto.json"
+    run_hook "$PUSH" "$V2" "$(push_json 'git push origin feat/counted')"
+    if { [ "$2" = covers ] && allowed; } || { [ "$2" = refused ] && refused; }; then ok "receipt-$1"; else bad "receipt-$1" "exit $HOOK_EXIT"; fi
+}
+# Claude: subagent_tokens is cumulative per agent instance (a re-check continues
+# the instance), duration_ms is per run. One launch and one re-check here.
+CLAUDE_USAGE='{source: "claude-task-notification", runs: [{instance: 1, tokens: 1000, duration_ms: 5000}, {instance: 1, tokens: 1500, duration_ms: 2000}], tokens: {total_tokens: 1500}, duration_ms: 7000}'
+CODEX_USAGE='{source: "codex-review", runs: 2, turns: 3, elapsed_seconds: 12.5, tokens: {input_tokens: 10, cached_input_tokens: 4, output_tokens: 3}, evidence: ["a", "b"]}'
+v2_case claude-usage-accepted covers ".reviewers |= map(.usage = $CLAUDE_USAGE)"
+v2_case claude-usage-wrong-total-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .tokens.total_tokens = 1499))"
+v2_case claude-usage-cumulative-summed-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .tokens.total_tokens = 2500))"
+v2_case claude-usage-wrong-duration-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .duration_ms = 1))"
+v2_case claude-usage-more-runs-than-launches-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs += [{instance: 1, tokens: 1500, duration_ms: 0}]))"
+v2_case claude-usage-more-instances-than-launches-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs[1].instance = 2 | .tokens.total_tokens = 2500))"
+v2_case claude-usage-falling-cumulative-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs[1].tokens = 900 | .tokens.total_tokens = 900))"
+v2_case claude-usage-no-instance-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs |= map(del(.instance))))"
+v2_case claude-usage-negative-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs[0].tokens = -1000))"
+# One launch plus two re-checks: 116735, 123830, 125807 are one instance's
+# running totals, so the reviewer used 125807 tokens, not their sum.
+LAUNCH_TWO_RECHECKS='{source: "claude-task-notification", runs: [{instance: 1, tokens: 116735, duration_ms: 35522}, {instance: 1, tokens: 123830, duration_ms: 16202}, {instance: 1, tokens: 125807, duration_ms: 5082}], tokens: {total_tokens: 125807}, duration_ms: 56806}'
+v2_case claude-usage-launch-two-rechecks-accepted covers ".reviewers |= map(.rechecks = 2 | .usage = $LAUNCH_TWO_RECHECKS)"
+v2_case claude-usage-launch-two-rechecks-summed-rejected refused ".reviewers |= map(.rechecks = 2 | .usage = ($LAUNCH_TWO_RECHECKS | .tokens.total_tokens = 366372))"
+# Two launches: each instance's last figure counts.
+v2_case claude-usage-two-instances-accepted covers ".reviewers |= map(.launches = 2 | .rechecks = 0 | .usage = {source: \"claude-task-notification\", runs: [{instance: 1, tokens: 1000, duration_ms: 5}, {instance: 2, tokens: 700, duration_ms: 6}], tokens: {total_tokens: 1700}, duration_ms: 11})"
+v2_case claude-usage-no-runs-rejected refused ".reviewers |= map(.usage = {source: \"claude-task-notification\", runs: [], tokens: {total_tokens: 0}, duration_ms: 0})"
+v2_case codex-usage-accepted covers ".reviewers |= map(.usage = $CODEX_USAGE)"
+v2_case codex-usage-string-tokens-rejected refused ".reviewers |= map(.usage = ($CODEX_USAGE | .tokens.input_tokens = \"10\"))"
+v2_case usage-unknown-source-rejected refused ".reviewers |= map(.usage = {source: \"guess\", tokens: {total_tokens: 1}})"
+v2_case usage-number-rejected refused ".reviewers |= map(.usage = 1500)"
+v2_case block-tests-accepted covers ". + {block_tests: [{commit: .head, result: \"PASS\", evidence: \"npm test: 12 passed\"}, {commit: .base, result: \"NOT_AVAILABLE\", evidence: \"no suite at that commit\"}]}"
+v2_case block-tests-empty-accepted covers ". + {block_tests: []}"
+v2_case block-tests-bad-result-rejected refused ". + {block_tests: [{commit: .head, result: \"SKIPPED\", evidence: \"x\"}]}"
+v2_case block-tests-short-commit-rejected refused ". + {block_tests: [{commit: \"abc1234\", result: \"FAIL\", evidence: \"x\"}]}"
+v2_case block-tests-no-evidence-rejected refused ". + {block_tests: [{commit: .head, result: \"FAIL\", evidence: \"\"}]}"
+v2_case block-tests-null-rejected refused ". + {block_tests: null}"
+v2_case block-tests-required-when-blocked refused ". + {written_at: \"2026-10-12T00:00:00Z\"}"
+v2_case block-tests-empty-allowed-when-blocked covers ". + {written_at: \"2026-10-12T00:00:00Z\", block_tests: []}"
+v2_case block-tests-not-required-when-unblocked covers ".reviewers |= map(.block_rounds = 0) | . + {written_at: \"2026-10-12T00:00:00Z\"}"
+v2_case block-tests-object-rejected refused ". + {block_tests: {commit: .head, result: \"PASS\", evidence: \"x\"}}"
+
 # ── Library rules: policy, receipts and coverage ──────────────────────────────
 LIBREPO="$TMP/librepo"
 git init -q -b main "$LIBREPO"
@@ -633,7 +678,7 @@ if [ "$HOOK_EXIT" = 0 ]; then ok "non-push-without-cwd-allowed"; else bad "non-p
 # HEAD cannot be read in a gated repository (no commits yet).
 EMPTYREPO="$TMP/emptyrepo"; git init -q -b main "$EMPTYREPO"; cp "$CFG" "$EMPTYREPO/ship-sop.config.json"; echo '{}' > "$EMPTYREPO/package.json"
 run_hook "$PUSH" "$EMPTYREPO" "$(push_json 'git push -u origin main')"
-if [ "$HOOK_EXIT" = 2 ] && grep -q "cannot read HEAD" "$HOOK_ERR"; then ok "push-unreadable-head-refused"; else bad "push-unreadable-head-refused" "exit $HOOK_EXIT $(cat "$HOOK_ERR")"; fi
+if [ "$HOOK_EXIT" = 2 ] && grep -q "cannot read HEAD" "$HOOK_ERR" && ! grep -qi "SOP_SKIP_GATE\|bypass" "$HOOK_ERR"; then ok "push-unreadable-head-refused"; else bad "push-unreadable-head-refused" "exit $HOOK_EXIT $(cat "$HOOK_ERR")"; fi
 
 # Origin refs exist but no recognisable default branch: the range is unknown.
 NODEF="$TMP/nodefault"; make_repo "$NODEF" code
@@ -673,9 +718,92 @@ run_hook "$PUSH" "$BYP" "$(push_json 'SOP_SKIP_GATE=1 git push origin feat/b && 
 if refused; then ok "push-bypass-must-cover-every-push"; else bad "push-bypass-must-cover-every-push" "exit $HOOK_EXIT"; fi
 run_hook "$PUSH" "$BYP" "$(push_json 'SOP_SKIP_GATE=1 git push origin feat/b && SOP_SKIP_GATE=1 gh pr create --fill')"
 if allowed && [ "$(wc -l < "$BYP/.ship/bypass.log" | tr -d ' ')" = 1 ]; then ok "push-bypass-on-every-push-allowed"; else bad "push-bypass-on-every-push-allowed" "exit $HOOK_EXIT"; fi
+# Control characters in a bypassed command (newline, ESC, CR) are logged as "?",
+# so one bypass is one line and no terminal sequence reaches the log (P44 review).
+rm -f "$BYP/.ship/bypass.log"
+run_hook "$PUSH" "$BYP" "$(jq_push_json $'SOP_SKIP_GATE=1 git push origin feat/b\necho \e[31mred\r')"
+if allowed && [ "$(wc -l < "$BYP/.ship/bypass.log" | tr -d ' ')" = 1 ] && ! tr -d '\n' < "$BYP/.ship/bypass.log" | LC_ALL=C grep -q '[[:cntrl:]]' \
+   && grep -q 'feat/b?echo ?\[31mred?$' "$BYP/.ship/bypass.log"; then ok "push-bypass-log-control-chars-sanitised"; else bad "push-bypass-log-control-chars-sanitised" "exit $HOOK_EXIT log=$(od -c "$BYP/.ship/bypass.log" | head -5)"; fi
 rm -f "$BYP/.ship/bypass.log"; mkdir -p "$BYP/.ship/bypass.log"
 run_hook "$PUSH" "$BYP" "$(push_json 'SOP_SKIP_GATE=1 git push origin feat/b')"
 if [ "$HOOK_EXIT" = 0 ] && grep -q "warning: gate bypassed, but .*bypass.log could not be written" "$HOOK_ERR"; then ok "push-bypass-log-failure-warns"; else bad "push-bypass-log-failure-warns" "exit $HOOK_EXIT $(cat "$HOOK_ERR")"; fi
+
+# ── Bypass listing for the /ship report (P44) ─────────────────────────────────
+# sop_bypasses_since_receipt lists .ship/bypass.log entries at or after the
+# newest VALID receipt committed at HEAD; its time is the earlier of written_at
+# and the time of the commit that added it, and a future time is ignored.
+BL="$TMP/bypass-list"; make_repo "$BL" code; configure "$BL" "$CFG"
+git -C "$BL" checkout -q -b feat/l; commit_code "$BL" "feat: listed"
+mkdir -p "$BL/.ship" "$BL/sub" "$TMP/nogit"
+bypasses() { ( . "$HOOKS_DIR/sop-lib.sh"; sop_bypasses_since_receipt "${1:-$BL}" ); }
+# commit_receipt <name> <written_at or ""> <commit date>: a valid receipt for HEAD.
+commit_receipt() {
+    make_receipt "$BL" "$TMP/r.json"
+    if [ -n "$2" ]; then jq --arg w "$2" '. + {written_at: $w}' "$TMP/r.json" > "$BL/docs/reviews/$1-ship-auto.json"
+    else cp "$TMP/r.json" "$BL/docs/reviews/$1-ship-auto.json"; fi
+    (cd "$BL" && $GIT add -A docs/reviews && GIT_COMMITTER_DATE="$3" $GIT commit -qm "docs: receipt $1")
+}
+lines() { printf '%s\n' "$1" | grep -c .; }
+[ "$(bypasses)" = none ] && ok "bypass-list-no-log-is-none" || bad "bypass-list-no-log-is-none" "$(bypasses)"
+: > "$BL/.ship/bypass.log"
+[ "$(bypasses)" = none ] && ok "bypass-list-empty-log-is-none" || bad "bypass-list-empty-log-is-none" "$(bypasses)"
+printf '%s\n' '2026-10-01T09:00:00Z aaa SOP_SKIP_GATE=1 git push' \
+    '2026-10-01T10:00:00Z bbb SOP_SKIP_GATE=1 git push' \
+    '2026-10-01T11:00:00Z ccc SOP_SKIP_GATE=1 git push' \
+    '2026-10-01T11:30:00Z m1 SOP_SKIP_GATE=1 git push https://u:pa/ss@h/x' \
+    '2026-10-01T11:30:00Z m2 SOP_SKIP_GATE=1 git push https://u:p@ss@h' \
+    "2026-10-01T11:30:00Z m3 GH_TOKEN=abc123 MY_API_KEY='sec ret' SOP_SKIP_GATE=1 git push" \
+    '2026-10-01T11:30:00Z m4 SOP_SKIP_GATE=1 git push https://h/r.git?token=qwe789&x=1' \
+    '2026-10-01T11:30:00Z m5 PASS=hunter2 SOP_SKIP_GATE=1 git push' \
+    '2026-10-01T11:30:00Z m6 SOP_SKIP_GATE=1 git -c http.extraheader="Authorization: Bearer zzz111" push' \
+    '2026-10-01T11:30:00Z m7 SOP_SKIP_GATE=1 git push deploy:pw999@host:repo.git' > "$BL/.ship/bypass.log"
+OUT=$(bypasses)
+if [ "$(lines "$OUT")" = 10 ]; then ok "bypass-list-no-receipt-lists-all"; else bad "bypass-list-no-receipt-lists-all" "$OUT"; fi
+for leak in 'pa/ss' 'p@ss' 'abc123' 'sec ret' 'qwe789' 'hunter2' 'zzz111' 'pw999'; do
+    if printf '%s' "$OUT" | grep -qF "$leak"; then bad "bypass-list-masks: $leak" "$OUT"; else ok "bypass-list-masks: $leak"; fi
+done
+if [ "$(printf '%s\n' "$OUT" | grep -c 'SOP_SKIP_GATE=1 git')" = 10 ] && printf '%s' "$OUT" | grep -q 'https://\*\*\*@h/x' \
+   && printf '%s' "$OUT" | grep -q '^2026-10-01T11:30:00Z m7 SOP_SKIP_GATE=1 git push \*\*\*@host:repo.git$' \
+   && printf '%s' "$OUT" | grep -q 'Authorization: Bearer \*\*\*" push$'; then ok "bypass-list-masking-keeps-the-command"; else bad "bypass-list-masking-keeps-the-command" "$OUT"; fi
+# A valid receipt at 10:00:00: the entry in that same second is still listed.
+commit_receipt 20261001-100000 2026-10-01T10:00:00Z 2026-10-01T10:30:00Z
+OUT=$(bypasses)
+if [ "$(lines "$OUT")" = 9 ] && printf '%s' "$OUT" | grep -q '^2026-10-01T10:00:00Z bbb' && ! printf '%s' "$OUT" | grep -q ' aaa '; then ok "bypass-list-after-previous-receipt-same-second-kept"; else bad "bypass-list-after-previous-receipt-same-second-kept" "$OUT"; fi
+if [ "$(bypasses "$BL/sub")" = "$OUT" ]; then ok "bypass-list-from-subdirectory"; else bad "bypass-list-from-subdirectory" "$(bypasses "$BL/sub")"; fi
+if [ "$(bypasses "$TMP/nogit")" = "unreadable: not a git repository" ]; then ok "bypass-list-outside-a-repo-unreadable"; else bad "bypass-list-outside-a-repo-unreadable" "$(bypasses "$TMP/nogit")"; fi
+# Uncommitted, junk or forged receipts never move the cutoff.
+make_receipt "$BL" "$TMP/r.json"; jq '. + {written_at: "2026-10-01T11:15:00Z"}' "$TMP/r.json" > "$BL/docs/reviews/20261001-111500-ship-auto.json"
+if printf '%s' "$(bypasses)" | grep -q ' ccc '; then ok "bypass-list-ignores-uncommitted-receipt"; else bad "bypass-list-ignores-uncommitted-receipt" "$(bypasses)"; fi
+rm -f "$BL/docs/reviews/20261001-111500-ship-auto.json"
+printf '{"written_at":"2026-10-01T11:45:00Z"}\n' > "$BL/docs/reviews/20261001-114500-ship-auto.json"
+printf '{"written_at":"2999-01-01T00:00:00Z"}\n' > "$BL/docs/reviews/29990101-000000-ship-auto.json"
+(cd "$BL" && $GIT add -A docs/reviews && GIT_COMMITTER_DATE='2026-10-01T11:50:00Z' $GIT commit -qm "docs: junk receipts")
+if printf '%s' "$(bypasses)" | grep -q ' m1 '; then ok "bypass-list-ignores-invalid-receipts"; else bad "bypass-list-ignores-invalid-receipts" "$(bypasses)"; fi
+# A valid receipt claiming 2999 counts from its commit time (12:00), the earlier.
+commit_receipt 20261001-120000 2999-01-01T00:00:00Z 2026-10-01T12:00:00Z
+printf '%s\n' '2026-10-01T13:00:00Z ddd SOP_SKIP_GATE=1 git push' >> "$BL/.ship/bypass.log"
+OUT=$(bypasses)
+if [ "$OUT" = '2026-10-01T13:00:00Z ddd SOP_SKIP_GATE=1 git push' ]; then ok "bypass-list-future-written-at-uses-commit-time"; else bad "bypass-list-future-written-at-uses-commit-time" "$OUT"; fi
+# Both times in the future: the receipt is ignored. The fixture is a receipt that
+# passes sop_receipt_valid and is really committed with a future committer date
+# (2099: git rejects some far-future dates), so only the future-time guard can
+# keep it from hiding the 13:00 entry.
+commit_receipt 20990102-000000 2099-01-02T00:00:00Z 2099-01-02T00:00:00Z
+FUTURE_OK=0
+if [ "$(TZ=UTC git -C "$BL" log -1 --format=%cd --date=format-local:%Y -- docs/reviews/20990102-000000-ship-auto.json)" = 2099 ] \
+   && ( . "$HOOKS_DIR/sop-lib.sh"; sop_receipt_valid "$BL" "$BL/docs/reviews/20990102-000000-ship-auto.json" ); then FUTURE_OK=1; fi
+if [ "$FUTURE_OK" = 1 ] && [ "$(bypasses)" = '2026-10-01T13:00:00Z ddd SOP_SKIP_GATE=1 git push' ]; then ok "bypass-list-ignores-future-receipt"; else bad "bypass-list-ignores-future-receipt" "fixture-valid=$FUTURE_OK $(bypasses)"; fi
+# Control bytes are stripped; a line without a timestamp is shown as unparsed.
+printf '2026-10-01T14:00:00Z eee \033[31mred\r\n' >> "$BL/.ship/bypass.log"
+printf 'garbled line\n' >> "$BL/.ship/bypass.log"
+OUT=$(bypasses)
+if printf '%s' "$OUT" | grep -q 'eee \[31mred$' && ! printf '%s' "$OUT" | tr -d '\n' | LC_ALL=C grep -q '[[:cntrl:]]' && printf '%s' "$OUT" | grep -q '^unparsed: garbled line$'; then ok "bypass-list-strips-control-bytes-and-shows-unparsed"; else bad "bypass-list-strips-control-bytes-and-shows-unparsed" "$(printf '%s' "$OUT" | od -c | head -8)"; fi
+# A processing failure is reported, never "none".
+SHIMSED="$TMP/failsed"; mkdir -p "$SHIMSED"; printf '#!/bin/sh\nexit 1\n' > "$SHIMSED/sed"; chmod +x "$SHIMSED/sed"
+OUT=$( . "$HOOKS_DIR/sop-lib.sh"; PATH="$SHIMSED:$PATH" sop_bypasses_since_receipt "$BL" )
+if printf '%s' "$OUT" | grep -q '^unreadable: .*could not be processed'; then ok "bypass-list-pipeline-failure-unreadable"; else bad "bypass-list-pipeline-failure-unreadable" "$OUT"; fi
+rm -f "$BL/.ship/bypass.log"; mkdir -p "$BL/.ship/bypass.log"
+if bypasses | grep -q '^unreadable: '; then ok "bypass-list-unreadable-log-reported"; else bad "bypass-list-unreadable-log-reported" "$(bypasses)"; fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""

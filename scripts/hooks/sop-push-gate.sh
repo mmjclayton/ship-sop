@@ -14,6 +14,8 @@
 #
 # Bypass: prefix every push in the command with SOP_SKIP_GATE=1. Every bypass is
 # appended to .ship/bypass.log with the HEAD it skipped, so it is greppable later.
+# The bypass is for a person. Nothing the gate prints names it: stderr goes to the
+# model, and a refusal that explains how to skip itself invites the skip (P44).
 #
 # Fails closed: Claude Code treats any exit other than 2 as "allow", so an
 # internal error here once let pushes through silently. Any exit other than 0 or 2
@@ -35,7 +37,8 @@ trap sop_gate_fail_closed EXIT
 # refuse <reason>: refuse the command (exit 2) with a reason on stderr.
 refuse() { printf '[ship-sop] push refused: %s\n' "$1" >&2; exit 2; }
 
-# Every function the gate calls, directly or through the library. A call to a
+# Every function the library defines: the gate calls them directly or through
+# the library, except sop_bypasses_since_receipt, which /ship calls. A call to a
 # missing function sits inside `$(...)` or `|| exit 0` and would read as "no
 # demand", so each is checked before any is used. scripts/ship-receipt.sh
 # carries the same list; tests/push-gate.sh keeps them equal to the library.
@@ -44,7 +47,7 @@ sop_instruction_file sop_claude_prose sop_type_from_file sop_declared_project_ty
 sop_project_type sop_is_code_repo sop_default_branch sop_range_base sop_cmd_matches_push
 sop_is_push_command sop_strip_heredocs sop_instruction_pattern sop_instructions_changed
 sop_code_lines sop_effective_config sop_policy_valid sop_policy_digest sop_changed_files_json
-sop_agents_in_scope sop_receipt_valid sop_shipsop_covered sop_shipsop_gate'
+sop_agents_in_scope sop_receipt_valid sop_shipsop_covered sop_shipsop_gate sop_bypasses_since_receipt'
 
 # looks_like_push: a loose match, used only when the input cannot be parsed or the
 # library cannot run. It over-refuses rather than miss a push.
@@ -111,7 +114,7 @@ ROOT=$(sop_repo_root "$CWD")
 sop_is_gated_repo "$ROOT" || exit 0
 
 HEAD=$(git -C "$ROOT" rev-parse -q --verify 'HEAD^{commit}' 2>/dev/null) \
-    || refuse "cannot read HEAD in $ROOT, so the push gate cannot check coverage. Commit first, or bypass once with SOP_SKIP_GATE=1."
+    || refuse "cannot read HEAD in $ROOT, so the push gate cannot check coverage. Commit first, then push again."
 
 # sop_bypass_applies <command>: true when every push in the command carries the
 # SOP_SKIP_GATE=1 assignment on its own segment, outside quotes. A message or an
@@ -130,7 +133,9 @@ sop_bypass_applies() {
 }
 
 if sop_bypass_applies "$CMD"; then
-    if ! { mkdir -p "$ROOT/.ship" && printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$HEAD" "$CMD" >> "$ROOT/.ship/bypass.log"; } 2>/dev/null; then
+    # One bypass is one line: control characters (newline, CR, ESC) become "?".
+    LOGGED_CMD=${CMD//[[:cntrl:]]/?}
+    if ! { mkdir -p "$ROOT/.ship" && printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$HEAD" "$LOGGED_CMD" >> "$ROOT/.ship/bypass.log"; } 2>/dev/null; then
         printf '[ship-sop] warning: gate bypassed, but %s/.ship/bypass.log could not be written, so this bypass is not recorded.\n' "$ROOT" >&2
     fi
     exit 0
@@ -141,7 +146,7 @@ GATE=$(sop_shipsop_gate "$ROOT") || refuse "the gate check failed in $ROOT (exit
 
 {
     printf '[ship-sop] push refused - %s\n' "$GATE"
-    printf 'Write that report, then push again. To bypass once (recorded in .ship/bypass.log), put SOP_SKIP_GATE=1 directly before the push itself, for example: SOP_SKIP_GATE=1 git push\n'
+    printf 'Write that report, then push again.\n'
 } >&2
 
 exit 2
