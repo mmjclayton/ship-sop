@@ -171,14 +171,16 @@ token figure is a running total for each agent, so a re-checked reviewer counts
 its last figure once; durations are per run and are added. Usage is null
 when a figure is unknown, never zero or estimated; under Claude the receipt tool
 refuses a null usage unless `--usage-unavailable "<reason>"` is given, and stores
-the reason as `usage_note`. When a review round blocks,
+the reason as `usage_note`; the tool itself records which reviewers lacked usage
+as `usage_unavailable`. Under Codex, null usage is allowed. When a review round blocks,
 the session runs the project's tests at the blocked commit before fixing it, and
 the `block_tests` field records each result (PASS, FAIL or NOT_AVAILABLE) with
 the commit; a new receipt with a blocked round is refused without it; a PASS there means the tests did not catch what
 the reviewer blocked. NOT_AVAILABLE is for a project with no runnable suite, not
 for a run that was skipped. The receipt tool also lists the gate bypasses since
-the previous receipt itself and stores them as `bypasses` (`[]` for none), which
-the report copies. Each receipt also records when it was written
+the previous receipt itself and stores them as `bypasses` (`[]` for none), masked
+and cut to 300 characters each, which the report copies. For bypasses the
+receipt JSON is authoritative, not the companion Markdown. Each receipt also records when it was written
 (`written_at`, UTC). Receipts without these fields stay valid. A receipt for an
 earlier commit still covers `HEAD` when only documentation has changed since.
 

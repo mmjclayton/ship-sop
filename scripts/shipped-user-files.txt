@@ -63,5 +63,5 @@ fbdb7b3bfef5f9c1ea7e832bac482aa5a008fc22 ship.md
 50b5114e58ab4cf4fb8a6319013c986a52fb6301 ship.md
 ff806ff57e4ab44ba86045e41e2def6eeaa2502b ship-receipt.sh
 ea8505d578ace8551a090224c0807d461ddd4ea2 ship.md
-e870886ed7b15829c0b7d1af269dfe6b98e942d7 ship.md
-fc0e3392536b5cca6dea7171281aed462dcc1e00 ship-receipt.sh
+f3d02c92adbb09b0d960d571fdbb9c64e3d8dbfb ship.md
+b952137820adcb718f87d144b36a7c21ce6a2bc8 ship-receipt.sh

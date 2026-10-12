@@ -52,8 +52,10 @@ code signal. Non-code projects stop with an explanation.
    `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/codex-usage.sh" --agent <name> <dir>...`;
    paste its output as the value. It prints one object summing the runs, or
    null when any run lacked telemetry; never invent a figure or sum by hand.
-   When usage is null, you may pass `--usage-unavailable "<reason>"` to the
-   receipt tool; it stores the reason as the receipt's usage_note.
+   When usage is null, you may pass `--usage-unavailable "<reason>"` (10 to
+   500 characters) to the receipt tool; it stores the reason as the receipt's
+   usage_note. The tool records which reviewers lacked usage as
+   usage_unavailable whether or not the flag is given.
    Each finding has severity, file, positive integer line, and message. Save test
    results as {"status":"PASS","evidence":"commands and actual results"}, or
    NOT_AVAILABLE with a concrete explanation when no suite exists. Never invent
@@ -75,9 +77,11 @@ code signal. Non-code projects stop with an explanation.
    receipts manually. Write a companion <stamp>-ship-auto.md with findings,
    dispositions, usage per reviewer, the test result at each blocked commit,
    links to evidence, and a `Bypasses:` line copied from the receipt's
-   `bypasses`, one entry per line verbatim, or `none` when it is `[]` (an
-   `unreadable:` entry is copied as it is and the log repaired); repeat the
-   line in the reply. Only a validated JSON receipt satisfies
+   `bypasses`, one entry per line verbatim, or `none` when it is `[]`; repeat
+   the line in the reply. When the tool printed `WARNING: bypass log
+   unreadable`, the receipt holds an `unreadable:` entry: copy it as it is, say
+   in the report and the reply that the bypass log could not be read, so
+   bypasses since the previous receipt are unknown, and repair the log. Only a validated JSON receipt satisfies
    the gate; a Covers: line in Markdown is informational. Existing Markdown-only
    reports remain history and need a new review to qualify.
 5. Small fixes may be applied in scope, but a new code commit needs a fresh review

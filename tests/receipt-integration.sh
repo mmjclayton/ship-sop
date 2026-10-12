@@ -86,8 +86,14 @@ evidence security-reviewer 'Verdict: PASS   ' "$HEAD_SHA" >/dev/null
 run_receipt docs/reviews/valid-ship-auto.json
 # Codex usage may be null (codex-usage.sh prints null when telemetry is missing),
 # so P45's usage rule does not apply there.
-jq -e 'all(.reviewers[]; .usage == null) and (has("usage_note") | not) and .bypasses == []' docs/reviews/valid-ship-auto.json >/dev/null \
-    || { echo 'FAIL: Codex receipt with null usage not written as before'; exit 1; }
+jq -e 'all(.reviewers[]; .usage == null) and (has("usage_note") | not) and .bypasses == []
+       and (.usage_unavailable | sort) == ([.reviewers[].name] | sort)' docs/reviews/valid-ship-auto.json >/dev/null \
+    || { echo 'FAIL: Codex receipt with null usage not written as before, with usage_unavailable'; exit 1; }
+# The Codex path accepts --usage-unavailable too, and stores the note (P45 review).
+bash "$SOURCE/scripts/ship-receipt.sh" --base "$BASE" --results "$WORK/results.json" --tests "$WORK/tests.json" \
+    --usage-unavailable 'runner telemetry missing for this run' --output docs/reviews/codex-note-ship-auto.json >/dev/null
+jq -e '.usage_note == "runner telemetry missing for this run" and (.usage_unavailable | length) == 3' docs/reviews/codex-note-ship-auto.json >/dev/null \
+    || { echo 'FAIL: Codex --usage-unavailable not stored'; exit 1; }
 . "$CODEX_HOME/scripts/hooks/ship-sop/sop-lib.sh"
 sop_shipsop_covered "$PWD" "$(git rev-parse HEAD)"
 if run_receipt docs/reviews/valid-ship-auto.json 2>/dev/null; then echo 'FAIL: overwrote evidence'; exit 1; fi
@@ -150,8 +156,23 @@ fi
 SHIP_SOP_USER_HOME="$WORK/user" bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --base "$BASE" \
     --usage-unavailable 'notifications were lost when the session compacted' \
     --results "$WORK/results.json" --tests "$WORK/tests.json" --output docs/reviews/claude-ship-auto.json
-jq -e '.usage_note == "notifications were lost when the session compacted"' docs/reviews/claude-ship-auto.json >/dev/null \
-    || { echo 'FAIL: usage_note not stored'; exit 1; }
+jq -e '.usage_note == "notifications were lost when the session compacted"
+       and (.usage_unavailable | sort) == ["code-reviewer", "silent-failure-hunter"]' docs/reviews/claude-ship-auto.json >/dev/null \
+    || { echo 'FAIL: usage_note or usage_unavailable not stored'; exit 1; }
+# P45 review: the note is stripped of control characters and trimmed, must keep
+# 10 characters, and is capped at 500.
+note_receipt() { # output reason
+    SHIP_SOP_USER_HOME="$WORK/user" bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --base "$BASE" \
+        --usage-unavailable "$2" --results "$WORK/results.json" --tests "$WORK/tests.json" --output "$1"
+}
+if note_receipt docs/reviews/short-note-ship-auto.json 'too short' 2> "$WORK/usage.err"; then echo 'FAIL: accepted a 9-character reason'; exit 1; fi
+grep -q 'at least 10 characters' "$WORK/usage.err" || { echo 'FAIL: short reason refused for the wrong reason'; cat "$WORK/usage.err"; exit 1; }
+if note_receipt docs/reviews/ctl-short-ship-auto.json $'\e\e\e\e\e\e\e\eabc' 2>/dev/null; then echo 'FAIL: control characters counted towards the minimum'; exit 1; fi
+note_receipt docs/reviews/ctl-note-ship-auto.json $'  lost on\e[31m compaction\r\n  ' >/dev/null
+jq -e '.usage_note == "lost on[31m compaction"' docs/reviews/ctl-note-ship-auto.json >/dev/null \
+    || { echo 'FAIL: usage_note not stripped and trimmed'; jq .usage_note docs/reviews/ctl-note-ship-auto.json; exit 1; }
+note_receipt docs/reviews/long-note-ship-auto.json "$(printf 'y%.0s' $(seq 1 600))" >/dev/null
+jq -e '.usage_note | length == 500' docs/reviews/long-note-ship-auto.json >/dev/null || { echo 'FAIL: usage_note not capped at 500'; exit 1; }
 # P45: the tool records the bypass listing itself; no log means [].
 jq -e '.bypasses == []' docs/reviews/claude-ship-auto.json >/dev/null || { echo 'FAIL: no bypasses not recorded as []'; exit 1; }
 jq -e '.written_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' docs/reviews/claude-ship-auto.json >/dev/null \
@@ -195,7 +216,7 @@ if claude_receipt docs/reviews/missing-block-tests-ship-auto.json --block-tests 
 # flag is refused because there is nothing for it to explain.
 jq -e 'has("usage_note") | not' docs/reviews/usage-ship-auto.json >/dev/null || { echo 'FAIL: usage_note added without the flag'; exit 1; }
 printf '[]\n' > "$WORK/block-tests.json"
-if claude_receipt docs/reviews/needless-note-ship-auto.json --block-tests "$WORK/block-tests.json" --usage-unavailable 'x' 2> "$WORK/usage.err"; then
+if claude_receipt docs/reviews/needless-note-ship-auto.json --block-tests "$WORK/block-tests.json" --usage-unavailable 'a long enough reason' 2> "$WORK/usage.err"; then
     echo 'FAIL: accepted --usage-unavailable with every usage present'; exit 1
 fi
 grep -q 'every reviewer has usage' "$WORK/usage.err" || { echo 'FAIL: needless-flag refusal gave the wrong reason'; cat "$WORK/usage.err"; exit 1; }
@@ -207,10 +228,20 @@ jq -e '.bypasses == ["2026-10-12T01:00:00Z aaa1111 git push origin feat", "2026-
     docs/reviews/bypasses-ship-auto.json >/dev/null || { echo 'FAIL: bypass entries not stored'; jq .bypasses docs/reviews/bypasses-ship-auto.json; exit 1; }
 # An unreadable log is stored as the listing's own "unreadable: ..." line.
 rm -f .ship/bypass.log; mkdir .ship/bypass.log
-claude_receipt docs/reviews/unreadable-bypasses-ship-auto.json --block-tests "$WORK/block-tests.json" >/dev/null
+claude_receipt docs/reviews/unreadable-bypasses-ship-auto.json --block-tests "$WORK/block-tests.json" >/dev/null 2> "$WORK/unreadable.err"
+grep -qx 'WARNING: bypass log unreadable; recorded as such in the receipt' "$WORK/unreadable.err" || { echo 'FAIL: no warning for an unreadable bypass log'; cat "$WORK/unreadable.err"; exit 1; }
 jq -e '.bypasses | length == 1 and (.[0] | startswith("unreadable: "))' docs/reviews/unreadable-bypasses-ship-auto.json >/dev/null \
     || { echo 'FAIL: unreadable listing not stored as its string'; exit 1; }
 rmdir .ship/bypass.log
+# With the real library, credentials in the log never reach the stored array.
+if [ "$SOP_LIB" = "$SOURCE/scripts/hooks/sop-lib.sh" ]; then
+    printf '%s\n' '2026-10-12T03:00:00Z ccc git -c http.extraheader="X-Api-Key: hdr4secret" push' \
+        '2026-10-12T03:00:00Z ddd GH_TOKEN=ghp_tok5secret tool --password pw6secret git push https://u:pw7secret@h/r' > .ship/bypass.log
+    claude_receipt docs/reviews/masked-bypasses-ship-auto.json --block-tests "$WORK/block-tests.json" >/dev/null
+    jq -e '(.bypasses | length) == 2 and ([.bypasses[] | test("hdr4secret|tok5secret|pw6secret|pw7secret")] | any | not)' \
+        docs/reviews/masked-bypasses-ship-auto.json >/dev/null || { echo 'FAIL: a credential survived in the stored bypasses'; jq .bypasses docs/reviews/masked-bypasses-ship-auto.json; exit 1; }
+    rm -f .ship/bypass.log
+fi
 # A listing that fails or prints nothing is INCOMPLETE: no receipt.
 USER_LIB="$WORK/user/.claude/scripts/hooks/ship-sop/sop-lib.sh"
 cp "$USER_LIB" "$WORK/lib.saved"

@@ -11,10 +11,12 @@ set -euo pipefail
 #
 # P45: under the Claude runtime a reviewer whose usage is null or absent is
 # refused unless --usage-unavailable "<reason>" is given; the reason is stored as
-# the receipt's usage_note. Codex usage stays optional: codex-usage.sh prints
-# null when a run lacked telemetry. The tool also runs sop_bypasses_since_receipt
-# itself and stores the listing as the receipt's bypasses array ([] for none);
-# a listing that cannot be produced is INCOMPLETE.
+# the receipt's usage_note (control characters stripped, 10 to 500 characters).
+# The tool records the reviewers whose usage is null as usage_unavailable.
+# Codex usage stays optional: codex-usage.sh prints null when a run lacked
+# telemetry. The tool also runs sop_bypasses_since_receipt itself and stores the
+# listing as the receipt's bypasses array ([] for none); a listing that cannot be
+# produced is INCOMPLETE, and an unreadable log is recorded with a warning.
 BASE=''; HEAD_REF=HEAD; RESULTS=''; TESTS=''; OUTPUT=''; BLOCK_TESTS=''
 USAGE_NOTE=''; USAGE_NOTE_GIVEN=false
 RUNTIME=${SHIP_SOP_RUNTIME:-codex}
@@ -79,9 +81,16 @@ if [ -n "$BLOCK_TESTS" ]; then
         || { echo 'INCOMPLETE: --block-tests must name a file holding one JSON array' >&2; exit 1; }
 fi
 # Usage (P45). A reviewer entry whose usage is null or absent has no cost figure.
+# The tool, not the session, records which reviewers those were.
+USAGE_NOTE_MIN=10; USAGE_NOTE_MAX=500
 null_usage=$(jq -r '[.[] | objects | select(.usage == null) | (.name // "unnamed" | tostring)] | join(" ")' "$RESULTS")
+USAGE_UNAVAILABLE_JSON=$(jq -c '[.[] | objects | select(.usage == null) | .name]' "$RESULTS")
 if [ "$USAGE_NOTE_GIVEN" = true ]; then
-    [[ "$USAGE_NOTE" =~ [^[:space:]] ]] || { echo 'INCOMPLETE: --usage-unavailable needs a reason' >&2; exit 1; }
+    # Control characters out, surrounding space trimmed, then capped.
+    USAGE_NOTE=$(printf '%s' "$USAGE_NOTE" | tr -d '\000-\037\177')
+    USAGE_NOTE=$(printf '%s' "$USAGE_NOTE" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+    USAGE_NOTE=${USAGE_NOTE:0:$USAGE_NOTE_MAX}
+    [ "${#USAGE_NOTE}" -ge "$USAGE_NOTE_MIN" ] || { echo "INCOMPLETE: --usage-unavailable needs a reason of at least $USAGE_NOTE_MIN characters" >&2; exit 1; }
     [ -n "$null_usage" ] || { echo 'INCOMPLETE: --usage-unavailable given, but every reviewer has usage; drop the flag' >&2; exit 1; }
 elif [ "$RUNTIME" = claude ] && [ -n "$null_usage" ]; then
     echo "INCOMPLETE: no usage for: $null_usage. Copy subagent_tokens and duration_ms from each task notification into usage.runs; when a figure was never reported, pass --usage-unavailable \"<reason>\"" >&2
@@ -145,6 +154,9 @@ if [ "$listing_rc" != 0 ] || ! [[ "$listing" =~ [^[:space:]] ]]; then
 fi
 if [ "$listing" = none ]; then BYPASSES_JSON='[]'
 else BYPASSES_JSON=$(printf '%s\n' "$listing" | jq -R . | jq -sc 'map(select(test("[^[:space:]]")))'); fi
+if jq -e 'any(.[]; startswith("unreadable:"))' <<< "$BYPASSES_JSON" >/dev/null; then
+    echo 'WARNING: bypass log unreadable; recorded as such in the receipt' >&2
+fi
 TREE=$(git rev-parse "$HEAD_SHA^{tree}")
 mkdir -p "$(dirname "$OUTPUT")"
 TMP=$(mktemp "${OUTPUT}.XXXXXX")
@@ -158,7 +170,7 @@ BLOCK_TESTS_JSON=null
 jq -n --arg base "$BASE" --arg head "$HEAD_SHA" --arg tree "$TREE" \
     --arg policy "$(sop_policy_digest "$CONFIG")" --arg written "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --slurpfile results "$RESULTS" --slurpfile tests "$TESTS" --argjson block_tests "$BLOCK_TESTS_JSON" \
-    --argjson bypasses "$BYPASSES_JSON" --arg usage_note "$USAGE_NOTE" \
+    --argjson bypasses "$BYPASSES_JSON" --arg usage_note "$USAGE_NOTE" --argjson usage_unavailable "$USAGE_UNAVAILABLE_JSON" \
     'def totals: if type == "object" and .source == "claude-task-notification"
           and (.runs | type == "array" and length > 0 and all(.[]; type == "object" and (.instance | type == "number")
                and (.tokens | type == "number") and (.duration_ms | type == "number")))
@@ -169,7 +181,8 @@ jq -n --arg base "$BASE" --arg head "$HEAD_SHA" --arg tree "$TREE" \
       tests:$tests[0],bypasses:$bypasses,
       reviewers:($results[0] | map(if type == "object" and has("usage") then .usage |= totals else . end))}
      + (if $block_tests == null then {} else {block_tests: $block_tests} end)
-     + (if $usage_note == "" then {} else {usage_note: $usage_note} end)' > "$TMP"
+     + (if $usage_note == "" then {} else {usage_note: $usage_note} end)
+     + (if $usage_unavailable == [] then {} else {usage_unavailable: $usage_unavailable} end)' > "$TMP"
 # A blocked round needs its test result recorded (P44); the validator refuses
 # the receipt without one, so name the reason here.
 if [ -z "$BLOCK_TESTS" ] && jq -e 'any(.reviewers[]; (.block_rounds // 0) > 0)' "$TMP" >/dev/null 2>&1; then

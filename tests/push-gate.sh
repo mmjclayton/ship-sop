@@ -529,6 +529,21 @@ v2_case usage-note-accepted covers ". + {block_tests: [], usage_note: \"notifica
 v2_case usage-note-empty-rejected refused ". + {block_tests: [], usage_note: \"\"}"
 v2_case usage-note-number-rejected refused ". + {block_tests: [], usage_note: 5}"
 v2_case usage-note-null-rejected refused ". + {block_tests: [], usage_note: null}"
+# P45 review: a note of 10 to 500 characters with no control characters; the
+# tool's list of reviewers without usage; no zero figures in a Claude run.
+v2_case usage-note-short-rejected refused ". + {block_tests: [], usage_note: \"too short\"}"
+v2_case usage-note-ten-accepted covers ". + {block_tests: [], usage_note: \"0123456789\"}"
+v2_case usage-note-long-rejected refused ". + {block_tests: [], usage_note: (\"x\" * 501)}"
+v2_case usage-note-500-accepted covers ". + {block_tests: [], usage_note: (\"x\" * 500)}"
+v2_case usage-note-control-rejected refused ". + {block_tests: [], usage_note: \"lost on\\u001b[31m compaction\"}"
+v2_case usage-unavailable-accepted covers ". + {block_tests: [], usage_unavailable: [.reviewers[0].name]}"
+v2_case usage-unavailable-unknown-name-rejected refused ". + {block_tests: [], usage_unavailable: [\"no-such-reviewer\"]}"
+v2_case usage-unavailable-reviewer-with-usage-rejected refused ".reviewers[0].usage = $CLAUDE_USAGE | . + {block_tests: [], usage_unavailable: [.reviewers[0].name]}"
+v2_case usage-unavailable-duplicate-rejected refused ". + {block_tests: [], usage_unavailable: [.reviewers[0].name, .reviewers[0].name]}"
+v2_case usage-unavailable-empty-rejected refused ". + {block_tests: [], usage_unavailable: []}"
+v2_case usage-unavailable-string-rejected refused ". + {block_tests: [], usage_unavailable: .reviewers[0].name}"
+v2_case claude-usage-zero-tokens-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs[0].tokens = 0))"
+v2_case claude-usage-zero-duration-rejected refused ".reviewers |= map(.usage = ($CLAUDE_USAGE | .runs[0].duration_ms = 0 | .duration_ms = 2000))"
 v2_case bypasses-empty-accepted covers ". + {block_tests: [], bypasses: []}"
 v2_case bypasses-strings-accepted covers ". + {block_tests: [], bypasses: [\"2026-10-12T01:00:00Z abc git push\", \"unreadable: .ship/bypass.log\"]}"
 v2_case bypasses-string-rejected refused ". + {block_tests: [], bypasses: \"none\"}"
@@ -818,6 +833,31 @@ printf '2026-10-01T14:00:00Z eee \033[31mred\r\n' >> "$BL/.ship/bypass.log"
 printf 'garbled line\n' >> "$BL/.ship/bypass.log"
 OUT=$(bypasses)
 if printf '%s' "$OUT" | grep -q 'eee \[31mred$' && ! printf '%s' "$OUT" | tr -d '\n' | LC_ALL=C grep -q '[[:cntrl:]]' && printf '%s' "$OUT" | grep -q '^unparsed: garbled line$'; then ok "bypass-list-strips-control-bytes-and-shows-unparsed"; else bad "bypass-list-strips-control-bytes-and-shows-unparsed" "$(printf '%s' "$OUT" | od -c | head -8)"; fi
+# P45 review: more credential forms are masked, bidi overrides and line
+# separators are stripped, and each entry is cut to 300 characters.
+: > "$BL/.ship/bypass.log"
+printf '%s\n' \
+    '2026-10-01T15:00:00Z n1 git -c http.extraheader="X-Api-Key: hdrsecret1" push' \
+    '2026-10-01T15:00:00Z n2 tool --password flagsecret2 git push' \
+    "2026-10-01T15:00:00Z n3 tool --api-token 'flag secret3' git push" \
+    '2026-10-01T15:00:00Z n4 GH ghp_ghpsecret4AAAA git push' \
+    '2026-10-01T15:00:00Z n5 X github_pat_patsecret5_BBBB git push' \
+    '2026-10-01T15:00:00Z n6 OPENAI sk-sksecret6CCCC git push' \
+    '2026-10-01T15:00:00Z n7 slack xoxb-123-slacksecret7 git push' \
+    '2026-10-01T15:00:00Z n8 aws AKIAABCDEFGHIJKLMNOP git push' \
+    '2026-10-01T15:00:00Z n9 body {"access_token":"jsonsecret9","x":1} git push' \
+    '2026-10-01T15:00:00Z n10 gho_ghosecret10 ghs_ghssecret11 git push' >> "$BL/.ship/bypass.log"
+printf '2026-10-01T15:00:00Z b1 a\xe2\x80\xaeb\xe2\x81\xa6c\xe2\x80\xa8d git push\n' >> "$BL/.ship/bypass.log"
+printf '2026-10-01T15:00:00Z long %s\n' "$(printf 'x%.0s' $(seq 1 400))" >> "$BL/.ship/bypass.log"
+OUT=$(bypasses)
+for leak in hdrsecret1 flagsecret2 'flag secret3' ghpsecret4 patsecret5 sksecret6 slacksecret7 ABCDEFGHIJKLMNOP jsonsecret9 ghosecret10 ghssecret11; do
+    if printf '%s' "$OUT" | grep -qF "$leak"; then bad "bypass-list-masks-p45: $leak" "$OUT"; else ok "bypass-list-masks-p45: $leak"; fi
+done
+if printf '%s' "$OUT" | grep -q 'X-Api-Key: \*\*\*" push$' && printf '%s' "$OUT" | grep -q -- '--password \*\*\* git push$' \
+   && printf '%s' "$OUT" | grep -q '"access_token":"\*\*\*"' && printf '%s' "$OUT" | grep -q 'AKIA\*\*\* git push$'; then ok "bypass-list-p45-masking-keeps-the-command"; else bad "bypass-list-p45-masking-keeps-the-command" "$OUT"; fi
+if printf '%s' "$OUT" | grep -q ' b1 abcd git push$' && ! printf '%s' "$OUT" | LC_ALL=C grep -q $'\xe2\x80[\xa8-\xae]\|\xe2\x81[\xa6-\xa9]'; then ok "bypass-list-strips-bidi-and-line-separators"; else bad "bypass-list-strips-bidi-and-line-separators" "$(printf '%s' "$OUT" | grep ' b1 ' | od -c | head -4)"; fi
+LONG=$(printf '%s\n' "$OUT" | grep ' long ')
+if [ "${#LONG}" = 303 ] && [ "${LONG: -3}" = '...' ]; then ok "bypass-list-entry-capped-at-300"; else bad "bypass-list-entry-capped-at-300" "length ${#LONG}"; fi
 # A processing failure is reported, never "none".
 SHIMSED="$TMP/failsed"; mkdir -p "$SHIMSED"; printf '#!/bin/sh\nexit 1\n' > "$SHIMSED/sed"; chmod +x "$SHIMSED/sed"
 OUT=$( . "$HOOKS_DIR/sop-lib.sh"; PATH="$SHIMSED:$PATH" sop_bypasses_since_receipt "$BL" )

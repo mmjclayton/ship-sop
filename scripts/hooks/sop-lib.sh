@@ -419,10 +419,13 @@ sop_agents_in_scope() {
 # A receipt with written_at (P44 onwards) in which any reviewer has block_rounds
 # above 0 must carry it; an explicit [] is accepted, and the companion report says
 # why. Older receipts (schema 1, or no written_at) stay valid without it.
-# Two optional top-level fields (P45), both written by scripts/ship-receipt.sh:
-# usage_note, a non-empty string saying why a Claude reviewer's usage is null,
-# and bypasses, an array of strings holding the sop_bypasses_since_receipt
-# listing ([] for none). Receipts without them stay valid.
+# Three optional top-level fields (P45), all written by scripts/ship-receipt.sh:
+# usage_note, 10 to 500 characters with no control characters, saying why usage
+# is null; usage_unavailable, the distinct names of reviewers in this receipt
+# whose usage is null; and bypasses, an array of strings holding the
+# sop_bypasses_since_receipt listing ([] for none). Receipts without them stay
+# valid. A Claude run's tokens and duration_ms must be above 0 (a notification
+# never reports 0, so 0 is a placeholder).
 sop_receipt_valid() {
     local root="$1" receipt="$2" cfg sha base required tree scope
     cfg=$(sop_effective_config "$root")
@@ -442,7 +445,7 @@ sop_receipt_valid() {
           if .source == "claude-task-notification" then
             (.runs | type == "array" and length >= 1 and length <= $runs and
               all(.[]; type == "object" and (.instance | nat and . >= 1) and
-                (.tokens | nat) and (.duration_ms | nat))) and
+                (.tokens | nat and . > 0) and (.duration_ms | nat and . > 0))) and
             ($u.runs | group_by(.instance)) as $inst |
             ($inst | length <= $launches) and
             all($inst[]; . as $g | all(range(1; $g | length); $g[.].tokens >= $g[. - 1].tokens)) and
@@ -456,7 +459,11 @@ sop_receipt_valid() {
       (.schema_version | IN(1, 2)) and .policy_sha256 == $policy and
       ((has("written_at") | not) or has("block_tests") or
         (any(.reviewers[]?; ((.block_rounds? // 0) | type == "number" and . > 0)) | not)) and
-      ((has("usage_note") | not) or (.usage_note | text)) and
+      ((has("usage_note") | not) or (.usage_note | type == "string" and length >= 10 and length <= 500
+        and (test("\\p{Cc}") | not))) and
+      ((has("usage_unavailable") | not) or (.usage_unavailable | type == "array" and length > 0 and
+        (unique | length) == length and
+        all(.[]; text and . as $n | any($r.reviewers[]; .name == $n and (.usage // null) == null)))) and
       ((has("bypasses") | not) or (.bypasses | type == "array" and all(.[]; type == "string"))) and
       ((has("block_tests") | not) or (.block_tests | type == "array" and all(.[];
         type == "object" and (.commit | type == "string" and test("^[0-9a-f]{40}$")) and
@@ -522,10 +529,16 @@ sop_shipsop_covered() {
 #   - With no qualifying receipt every entry is listed. A line without a leading
 #     timestamp is listed as "unparsed: <line>". A log that cannot be read or
 #     processed prints "unreadable: ...", never "none".
-#   - Control bytes are stripped. Credentials are masked: URL user info up to the
+#   - Control bytes, Unicode bidi overrides (U+202A-202E, U+2066-2069) and
+#     U+2028/2029 are stripped. Credentials are masked: URL user info up to the
 #     last @, scheme-less user:pw@host, NAME=value for names containing TOKEN,
 #     KEY, SECRET, PASSWORD, PASSWD, PASS, AUTH or CREDENTIAL, query values for
-#     similar names, and the value after "Authorization:" or "Bearer".
+#     similar names, JSON "name":"value" and header-style "Name: value" for such
+#     names (Authorization included), the value after "Bearer", "--flag value"
+#     for flags naming a password, token, key, secret or auth, and well-known
+#     token prefixes (ghp_, gho_, ghs_, ghu_, ghr_, github_pat_, sk-, xoxa-,
+#     xoxb-, xoxp-, AKIA...). Each entry is cut to 300 characters plus "...".
+#     The listing is stored in a committed receipt (P45), so masking matters.
 # The log is a local file an agent with shell access could alter, so the listing
 # reports what the log holds; it does not prove no bypass happened.
 sop_bypasses_since_receipt() {
@@ -560,19 +573,31 @@ sop_bypasses_since_receipt() {
     if [ ! -e "$log" ]; then printf 'none\n'; return 0; fi
     if [ ! -f "$log" ] || [ ! -r "$log" ]; then printf 'unreadable: %s\n' "$log"; return 0; fi
     # Order matters: scheme-less user:pw@host first (a URL's "://" never matches
-    # it), then URL user info, query secrets, NAME=value and auth headers.
+    # it), then URL user info, query secrets, NAME=value, JSON "name":"value",
+    # header-style Name: value (Authorization included), Bearer, --flag value,
+    # and well-known token prefixes (P45 review: entries now land in a committed
+    # receipt).
     local mask="s#(^|[[:space:]\"'=])[^[:space:]\"'/:@]+:[^/[:space:]][^[:space:]]*@#\\1***@#g
 s#([[:alnum:]+.-]+://)[^[:space:]]*@#\\1***@#g
 s#([?&;][^=&[:space:]]*(token|key|secret|pass|pwd|auth|sig|credential)[^=&[:space:]]*=)[^&[:space:]]*#\\1***#gI
 s#(^|[^[:alnum:]_])([A-Za-z0-9_]*(token|key|secret|password|passwd|pass|auth|credential)[A-Za-z0-9_]*=)(\"[^\"]*\"|'[^']*'|[^[:space:]]*)#\\1\\2***#gI
-s#(authorization:[[:space:]]*((bearer|basic|token)[[:space:]]+)?)[^\"'[:space:]]+#\\1***#gI
-s#(bearer[[:space:]]+)[^\"'[:space:]*]+#\\1***#gI"
+s#(\"[A-Za-z0-9_.-]*(token|key|secret|password|passwd|auth|credential)[A-Za-z0-9_.-]*\"[[:space:]]*:[[:space:]]*\")[^\"]*#\\1***#gI
+s#([A-Za-z0-9_-]*(token|key|secret|password|passwd|auth|credential)[A-Za-z0-9_-]*:[[:space:]]*((bearer|basic|token)[[:space:]]+)?)[^\"'[:space:]]+#\\1***#gI
+s#(bearer[[:space:]]+)[^\"'[:space:]*]+#\\1***#gI
+s#((^|[[:space:]])--?[A-Za-z0-9_-]*(password|passwd|token|key|secret|auth)[A-Za-z0-9_-]*[[:space:]]+)(\"[^\"]*\"|'[^']*'|[^-[:space:]][^[:space:]]*)#\\1***#gI
+s#(ghp_|gho_|ghs_|ghu_|ghr_|github_pat_)[A-Za-z0-9_]+#\\1***#g
+s#(^|[^[:alnum:]_-])sk-[A-Za-z0-9_-]+#\\1sk-***#g
+s#(xox[abp]-)[A-Za-z0-9-]+#\\1***#g
+s#AKIA[0-9A-Z]{16}#AKIA***#g"
+    # U+202A-202E, U+2028-2029 (E2 80 A8-AE) and U+2066-2069 (E2 81 A6-A9).
+    local bidi=$'s/\xe2\x80[\xa8-\xae]//g\ns/\xe2\x81[\xa6-\xa9]//g'
     if ! raw=$(awk -v since="$since" '
             NF == 0 { next }
             $1 ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$/ { if ($1 >= since) print; next }
             { print "unparsed: " $0 }' "$log") \
-       || ! clean=$(printf '%s\n' "$raw" | tr -d '\000-\011\013-\037\177') \
-       || ! out=$(printf '%s\n' "$clean" | sed -E "$mask"); then
+       || ! clean=$(printf '%s\n' "$raw" | tr -d '\000-\011\013-\037\177' | LC_ALL=C sed "$bidi") \
+       || ! out=$(printf '%s\n' "$clean" | sed -E "$mask" \
+            | awk -v max=300 '{ if (length($0) > max) print substr($0, 1, max) "..."; else print }'); then
         printf 'unreadable: %s could not be processed\n' "$log"
         return 0
     fi

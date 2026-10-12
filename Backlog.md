@@ -570,6 +570,8 @@ Decisions: the Claude demand reads "Run /ship (it covers reviewers, usage and bl
 - `receipt-totals.sh` counts receipts carrying `usage_note`, recorded bypass entries and unreadable listings
 - The gate-value plan says the measurement window restarts when P45 is installed
 
+**Review round 1 (12 Oct 2026, on `afc0166`):** security, code and silent-failure PASS with MEDIUM and LOW notes, fixed on the branch, each with a fixture. Bypass entries now land in a committed receipt, so the listing also masks header-style secrets, `--flag value` secrets, JSON `"token":"..."` pairs and well-known token prefixes, strips bidi overrides and U+2028/2029, and cuts each entry to 300 characters. `usage_note` is stripped of control characters and must be 10 to 500 characters; the tool records `usage_unavailable` (reviewers with null usage) itself; a Claude run with 0 tokens or 0 duration is rejected. An unreadable bypass log prints a warning and the workflows say so in the report. `receipt-totals.sh` separates bypass records, entries and unreadable listings (n/a without the field) and shows usage notes against receipts. The plan's window starts at P45 and its limits name Codex null usage and self-reported block tests.
+
 ---
 
 ## Shipped Archive

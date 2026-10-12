@@ -1,6 +1,6 @@
 # Plan: measure the review gate's cost and net value on live work
 
-**Status:** approved 12 Oct 2026; the recording it needs ships in P44. **Replaces this README sentence when done:** "The sample covers one project; review cost and net benefit against no gate have not been measured."
+**Status:** approved 12 Oct 2026; the recording it needs ships in P44, enforced by the receipt tool from P45. **Replaces this README sentence when done:** "The sample covers one project; review cost and net benefit against no gate have not been measured."
 
 ## The questions
 
@@ -11,7 +11,7 @@
 ## Where and for how long
 
 - **Live work, no separate experiments.** The measurement uses the reviews that run anyway: Edward's work, plus any RepCanvas work in the same window.
-- **Window:** about 4 weeks or 40 gated pushes, whichever comes first, counted from the day P44 is merged and setup is re-run in those projects so the installed `/ship` records usage and block tests.
+- **Window:** about 4 weeks or 40 gated pushes, whichever comes first, counted from the day P45 is merged and setup is re-run in those projects so the installed `/ship` records usage and block tests.
 - The measurement window restarts when P45 is installed; receipts before that (written 12 Oct 2026) lack usage and are excluded.
 - **One-project limit.** Nearly all the data will come from Edward, a single small, single-operator project with agent-written code. The results describe that project. RepCanvas adds a few changes at most, which is not enough to show the results hold elsewhere, and the report will say so.
 
@@ -62,8 +62,8 @@ This plan does not put a dollar value on a defect; that is a judgement for the o
 
 ## Order
 
-1. Merge P44 and re-run setup in Edward and RepCanvas. The window starts that day.
-2. Check the first few receipts: usage is filled, or null with the reason stated in the companion report, and every blocked round has a `block_tests` entry (the receipt tool refuses a blocked receipt without the field).
+1. Merge P45 and re-run setup in Edward and RepCanvas. The window starts that day.
+2. Check the first few receipts: usage is filled, or null with the reason in the receipt's `usage_note`, and every blocked round has a `block_tests` entry (the receipt tool refuses a blocked receipt without the field).
 3. At the end of the window, run `receipt-totals.sh`, then the grading pass.
 4. Write the report and update the README sentence with the measured figures and their limits.
 
@@ -76,3 +76,5 @@ The grading cost is not known yet; P40 is the only comparison, and it graded 29 
 - Whether a missed defect would ever have been noticed by a user.
 - Results for projects unlike Edward.
 - Whether a defect the tests missed at the blocked commit would have been caught by a test written later without the gate.
+- The cost of changes reviewed under Codex with null usage. Codex allows null usage when the runner recorded no telemetry; those changes are excluded from the cost figures and counted separately.
+- Proof that the tests ran before the fix. `block_tests` entries are reported by the session; the tool cannot show the tests ran at the blocked commit before the fix. The final report spot-checks the NOT_AVAILABLE entries against each project's suite.
