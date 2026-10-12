@@ -1,0 +1,85 @@
+{
+  "schema_version": 2,
+  "base": "3fc5336950b2717ceeb6a945bd6f6d6b4fe82b4f",
+  "head": "2412902e1577d2debbaaee659f99c023e5bd0db1",
+  "tree": "8dbff1d5f49ffcc4550cf2015e9d531a0e3c9381",
+  "policy_sha256": "76049105bc652b9a92fb3e34c6424e1c38bf8e198780f112ba52e07253717025",
+  "tests": {
+    "status": "PASS",
+    "evidence": "At 2412902 on macOS: claude-install PASS; codex-install PASS; codex-usage PASS; install-agents PASS; install-hooks PASS; legacy-hook PASS; push-gate PASS; receipt-contract PASS; receipt-integration PASS; receipt-lib-check PASS; receipt-totals PASS; severity-rule PASS; validate-state-transitions PASS. Refusal text has no bypass hint (fresh-install simulation); the future-receipt guard test fails when the guard is removed."
+  },
+  "reviewers": [
+    {
+      "name": "security-reviewer",
+      "version": "0f8a59958459703fc4108ecf1977f4638b6a4565",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 2,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "README.md",
+          "line": 148,
+          "message": "the bypass log is a local file an agent with shell access could alter; documented as a limit"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/hooks/sop-lib.sh",
+          "line": 512,
+          "message": "fixed: forged written_at could hide bypasses; incomplete credential masking; control characters reached reports"
+        }
+      ]
+    },
+    {
+      "name": "code-reviewer",
+      "version": "cb5fe962fe950203b8f3b3c259f2d94fd65b8fbd",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 2,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/hooks/sop-lib.sh",
+          "line": 453,
+          "message": "an empty block_tests array satisfies the requirement; its reason in the report is not enforced"
+        },
+        {
+          "severity": "INFO",
+          "file": "docs/README.md",
+          "line": 1,
+          "message": "fixed: archive references, plan wording and receipt-totals ranges"
+        }
+      ]
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "46bcbfc7adb8b13d1e0f0d9bcdf16d512b165d89",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 2,
+      "block_rounds": 0,
+      "usage": null,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/hooks/sop-push-gate.sh",
+          "line": 136,
+          "message": "a bypass logged in another worktree, or to an unwritable log, is not listed"
+        },
+        {
+          "severity": "INFO",
+          "file": "scripts/hooks/sop-lib.sh",
+          "line": 520,
+          "message": "fixed: listing printed none from a subdirectory or for a same-second entry; workflows check the library first; blocked receipts need block_tests"
+        }
+      ]
+    }
+  ]
+}

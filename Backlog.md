@@ -536,7 +536,7 @@ review: docs/reviews/20261012-064609-ship-auto.md
 
 ### P44 - Bypass hygiene, live cost and test-catch recording, archive old history
 
-`[IN PROGRESS] [Iteration]`
+`[SHIPPED - 2026-10-12] [Iteration]`
 
 Matt approved three changes on 12 Oct 2026. First, an independent review found that the push gate's refusal, which Claude Code shows to the model, gave the agent the exact bypass command. The refusal now says nothing about a bypass; the mechanism and its log are unchanged and documented for people in the README; `/ship` and the Codex skill carry the rule never to use the gate's user-only override unless the user explicitly instructs it in that session; and each ship report lists every bypass since the previous receipt. Second, the gate's value is to be measured on live work (`docs/build-plans/2026-10-12-gate-value.md`), so receipts now record Claude reviewer usage from the task-completion notifications and, for each blocked round, the project's test result at the blocked commit (`block_tests`); `receipt-totals.sh` summarises both. Third, records from before ship-sop became self-contained move to `archive/`.
 
@@ -550,6 +550,8 @@ Matt approved three changes on 12 Oct 2026. First, an independent review found t
 **Review round 1 (12 Oct 2026, on `efd29ea`):** security, code and silent-failure PASS with MEDIUMs on the bypass listing (subdirectory root, forgeable cutoff, credential masking, control characters), the workflow order and block_tests completeness. All fixed on the branch, each with a fixture.
 - The gate-value plan describes the approved live-measurement design
 - `docs/recent-work/`, `docs/agent-memory/`, `docs/agent-memory.md`, `docs/RECENT-WORK.md` and the historical build plans are in `archive/` with history kept; no live document points at a moved path
+
+review: docs/reviews/20261012-110353-ship-auto.md
 
 ---
 
