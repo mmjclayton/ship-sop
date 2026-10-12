@@ -8,7 +8,15 @@ set -euo pipefail
 # A Claude reviewer's usage may carry only its runs ({instance, tokens,
 # duration_ms} per notification); the totals are added here from them, so nobody
 # adds them up by hand. Every receipt records written_at (UTC).
+#
+# P45: under the Claude runtime a reviewer whose usage is null or absent is
+# refused unless --usage-unavailable "<reason>" is given; the reason is stored as
+# the receipt's usage_note. Codex usage stays optional: codex-usage.sh prints
+# null when a run lacked telemetry. The tool also runs sop_bypasses_since_receipt
+# itself and stores the listing as the receipt's bypasses array ([] for none);
+# a listing that cannot be produced is INCOMPLETE.
 BASE=''; HEAD_REF=HEAD; RESULTS=''; TESTS=''; OUTPUT=''; BLOCK_TESTS=''
+USAGE_NOTE=''; USAGE_NOTE_GIVEN=false
 RUNTIME=${SHIP_SOP_RUNTIME:-codex}
 CHECK_LIB=false
 # Functions of the installed push-gate library (scripts/hooks/sop-lib.sh) that
@@ -30,6 +38,7 @@ while [ $# -gt 0 ]; do
         --base) BASE=$2 ;; --head) HEAD_REF=$2 ;; --results) RESULTS=$2 ;;
         --tests) TESTS=$2 ;; --output) OUTPUT=$2 ;; --runtime) RUNTIME=$2 ;;
         --block-tests) BLOCK_TESTS=$2 ;;
+        --usage-unavailable) USAGE_NOTE=$2; USAGE_NOTE_GIVEN=true ;;
         *) echo "Unknown argument: $1" >&2; exit 2 ;;
     esac
     shift 2
@@ -58,7 +67,7 @@ fi
 if [ "$CHECK_LIB" = true ]; then echo "library at $LIB provides every function ship-sop needs"; exit 0; fi
 ROOT=$(git rev-parse --show-toplevel)
 [ -n "$BASE" ] && [ -f "$RESULTS" ] && [ -f "$TESTS" ] && [ -n "$OUTPUT" ] || {
-    echo 'Required: --base REF --results reviewers.json --tests tests.json --output docs/reviews/STAMP-ship-auto.json [--block-tests block-tests.json]' >&2
+    echo 'Required: --base REF --results reviewers.json --tests tests.json --output docs/reviews/STAMP-ship-auto.json [--block-tests block-tests.json] [--usage-unavailable "reason"]' >&2
     exit 2
 }
 case "$OUTPUT" in *-ship-auto.json) ;; *) echo 'Output must end in -ship-auto.json' >&2; exit 2 ;; esac
@@ -68,6 +77,15 @@ jq -se 'length == 1 and (.[0] | type == "object")' "$TESTS" >/dev/null || { echo
 if [ -n "$BLOCK_TESTS" ]; then
     [ -f "$BLOCK_TESTS" ] && jq -se 'length == 1 and (.[0] | type == "array")' "$BLOCK_TESTS" >/dev/null 2>&1 \
         || { echo 'INCOMPLETE: --block-tests must name a file holding one JSON array' >&2; exit 1; }
+fi
+# Usage (P45). A reviewer entry whose usage is null or absent has no cost figure.
+null_usage=$(jq -r '[.[] | objects | select(.usage == null) | (.name // "unnamed" | tostring)] | join(" ")' "$RESULTS")
+if [ "$USAGE_NOTE_GIVEN" = true ]; then
+    [[ "$USAGE_NOTE" =~ [^[:space:]] ]] || { echo 'INCOMPLETE: --usage-unavailable needs a reason' >&2; exit 1; }
+    [ -n "$null_usage" ] || { echo 'INCOMPLETE: --usage-unavailable given, but every reviewer has usage; drop the flag' >&2; exit 1; }
+elif [ "$RUNTIME" = claude ] && [ -n "$null_usage" ]; then
+    echo "INCOMPLETE: no usage for: $null_usage. Copy subagent_tokens and duration_ms from each task notification into usage.runs; when a figure was never reported, pass --usage-unavailable \"<reason>\"" >&2
+    exit 1
 fi
 CONFIG=$(sop_effective_config "$ROOT")
 BASE=$(git rev-parse --verify "$BASE^{commit}")
@@ -114,6 +132,19 @@ if [ "$RUNTIME" = codex ]; then
         exit 1
     fi
 fi
+# Bypasses (P45): the tool records the listing so no session has to copy it.
+# "none" becomes []; any other line, an "unreadable: ..." one included, is kept
+# as a string. No listing at all is INCOMPLETE.
+declare -F sop_bypasses_since_receipt >/dev/null \
+    || { echo "INCOMPLETE: sop_bypasses_since_receipt missing from $LIB; $REINSTALL" >&2; exit 1; }
+listing_rc=0
+listing=$(sop_bypasses_since_receipt "$ROOT") || listing_rc=$?
+if [ "$listing_rc" != 0 ] || ! [[ "$listing" =~ [^[:space:]] ]]; then
+    echo "INCOMPLETE: the bypass listing failed (exit $listing_rc${listing:+, output: $listing}); no receipt written" >&2
+    exit 1
+fi
+if [ "$listing" = none ]; then BYPASSES_JSON='[]'
+else BYPASSES_JSON=$(printf '%s\n' "$listing" | jq -R . | jq -sc 'map(select(test("[^[:space:]]")))'); fi
 TREE=$(git rev-parse "$HEAD_SHA^{tree}")
 mkdir -p "$(dirname "$OUTPUT")"
 TMP=$(mktemp "${OUTPUT}.XXXXXX")
@@ -127,6 +158,7 @@ BLOCK_TESTS_JSON=null
 jq -n --arg base "$BASE" --arg head "$HEAD_SHA" --arg tree "$TREE" \
     --arg policy "$(sop_policy_digest "$CONFIG")" --arg written "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --slurpfile results "$RESULTS" --slurpfile tests "$TESTS" --argjson block_tests "$BLOCK_TESTS_JSON" \
+    --argjson bypasses "$BYPASSES_JSON" --arg usage_note "$USAGE_NOTE" \
     'def totals: if type == "object" and .source == "claude-task-notification"
           and (.runs | type == "array" and length > 0 and all(.[]; type == "object" and (.instance | type == "number")
                and (.tokens | type == "number") and (.duration_ms | type == "number")))
@@ -134,9 +166,10 @@ jq -n --arg base "$BASE" --arg head "$HEAD_SHA" --arg tree "$TREE" \
            | (if has("duration_ms") then . else . + {duration_ms: ([.runs[].duration_ms] | add)} end)
         else . end;
      {schema_version:2,base:$base,head:$head,tree:$tree,policy_sha256:$policy,written_at:$written,
-      tests:$tests[0],
+      tests:$tests[0],bypasses:$bypasses,
       reviewers:($results[0] | map(if type == "object" and has("usage") then .usage |= totals else . end))}
-     + (if $block_tests == null then {} else {block_tests: $block_tests} end)' > "$TMP"
+     + (if $block_tests == null then {} else {block_tests: $block_tests} end)
+     + (if $usage_note == "" then {} else {usage_note: $usage_note} end)' > "$TMP"
 # A blocked round needs its test result recorded (P44); the validator refuses
 # the receipt without one, so name the reason here.
 if [ -z "$BLOCK_TESTS" ] && jq -e 'any(.reviewers[]; (.block_rounds // 0) > 0)' "$TMP" >/dev/null 2>&1; then

@@ -229,6 +229,11 @@ run_hook "$PUSH" "$GATED" "$(push_json 'git push -u origin feat/push')"
 if refused && ! grep -qi "SOP_SKIP_GATE\|bypass" "$HOOK_ERR" && grep -q "ship-auto.md" "$HOOK_ERR" && grep -q "@security-reviewer" "$HOOK_ERR" && grep -q "@code-reviewer" "$HOOK_ERR" && ! grep -q "diagram-builder" "$HOOK_ERR"; then ok "push-uncovered-refused-names-enabled-agents"; else bad "push-uncovered-refused-names-enabled-agents" "exit $HOOK_EXIT stderr='$(cat "$HOOK_ERR")'"; fi
 # The demand tells the session how to run the agents and never to file findings to Backlog.md.
 if grep -q 'isolation: "worktree"' "$HOOK_ERR" && grep -q "file nothing to Backlog.md" "$HOOK_ERR"; then ok "push-demand-names-isolation-and-no-backlog-filing"; else bad "push-demand-names-isolation-and-no-backlog-filing" "stderr='$(cat "$HOOK_ERR")'"; fi
+# P45: the demand points at /ship and names the two records sessions skip.
+if grep -q 'Run /ship (it covers reviewers, usage and block tests)' "$HOOK_ERR" \
+   && grep -q "record each reviewer's token and duration figures" "$HOOK_ERR" \
+   && grep -q "run the project's tests at the blocked commit before fixing it" "$HOOK_ERR" \
+   && ! grep -qi 'SOP_SKIP_GATE\|bypass' "$HOOK_ERR"; then ok "push-demand-names-ship-usage-and-block-tests"; else bad "push-demand-names-ship-usage-and-block-tests" "stderr='$(cat "$HOOK_ERR")'"; fi
 
 run_hook "$PUSH" "$GATED" "$(push_json 'gh pr create --fill')"
 if refused; then ok "push-gh-pr-create-refused"; else bad "push-gh-pr-create-refused" "exit $HOOK_EXIT"; fi
@@ -517,6 +522,18 @@ v2_case block-tests-required-when-blocked refused ". + {written_at: \"2026-10-12
 v2_case block-tests-empty-allowed-when-blocked covers ". + {written_at: \"2026-10-12T00:00:00Z\", block_tests: []}"
 v2_case block-tests-not-required-when-unblocked covers ".reviewers |= map(.block_rounds = 0) | . + {written_at: \"2026-10-12T00:00:00Z\"}"
 v2_case block-tests-object-rejected refused ". + {block_tests: {commit: .head, result: \"PASS\", evidence: \"x\"}}"
+# usage_note and bypasses (P45): optional, so receipts written before P45 (null
+# usage, no note, no listing, with written_at) still qualify; malformed ones do not.
+v2_case pre-p45-null-usage-no-note-accepted covers ".reviewers |= map(.block_rounds = 0) | . + {written_at: \"2026-10-12T00:00:00Z\"}"
+v2_case usage-note-accepted covers ". + {block_tests: [], usage_note: \"notifications lost on compaction\"}"
+v2_case usage-note-empty-rejected refused ". + {block_tests: [], usage_note: \"\"}"
+v2_case usage-note-number-rejected refused ". + {block_tests: [], usage_note: 5}"
+v2_case usage-note-null-rejected refused ". + {block_tests: [], usage_note: null}"
+v2_case bypasses-empty-accepted covers ". + {block_tests: [], bypasses: []}"
+v2_case bypasses-strings-accepted covers ". + {block_tests: [], bypasses: [\"2026-10-12T01:00:00Z abc git push\", \"unreadable: .ship/bypass.log\"]}"
+v2_case bypasses-string-rejected refused ". + {block_tests: [], bypasses: \"none\"}"
+v2_case bypasses-number-entry-rejected refused ". + {block_tests: [], bypasses: [1]}"
+v2_case bypasses-null-rejected refused ". + {block_tests: [], bypasses: null}"
 
 # ── Library rules: policy, receipts and coverage ──────────────────────────────
 LIBREPO="$TMP/librepo"
@@ -613,6 +630,9 @@ if [ -n "$(lib sop_shipsop_gate "$LIBREPO")" ]; then ok "lib-nested-instructions
 CODEX_INPUT=$(jq -nc --arg cwd "$GATED" '{cwd:$cwd,session_id:"codex-fixture",tool_name:"Bash",tool_input:{command:"git push origin HEAD"}}')
 printf '%s' "$CODEX_INPUT" | CODEX_HOME="$TMP/codex" bash "$CODEX_HOOK" PreToolUse > "$TMP/cx.out" 2> "$TMP/cx.err"; CX=$?
 if [ "$CX" = 2 ] && grep -q '\[ship-sop\] push refused' "$TMP/cx.err" && grep -q 'ship skill' "$TMP/cx.err"; then ok "codex-dispatcher-refuses-uncovered-push"; else bad "codex-dispatcher-refuses-uncovered-push" "exit $CX: $(cat "$TMP/cx.err")"; fi
+# P45: the Codex demand names the same two records and no bypass.
+if grep -q 'Review evidence:" directory' "$TMP/cx.err" && grep -q "tests at the blocked commit before fixing it" "$TMP/cx.err" \
+   && ! grep -qi 'SOP_SKIP_GATE\|bypass\|/ship' "$TMP/cx.err"; then ok "codex-demand-names-usage-and-block-tests"; else bad "codex-demand-names-usage-and-block-tests" "$(cat "$TMP/cx.err")"; fi
 for ev in SessionStart UserPromptSubmit Stop; do
     printf '%s' "$CODEX_INPUT" | bash "$CODEX_HOOK" "$ev" > "$TMP/cx.out" 2> "$TMP/cx.err"; CX=$?
     if [ "$CX" = 0 ] && [ ! -s "$TMP/cx.out" ] && [ ! -s "$TMP/cx.err" ]; then ok "codex-dispatcher-retired-$ev-is-a-no-op"; else bad "codex-dispatcher-retired-$ev-is-a-no-op" "exit $CX"; fi

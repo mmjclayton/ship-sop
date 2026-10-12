@@ -169,11 +169,16 @@ under Claude, the tokens and duration each task-completion notification reports,
 one entry per launch or re-check, with totals the receipt tool adds. Claude's
 token figure is a running total for each agent, so a re-checked reviewer counts
 its last figure once; durations are per run and are added. Usage is null
-when a figure is unknown, never zero or estimated. When a review round blocks,
+when a figure is unknown, never zero or estimated; under Claude the receipt tool
+refuses a null usage unless `--usage-unavailable "<reason>"` is given, and stores
+the reason as `usage_note`. When a review round blocks,
 the session runs the project's tests at the blocked commit before fixing it, and
 the `block_tests` field records each result (PASS, FAIL or NOT_AVAILABLE) with
 the commit; a new receipt with a blocked round is refused without it; a PASS there means the tests did not catch what
-the reviewer blocked. Each receipt also records when it was written
+the reviewer blocked. NOT_AVAILABLE is for a project with no runnable suite, not
+for a run that was skipped. The receipt tool also lists the gate bypasses since
+the previous receipt itself and stores them as `bypasses` (`[]` for none), which
+the report copies. Each receipt also records when it was written
 (`written_at`, UTC). Receipts without these fields stay valid. A receipt for an
 earlier commit still covers `HEAD` when only documentation has changed since.
 
@@ -186,8 +191,8 @@ receipt, not the run records.
 
 `scripts/receipt-totals.sh REPO_ROOT...` totals receipts across projects: gates,
 blocking rounds, reviewer launches, findings by severity, tokens and reviewer
-minutes for the changes whose usage is fully known, and the test results at
-blocked commits (`--json` adds per-change figures, medians and ranges). `SHIP_REVIEW_MODEL` selects the Codex reviewer model and
+minutes for the changes whose usage is fully known, the test results at
+blocked commits, receipts with a usage note and recorded bypasses (`--json` adds per-change figures, medians and ranges). `SHIP_REVIEW_MODEL` selects the Codex reviewer model and
 `SHIP_REVIEW_TIMEOUT_SECONDS` bounds a reviewer run (default 600, maximum 3600).
 
 ## Optional: working rules for your project

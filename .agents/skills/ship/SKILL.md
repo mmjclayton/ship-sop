@@ -37,7 +37,9 @@ code signal. Non-code projects stop with an explanation.
    run the project's test suite at that blocked commit before fixing anything,
    and record {"commit":"<40-char SHA>","result":"PASS|FAIL|NOT_AVAILABLE","evidence":"commands and actual results, or why no suite could run"}
    in a block-tests.json array, one entry per blocked round. PASS means the
-   tests did not catch what blocked.
+   tests did not catch what blocked. NOT_AVAILABLE only when the project has
+   no runnable suite; a run that was skipped or whose output was lost is not a
+   reason, and a result cannot be recorded after the fix.
 4. The parent saves reviewer results as a JSON array. Each entry has name,
    version (reviewer definition SHA), model (actual model if known, otherwise
    runtime-default-unresolved), verdict (PASS/BLOCK/INCOMPLETE), findings, and
@@ -50,6 +52,8 @@ code signal. Non-code projects stop with an explanation.
    `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/codex-usage.sh" --agent <name> <dir>...`;
    paste its output as the value. It prints one object summing the runs, or
    null when any run lacked telemetry; never invent a figure or sum by hand.
+   When usage is null, you may pass `--usage-unavailable "<reason>"` to the
+   receipt tool; it stores the reason as the receipt's usage_note.
    Each finding has severity, file, positive integer line, and message. Save test
    results as {"status":"PASS","evidence":"commands and actual results"}, or
    NOT_AVAILABLE with a concrete explanation when no suite exists. Never invent
@@ -58,20 +62,22 @@ code signal. Non-code projects stop with an explanation.
    `.ship/reviews/` (same reviewer, commit and base, clean exit, same verdict);
    a reviewer without one is INCOMPLETE. Keep those directories until the
    receipt is written.
-   Before writing the receipt, list the gate bypasses since the previous receipt:
-   `SHIP_SOP_RUNTIME=codex bash -c '. "${CODEX_HOME:-$HOME/.codex}/scripts/hooks/ship-sop/sop-lib.sh"; sop_bypasses_since_receipt "$(git rev-parse --show-toplevel)"'`
-   prints each .ship/bypass.log entry dated at or after the newest valid
-   receipt committed at HEAD, or `none`. Empty output, an error or an
-   `unreadable:` line is INCOMPLETE, never `none`.
    Run the trusted installed receipt tool, adding `--block-tests <block-tests.json>`
    when any round blocked (the tool refuses a blocked receipt without it; an
    empty array needs its reason in the companion report):
    `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/ship-receipt.sh" --runtime codex --base <BASE> --head <HEAD_SHA> --results <results.json> --tests <tests.json> --output docs/reviews/<stamp>-ship-auto.json`
-   The tool rejects incomplete, blocked, stale or invalid evidence. Do not edit
+   The tool rejects incomplete, blocked, stale or invalid evidence. It also
+   lists the gate bypasses since the previous receipt itself (each
+   .ship/bypass.log entry dated at or after the newest valid receipt committed
+   at HEAD) and stores them as the receipt's `bypasses` array, `[]` for none;
+   when the listing cannot be produced it writes no receipt (INCOMPLETE). Do
+   not run the listing yourself. Do not edit
    receipts manually. Write a companion <stamp>-ship-auto.md with findings,
    dispositions, usage per reviewer, the test result at each blocked commit,
-   links to evidence, and a `Bypasses:` line with that listing verbatim (or
-   `none`); repeat the line in the reply. Only a validated JSON receipt satisfies
+   links to evidence, and a `Bypasses:` line copied from the receipt's
+   `bypasses`, one entry per line verbatim, or `none` when it is `[]` (an
+   `unreadable:` entry is copied as it is and the log repaired); repeat the
+   line in the reply. Only a validated JSON receipt satisfies
    the gate; a Covers: line in Markdown is informational. Existing Markdown-only
    reports remain history and need a new review to qualify.
 5. Small fixes may be applied in scope, but a new code commit needs a fresh review

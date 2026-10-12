@@ -419,6 +419,10 @@ sop_agents_in_scope() {
 # A receipt with written_at (P44 onwards) in which any reviewer has block_rounds
 # above 0 must carry it; an explicit [] is accepted, and the companion report says
 # why. Older receipts (schema 1, or no written_at) stay valid without it.
+# Two optional top-level fields (P45), both written by scripts/ship-receipt.sh:
+# usage_note, a non-empty string saying why a Claude reviewer's usage is null,
+# and bypasses, an array of strings holding the sop_bypasses_since_receipt
+# listing ([] for none). Receipts without them stay valid.
 sop_receipt_valid() {
     local root="$1" receipt="$2" cfg sha base required tree scope
     cfg=$(sop_effective_config "$root")
@@ -452,6 +456,8 @@ sop_receipt_valid() {
       (.schema_version | IN(1, 2)) and .policy_sha256 == $policy and
       ((has("written_at") | not) or has("block_tests") or
         (any(.reviewers[]?; ((.block_rounds? // 0) | type == "number" and . > 0)) | not)) and
+      ((has("usage_note") | not) or (.usage_note | text)) and
+      ((has("bypasses") | not) or (.bypasses | type == "array" and all(.[]; type == "string"))) and
       ((has("block_tests") | not) or (.block_tests | type == "array" and all(.[];
         type == "object" and (.commit | type == "string" and test("^[0-9a-f]{40}$")) and
         (.result | IN("PASS", "FAIL", "NOT_AVAILABLE")) and (.evidence | text)))) and
@@ -586,7 +592,7 @@ s#(bearer[[:space:]]+)[^\"'[:space:]*]+#\\1***#gI"
 # by nothing here any more — documentation extensions are always excluded
 # from the count; the field survives for /ship's manual mode and old configs.
 sop_shipsop_gate() {
-    local root="$1" cfg mode branch pat base head lines min report agents scope
+    local root="$1" cfg mode branch pat base head lines min report agents scope blocked
     cfg="$root/ship-sop.config.json"
     [ -f "$cfg" ] || { printf ''; return; }
     sop_have_jq || { printf ''; return; }
@@ -649,6 +655,8 @@ sop_shipsop_gate() {
 
     agents=$(jq -r '.[] | "  - @\(.key) (block_on: \(.block_on))"' <<< "$scope" 2>/dev/null)
     report="docs/reviews/$(date +%Y%m%d-%H%M%S)-ship-auto.md"
+    # P45: two records the receipt tool needs that cannot be recreated afterwards.
+    blocked='when a round blocks, run the project'"'"'s tests at the blocked commit before fixing it (NOT_AVAILABLE only when the project has no runnable suite).'
 
     printf 'ship-sop gate (auto-mode per ship-sop.config.json): %s code lines on %s vs %s (%s..%s) have no gate report.\n' \
         "$lines" "${branch:-HEAD}" "$(sop_default_branch "$root")" "$(printf '%s' "$base" | cut -c1-7)" "$(printf '%s' "$head" | cut -c1-7)"
@@ -656,7 +664,10 @@ sop_shipsop_gate() {
     printf '%s\n' "$agents"
     if [ "${SHIP_SOP_RUNTIME:-claude}" = codex ]; then
         printf '  Use the ship skill: run reviewers in separate checkouts with a read-only sandbox, each with --block-on set to its block_on above; collect every result, then write the report in the parent. Never substitute a worktree path in a prompt for enforced isolation.\n'
+        printf '  Do not skip: keep every reviewer'"'"'s "Review evidence:" directory, launches and re-checks alike, so codex-usage.sh records its token and time figures; and %s\n' "$blocked"
         return
     fi
+    printf '  Run /ship (it covers reviewers, usage and block tests).\n'
     printf '  Rules: launch each agent with isolation: "worktree", read-only; wait for every result; write the report after any fix commit so it covers HEAD; give each reviewer its block_on above and the severity rule from /ship; findings at or above a reviewer'"'"'s block_on at the top of your next reply with file:line, the rest stay in the report as notes; file nothing to Backlog.md.\n'
+    printf '  Do not skip: record each reviewer'"'"'s token and duration figures (subagent_tokens, duration_ms) from every task notification as it arrives; and %s\n' "$blocked"
 }

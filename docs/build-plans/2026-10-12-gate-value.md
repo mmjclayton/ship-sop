@@ -12,6 +12,7 @@
 
 - **Live work, no separate experiments.** The measurement uses the reviews that run anyway: Edward's work, plus any RepCanvas work in the same window.
 - **Window:** about 4 weeks or 40 gated pushes, whichever comes first, counted from the day P44 is merged and setup is re-run in those projects so the installed `/ship` records usage and block tests.
+- The measurement window restarts when P45 is installed; receipts before that (written 12 Oct 2026) lack usage and are excluded.
 - **One-project limit.** Nearly all the data will come from Edward, a single small, single-operator project with agent-written code. The results describe that project. RepCanvas adds a few changes at most, which is not enough to show the results hold elsewhere, and the report will say so.
 
 ## What is recorded, and from where

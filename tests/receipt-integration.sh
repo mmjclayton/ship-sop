@@ -84,6 +84,10 @@ cp "$WORK/results-kept.json" "$WORK/results.json"
 # A genuine record qualifies, trailing whitespace on the verdict line included.
 evidence security-reviewer 'Verdict: PASS   ' "$HEAD_SHA" >/dev/null
 run_receipt docs/reviews/valid-ship-auto.json
+# Codex usage may be null (codex-usage.sh prints null when telemetry is missing),
+# so P45's usage rule does not apply there.
+jq -e 'all(.reviewers[]; .usage == null) and (has("usage_note") | not) and .bypasses == []' docs/reviews/valid-ship-auto.json >/dev/null \
+    || { echo 'FAIL: Codex receipt with null usage not written as before'; exit 1; }
 . "$CODEX_HOME/scripts/hooks/ship-sop/sop-lib.sh"
 sop_shipsop_covered "$PWD" "$(git rev-parse HEAD)"
 if run_receipt docs/reviews/valid-ship-auto.json 2>/dev/null; then echo 'FAIL: overwrote evidence'; exit 1; fi
@@ -126,8 +130,30 @@ mkdir -p "$WORK/user/.claude/scripts/hooks/ship-sop"
 cp "$SOP_LIB" "$WORK/user/.claude/scripts/hooks/ship-sop/sop-lib.sh"
 rm -rf .ship/reviews
 jq 'map(select(.name != "security-reviewer"))' "$WORK/results-original.json" > "$WORK/results.json"
+# P45: null usage under Claude is refused without --usage-unavailable, and the
+# reason is stored as usage_note with it.
+if SHIP_SOP_USER_HOME="$WORK/user" bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --base "$BASE" \
+    --results "$WORK/results.json" --tests "$WORK/tests.json" --output docs/reviews/claude-ship-auto.json 2> "$WORK/usage.err"; then
+    echo 'FAIL: wrote a Claude receipt with null usage and no --usage-unavailable'; exit 1
+fi
+grep 'no usage for:' "$WORK/usage.err" | grep 'code-reviewer' | grep -q 'silent-failure-hunter' || { echo 'FAIL: null-usage refusal did not name the reviewers'; cat "$WORK/usage.err"; exit 1; }
+test ! -e docs/reviews/claude-ship-auto.json
+jq 'map(del(.usage))' "$WORK/results.json" > "$WORK/results-nousage.json"
+if SHIP_SOP_USER_HOME="$WORK/user" bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --base "$BASE" \
+    --results "$WORK/results-nousage.json" --tests "$WORK/tests.json" --output docs/reviews/claude-ship-auto.json 2>/dev/null; then
+    echo 'FAIL: wrote a Claude receipt with absent usage'; exit 1
+fi
+if SHIP_SOP_USER_HOME="$WORK/user" bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --base "$BASE" --usage-unavailable '  ' \
+    --results "$WORK/results.json" --tests "$WORK/tests.json" --output docs/reviews/claude-ship-auto.json 2>/dev/null; then
+    echo 'FAIL: accepted a blank --usage-unavailable reason'; exit 1
+fi
 SHIP_SOP_USER_HOME="$WORK/user" bash "$SOURCE/scripts/ship-receipt.sh" --runtime claude --base "$BASE" \
+    --usage-unavailable 'notifications were lost when the session compacted' \
     --results "$WORK/results.json" --tests "$WORK/tests.json" --output docs/reviews/claude-ship-auto.json
+jq -e '.usage_note == "notifications were lost when the session compacted"' docs/reviews/claude-ship-auto.json >/dev/null \
+    || { echo 'FAIL: usage_note not stored'; exit 1; }
+# P45: the tool records the bypass listing itself; no log means [].
+jq -e '.bypasses == []' docs/reviews/claude-ship-auto.json >/dev/null || { echo 'FAIL: no bypasses not recorded as []'; exit 1; }
 jq -e '.written_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' docs/reviews/claude-ship-auto.json >/dev/null \
     || { echo 'FAIL: receipt has no UTC written_at'; exit 1; }
 jq -e 'has("block_tests") | not' docs/reviews/claude-ship-auto.json >/dev/null || { echo 'FAIL: block_tests added without --block-tests'; exit 1; }
@@ -165,6 +191,39 @@ for bad in '{"commit":"x"}' 'not json' '[] []'; do
     test ! -e docs/reviews/bad-block-tests-ship-auto.json
 done
 if claude_receipt docs/reviews/missing-block-tests-ship-auto.json --block-tests "$WORK/none.json" 2>/dev/null; then echo 'FAIL: accepted a missing block tests file'; exit 1; fi
+# P45: with every usage present the receipt carries no usage_note, and the
+# flag is refused because there is nothing for it to explain.
+jq -e 'has("usage_note") | not' docs/reviews/usage-ship-auto.json >/dev/null || { echo 'FAIL: usage_note added without the flag'; exit 1; }
+printf '[]\n' > "$WORK/block-tests.json"
+if claude_receipt docs/reviews/needless-note-ship-auto.json --block-tests "$WORK/block-tests.json" --usage-unavailable 'x' 2> "$WORK/usage.err"; then
+    echo 'FAIL: accepted --usage-unavailable with every usage present'; exit 1
+fi
+grep -q 'every reviewer has usage' "$WORK/usage.err" || { echo 'FAIL: needless-flag refusal gave the wrong reason'; cat "$WORK/usage.err"; exit 1; }
+# P45: bypass-log entries are stored as strings, one per entry.
+mkdir -p .ship
+printf '%s\n' '2026-10-12T01:00:00Z aaa1111 git push origin feat' '2026-10-12T02:00:00Z bbb2222 git push origin feat' > .ship/bypass.log
+claude_receipt docs/reviews/bypasses-ship-auto.json --block-tests "$WORK/block-tests.json" >/dev/null
+jq -e '.bypasses == ["2026-10-12T01:00:00Z aaa1111 git push origin feat", "2026-10-12T02:00:00Z bbb2222 git push origin feat"]' \
+    docs/reviews/bypasses-ship-auto.json >/dev/null || { echo 'FAIL: bypass entries not stored'; jq .bypasses docs/reviews/bypasses-ship-auto.json; exit 1; }
+# An unreadable log is stored as the listing's own "unreadable: ..." line.
+rm -f .ship/bypass.log; mkdir .ship/bypass.log
+claude_receipt docs/reviews/unreadable-bypasses-ship-auto.json --block-tests "$WORK/block-tests.json" >/dev/null
+jq -e '.bypasses | length == 1 and (.[0] | startswith("unreadable: "))' docs/reviews/unreadable-bypasses-ship-auto.json >/dev/null \
+    || { echo 'FAIL: unreadable listing not stored as its string'; exit 1; }
+rmdir .ship/bypass.log
+# A listing that fails or prints nothing is INCOMPLETE: no receipt.
+USER_LIB="$WORK/user/.claude/scripts/hooks/ship-sop/sop-lib.sh"
+cp "$USER_LIB" "$WORK/lib.saved"
+for broken in 'sop_bypasses_since_receipt() { return 0; }' 'sop_bypasses_since_receipt() { echo none; return 3; }'; do
+    cp "$WORK/lib.saved" "$USER_LIB"; printf '%s\n' "$broken" >> "$USER_LIB"
+    if claude_receipt docs/reviews/no-listing-ship-auto.json --block-tests "$WORK/block-tests.json" 2> "$WORK/usage.err"; then
+        echo "FAIL: wrote a receipt when the listing failed: $broken"; exit 1
+    fi
+    grep -q 'INCOMPLETE: the bypass listing failed' "$WORK/usage.err" || { echo 'FAIL: listing refusal gave the wrong reason'; cat "$WORK/usage.err"; exit 1; }
+    test ! -e docs/reviews/no-listing-ship-auto.json
+done
+cp "$WORK/lib.saved" "$USER_LIB"
+echo 'PASS: Claude usage is required unless --usage-unavailable gives a reason; the tool records the bypass listing and refuses without one'
 echo 'PASS: receipts record written_at, Claude usage totals from the runs, and block tests'
 echo 'PASS: real receipts qualify, reject BLOCK, preserve existing evidence, honour reviewer scope and require run counts'
 echo 'PASS: Codex receipts need matching runner evidence (commit, base, clean exit, verdict); Claude unchanged'

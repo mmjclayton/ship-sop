@@ -30,7 +30,7 @@ jq -e '.[0] | .receipts == 4 and .schema_v2 == 3 and .gates_that_blocked == 2
 printf 'PASS: totals dedupe clones, count v2 and later runs, count findings\n'
 
 bash "$SOURCE/scripts/receipt-totals.sh" "$WORK/alpha" > "$WORK/table" 2>/dev/null
-grep -q '^| alpha | 4 | 3 | 2 | 2 | 5 | 2 | 0 | 1 | 1 | 2 | 1 | 0 | n/a | n/a | 0 / 0 / 0 / 2 |$' "$WORK/table" \
+grep -q '^| alpha | 4 | 3 | 2 | 2 | 5 | 2 | 0 | 1 | 1 | 2 | 1 | 0 | n/a | n/a | 0 / 0 / 0 / 2 | 0 | 0 |$' "$WORK/table" \
     || { echo 'FAIL: alpha table row'; cat "$WORK/table"; exit 1; }
 # No costed change: tokens and minutes are unknown, not 0; two blocked changes lack block tests.
 jq -e '.[0] | .tokens == null and .reviewer_minutes == null and .tokens_by_source == {} and .blocked_without_block_tests == 2' "$WORK/out.json" >/dev/null \
@@ -68,7 +68,7 @@ jq -e '.[0] | .receipts == 4 and .changes_with_usage == 2 and .tokens == 41200 a
     and ([.changes[] | select(.head == "g1")][0] | .tokens == 31200 and .reviewer_minutes == 3)' "$WORK/cost.json" >/dev/null \
     || { echo 'FAIL: cost and test-catch totals'; cat "$WORK/cost.json"; exit 1; }
 bash "$SOURCE/scripts/receipt-totals.sh" "$WORK/gamma" > "$WORK/table"
-grep -q '^| gamma | 4 | 4 | 2 | 3 | 7 | 2 | 0 | 0 | 0 | 0 | 1 | 2 | 41200 | 4 | 1 / 1 / 1 / 0 |$' "$WORK/table" \
+grep -q '^| gamma | 4 | 4 | 2 | 3 | 7 | 2 | 0 | 0 | 0 | 0 | 1 | 2 | 41200 | 4 | 1 / 1 / 1 / 0 | 0 | 0 |$' "$WORK/table" \
     || { echo 'FAIL: cost table row'; cat "$WORK/table"; exit 1; }
 printf 'PASS: tokens, reviewer minutes and block-test results per change and in total\n'
 
@@ -81,6 +81,28 @@ bash "$SOURCE/scripts/receipt-totals.sh" --json "$WORK/delta" > "$WORK/delta.jso
 jq -e '.[0].tokens == 204443 and .[0].changes[0].reviewer_minutes == 1' "$WORK/delta.json" >/dev/null \
     || { echo 'FAIL: cumulative tokens were summed, or durations were not'; cat "$WORK/delta.json"; exit 1; }
 printf 'PASS: cumulative instance tokens count once; per-run durations add up\n'
+
+# P45: receipts with a usage_note are counted; bypass entries are counted over
+# receipts that carry the field, and an "unreadable:" listing separately.
+receipt "$WORK/epsilon" 20261018-000000 e1 2 "[$(with_usage "$(reviewer code 1 0 0)" null)]"
+jq '. + {usage_note: "notifications lost", bypasses: ["2026-10-18T01:00:00Z a git push", "2026-10-18T02:00:00Z b git push"]}' \
+    "$WORK/epsilon/docs/reviews/20261018-000000-ship-auto.json" > "$WORK/e.json"
+mv "$WORK/e.json" "$WORK/epsilon/docs/reviews/20261018-000000-ship-auto.json"
+receipt "$WORK/epsilon" 20261019-000000 e2 2 "[$(with_usage "$(reviewer code 1 0 0)" "$(claude_usage 100 1000)")]"
+jq '. + {bypasses: []}' "$WORK/epsilon/docs/reviews/20261019-000000-ship-auto.json" > "$WORK/e.json"
+mv "$WORK/e.json" "$WORK/epsilon/docs/reviews/20261019-000000-ship-auto.json"
+receipt "$WORK/epsilon" 20261020-000000 e3 2 "[$(with_usage "$(reviewer code 1 0 0)" "$(claude_usage 100 1000)")]"
+jq '. + {bypasses: ["unreadable: /x/.ship/bypass.log"]}' "$WORK/epsilon/docs/reviews/20261020-000000-ship-auto.json" > "$WORK/e.json"
+mv "$WORK/e.json" "$WORK/epsilon/docs/reviews/20261020-000000-ship-auto.json"
+receipt "$WORK/epsilon" 20261021-000000 e4 2 "[$(with_usage "$(reviewer code 1 0 0)" "$(claude_usage 100 1000)")]"
+bash "$SOURCE/scripts/receipt-totals.sh" --json "$WORK/epsilon" > "$WORK/eps.json"
+jq -e '.[0] | .receipts == 4 and .receipts_with_usage_note == 1 and .receipts_with_bypass_record == 3
+    and .bypasses == 2 and .unreadable_bypass_listings == 1 and .changes_with_usage == 3
+    and ([.changes[] | select(.head == "e1")][0] | .usage_note == true and (.bypasses | length) == 2)' "$WORK/eps.json" >/dev/null \
+    || { echo 'FAIL: usage-note and bypass counts'; cat "$WORK/eps.json"; exit 1; }
+bash "$SOURCE/scripts/receipt-totals.sh" "$WORK/epsilon" > "$WORK/table"
+grep -q '| 0 / 0 / 0 / 0 | 1 | 2 |$' "$WORK/table" || { echo 'FAIL: usage-note and bypass columns'; cat "$WORK/table"; exit 1; }
+printf 'PASS: receipts with a usage note and recorded bypasses are counted\n'
 
 # Unreadable receipts and empty roots are reported and fail the run; the
 # totals for the rest still print.
