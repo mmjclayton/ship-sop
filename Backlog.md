@@ -576,7 +576,7 @@ review: docs/reviews/20261012-154630-ship-auto.md
 
 ### P46 - Tidy linked worktrees at the end of each ship
 
-`[IN PROGRESS] [Feature]`
+`[SHIPPED - 2026-10-22] [Feature]`
 
 Matt asked on 22 Oct 2026 that ship-sop keep worktrees well managed, since much work is not merged to main from a worktree. ship-sop had no worktree lifecycle; agent-sop's claim hook was not carried over. On 22 Oct 2026 Edward had 170 linked worktrees (159 detached, 34 with uncommitted changes, 6.6 GB under `.claude/worktrees`). Matt chose automatic removal of safe worktrees with a report of the rest.
 
