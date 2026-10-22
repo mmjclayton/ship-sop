@@ -609,6 +609,9 @@ Decisions: an untracked entry counts as regenerable only when it is a symlink an
 - A worktree with 4,000 untracked files is review with the right count
 - The Claude and Codex push-gate refusals both tell the session to run `worktree-tidy.sh --apply` before the reply and report its `Worktrees:` and review lines
 
+Review round 1 (on e740697): PASS from all three reviewers, no blocking findings. Notes not fixed: links are removed before `git worktree remove` and a failed remove does not mention them (MEDIUM, no data loss); the link exception is missing from ship.md and SKILL.md; the gate's tidy line gives no runtime path.
+review: docs/reviews/20261022-172138-ship-auto.md
+
 ---
 
 ## Shipped Archive

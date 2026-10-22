@@ -1,0 +1,144 @@
+{
+  "schema_version": 2,
+  "base": "8b7bf9a718d79ff3ba9a5066b9e5b721fda7b2e9",
+  "head": "e740697d268b555c2e58464ff26cf1280e0877d9",
+  "tree": "02f02237869aedf1df37981b262b3a759351e207",
+  "policy_sha256": "76049105bc652b9a92fb3e34c6424e1c38bf8e198780f112ba52e07253717025",
+  "written_at": "2026-10-22T06:21:44Z",
+  "tests": {
+    "status": "PASS",
+    "evidence": "At e740697 on macOS (bash 3.2, git 2.39.5): for t in tests/*.sh - claude-install, codex-install, codex-usage, install-agents, install-hooks, legacy-hook, push-gate (290 passed), receipt-contract, receipt-integration, receipt-lib-check, receipt-totals, severity-rule, validate-state-transitions, worktree-tidy all exit 0; shellcheck -S warning on setup.sh scripts/*.sh scripts/hooks/*.sh tests/*.sh clean; validate-state-transitions OK."
+  },
+  "bypasses": [],
+  "reviewers": [
+    {
+      "name": "security-reviewer",
+      "version": "0f8a59958459703fc4108ecf1977f4638b6a4565",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 0,
+      "block_rounds": 0,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 84,
+          "message": "the link exemption covers every regenerable name and nested links, not only node_modules at the worktree root; git worktree remove still refuses anything else untracked"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/shipped-user-files.txt",
+          "line": 1,
+          "message": "older worktree-tidy.sh blob hashes stay listed; intended, so unedited older copies update"
+        }
+      ],
+      "usage": {
+        "source": "claude-task-notification",
+        "runs": [
+          {
+            "instance": 1,
+            "tokens": 37502,
+            "duration_ms": 32360
+          }
+        ],
+        "tokens": {
+          "total_tokens": 37502
+        },
+        "duration_ms": 32360
+      }
+    },
+    {
+      "name": "code-reviewer",
+      "version": "cb5fe962fe950203b8f3b3c259f2d94fd65b8fbd",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 0,
+      "block_rounds": 0,
+      "findings": [
+        {
+          "severity": "MEDIUM",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 213,
+          "message": "remove_safe deletes the node_modules links before git worktree remove; if the remove then fails, the message does not say the link was removed (no data loss, the target is untouched)"
+        },
+        {
+          "severity": "LOW",
+          "file": ".claude/commands/ship.md",
+          "line": 37,
+          "message": "ship.md and SKILL.md do not mention the node_modules link exception"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/hooks/sop-lib.sh",
+          "line": 687,
+          "message": "the gate's tidy line gives no runtime path and omits the tidy-failure rule"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 112,
+          "message": "quoted porcelain paths (unusual characters) are not unquoted; they fail safe to review"
+        }
+      ],
+      "usage": {
+        "source": "claude-task-notification",
+        "runs": [
+          {
+            "instance": 1,
+            "tokens": 47275,
+            "duration_ms": 109796
+          }
+        ],
+        "tokens": {
+          "total_tokens": 47275
+        },
+        "duration_ms": 109796
+      }
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "46bcbfc7adb8b13d1e0f0d9bcdf16d512b165d89",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 0,
+      "block_rounds": 0,
+      "findings": [
+        {
+          "severity": "LOW",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 145,
+          "message": "a half-complete link removal is not named in the failure message"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 185,
+          "message": "[ \"$changes\" -gt 0 ] reads false on empty output; count_changes always prints a number, so defensive only"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 94,
+          "message": "quoted porcelain paths fail safe to review"
+        }
+      ],
+      "usage": {
+        "source": "claude-task-notification",
+        "runs": [
+          {
+            "instance": 1,
+            "tokens": 38635,
+            "duration_ms": 61034
+          }
+        ],
+        "tokens": {
+          "total_tokens": 38635
+        },
+        "duration_ms": 61034
+      }
+    }
+  ]
+}
