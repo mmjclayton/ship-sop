@@ -95,6 +95,15 @@ code signal. Non-code projects stop with an explanation.
    round only when a finding met the threshold. Report blocking findings first. Cite the same report from the Backlog
    entry's `review:` line.
 
+6. After the reply's findings, run
+   `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/worktree-tidy.sh" --apply`
+   from the repository root. It removes only linked worktrees that are clean,
+   hold nothing no other ref holds and have been idle for 24 hours, deletes
+   their branches when merged, and prunes records of deleted folders. Copy its
+   `Worktrees:` summary line into the reply and list each `review` line; never
+   remove those yourself, they are the user's call. A tidy failure is
+   reported, not a ship failure.
+
 The review script requires a committed snapshot. If the intended scope includes
 uncommitted changes, state that limitation; use a temporary snapshot for review
 and do not claim it covers the working tree or current committed HEAD.

@@ -574,6 +574,21 @@ Decisions: the Claude demand reads "Run /ship (it covers reviewers, usage and bl
 
 review: docs/reviews/20261012-154630-ship-auto.md
 
+### P46 - Tidy linked worktrees at the end of each ship
+
+`[IN PROGRESS] [Feature]`
+
+Matt asked on 22 Oct 2026 that ship-sop keep worktrees well managed, since much work is not merged to main from a worktree. ship-sop had no worktree lifecycle; agent-sop's claim hook was not carried over. On 22 Oct 2026 Edward had 170 linked worktrees (159 detached, 34 with uncommitted changes, 6.6 GB under `.claude/worktrees`). Matt chose automatic removal of safe worktrees with a report of the rest.
+
+Decisions: "safe" is clean (untracked files count, ignored files do not), HEAD contained in a branch, remote branch or tag (a branch worktree: its tip is an ancestor of the default remote branch), not locked, not the caller's worktree, and idle for at least 24 hours by the worktree's HEAD and reflog. The index is excluded from the age because `git status` rewrites it; the tool's own status call uses `--no-optional-locks`. A branch merged by squash is not an ancestor and stays in review, with a hint when its remote branch is gone; checking GitHub PR state was left out to keep the tool offline. Removal uses `git worktree remove` without `--force`, so git refuses a worktree that changed after classification. Remote branches are not deleted. No session-start warning: `/ship` runs on every code push and covers it.
+
+**Acceptance criteria:**
+- `scripts/worktree-tidy.sh [--apply] [--min-age-hours N] [repo]` prints one line per linked worktree (safe, review, gone, keep) and a `Worktrees:` summary; without `--apply` it changes nothing
+- `--apply` removes safe worktrees, deletes a removed worktree's branch only after re-checking it is on the default branch, and prunes deleted folders; review and keep entries are untouched
+- setup installs it for Claude and Codex and uninstall removes it; `scripts/shipped-user-files.txt` lists its blob
+- `/ship` and the Codex skill run it with `--apply` after the reply's findings and copy the summary and every review line into the reply
+- `tests/worktree-tidy.sh` covers each category, the caller's worktree, a fresh index on an idle worktree, apply, a repeat run and usage errors
+
 ---
 
 ## Shipped Archive

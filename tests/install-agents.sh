@@ -19,11 +19,11 @@ gate_count() { jq '[.hooks[]?[]?.hooks[]?.command | select(test("sop-push-gate")
 
 # Every agent, command and the receipt tool setup ships is listed, so an installed
 # copy of it counts as unedited.
-for src in "$SOURCE"/.claude/agents/*.md "$SOURCE"/.claude/commands/*.md "$SOURCE/scripts/ship-receipt.sh"; do
+for src in "$SOURCE"/.claude/agents/*.md "$SOURCE"/.claude/commands/*.md "$SOURCE/scripts/ship-receipt.sh" "$SOURCE/scripts/worktree-tidy.sh"; do
     grep -qx "$(blob "$src") $(basename "$src")" "$LIST" || { echo "FAIL: $(basename "$src") at its current content is not in scripts/shipped-user-files.txt"; exit 1; }
 done
 test -f "$SOURCE/.claude/agents/security-reviewer.md"; test -f "$SOURCE/.claude/agents/code-reviewer.md"
-printf 'PASS: every shipped agent, command and the receipt tool is listed\n'
+printf 'PASS: every shipped agent, command, the receipt tool and worktree tidy is listed\n'
 
 mkdir -p "$WORK/project"
 git init -q -b main "$WORK/project"

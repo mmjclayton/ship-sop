@@ -65,3 +65,5 @@ ff806ff57e4ab44ba86045e41e2def6eeaa2502b ship-receipt.sh
 ea8505d578ace8551a090224c0807d461ddd4ea2 ship.md
 f3d02c92adbb09b0d960d571fdbb9c64e3d8dbfb ship.md
 b952137820adcb718f87d144b36a7c21ce6a2bc8 ship-receipt.sh
+d0245543ab9d6f94c0c36adaea01a638d57c9c41 ship.md
+8c68bcd3cc6077b4967b2626da451352d95a5b64 worktree-tidy.sh
