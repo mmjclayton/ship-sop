@@ -682,6 +682,9 @@ sop_shipsop_gate() {
     report="docs/reviews/$(date +%Y%m%d-%H%M%S)-ship-auto.md"
     # P45: two records the receipt tool needs that cannot be recreated afterwards.
     blocked='when a round blocks, run the project'"'"'s tests at the blocked commit before fixing it (NOT_AVAILABLE only when the project has no runnable suite).'
+    # P47: the worktree tidy is a workflow step, so a session answering this demand
+    # without the full workflow is told about it too.
+    tidy='Before the reply, run worktree-tidy.sh --apply from the ship-sop scripts folder at the repository root and put its Worktrees: line and every review line in the reply.'
 
     printf 'ship-sop gate (auto-mode per ship-sop.config.json): %s code lines on %s vs %s (%s..%s) have no gate report.\n' \
         "$lines" "${branch:-HEAD}" "$(sop_default_branch "$root")" "$(printf '%s' "$base" | cut -c1-7)" "$(printf '%s' "$head" | cut -c1-7)"
@@ -690,9 +693,11 @@ sop_shipsop_gate() {
     if [ "${SHIP_SOP_RUNTIME:-claude}" = codex ]; then
         printf '  Use the ship skill: run reviewers in separate checkouts with a read-only sandbox, each with --block-on set to its block_on above; collect every result, then write the report in the parent. Never substitute a worktree path in a prompt for enforced isolation.\n'
         printf '  Do not skip: keep every reviewer'"'"'s "Review evidence:" directory, launches and re-checks alike, so codex-usage.sh records its token and time figures; and %s\n' "$blocked"
+        printf '  %s\n' "$tidy"
         return
     fi
     printf '  Run /ship (it covers reviewers, usage and block tests).\n'
     printf '  Rules: launch each agent with isolation: "worktree", read-only; wait for every result; write the report after any fix commit so it covers HEAD; give each reviewer its block_on above and the severity rule from /ship; findings at or above a reviewer'"'"'s block_on at the top of your next reply with file:line, the rest stay in the report as notes; file nothing to Backlog.md.\n'
     printf '  Do not skip: record each reviewer'"'"'s token and duration figures (subagent_tokens, duration_ms) from every task notification as it arrives; and %s\n' "$blocked"
+    printf '  %s\n' "$tidy"
 }

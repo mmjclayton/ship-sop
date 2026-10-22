@@ -2,7 +2,8 @@
 # Sort a repository's linked worktrees and, with --apply, remove the safe ones.
 #
 #   safe    no uncommitted, untracked or ignored files (regenerable folders such
-#           as node_modules excepted), no rebase, merge or bisect in progress,
+#           as node_modules excepted, and an untracked symlink with a regenerable
+#           name, such as an agent worktree's node_modules link), no rebase, merge or bisect in progress,
 #           HEAD contained in a branch, remote branch or tag (a branch worktree:
 #           its tip is on the default remote branch), not locked, not the
 #           caller's worktree, and idle for at least --min-age-hours. --apply
@@ -95,10 +96,39 @@ kept_ignored() { # status-with-ignored
     while IFS= read -r line; do
         case $line in '!! '*) ;; *) continue ;; esac
         entry=${line#!! }; entry=${entry%/}; name=${entry##*/}
-        case " $REGENERABLE " in *" $name "*) continue ;; esac
+        is_regenerable "$name" && continue
         count=$((count + 1)); [ -n "$first" ] || first=$entry
     done <<< "$1"
     [ "$count" -eq 0 ] || printf '%s (first: %s)' "$count" "$first"
+}
+
+is_regenerable() { case " $REGENERABLE " in *" $1 "*) return 0 ;; esac; return 1; }
+
+# Untracked symlinks with a regenerable name (node_modules -> the main checkout's).
+# Prints them one per line; the link is removed, never what it points at.
+regenerable_links() { # path status
+    local line entry
+    while IFS= read -r line; do
+        case $line in '?? '*) ;; *) continue ;; esac
+        entry=${line#?? }
+        is_regenerable "${entry##*/}" && [ -L "$1/$entry" ] && printf '%s\n' "$entry"
+    done <<< "$2"
+    return 0
+}
+
+# Status lines that are not ignored files or a regenerable link. A loop rather
+# than a pipe: under pipefail an early-exiting grep on a large status reads as
+# "no changes".
+count_changes() { # status links
+    local line count=0 nl=$'\n'
+    while IFS= read -r line; do
+        case $line in ''|'!! '*) continue ;; esac
+        if [ "${line:0:3}" = '?? ' ]; then
+            case "$nl$2$nl" in *"$nl${line#?? }$nl"*) continue ;; esac
+        fi
+        count=$((count + 1))
+    done <<< "$1"
+    printf '%s' "$count"
 }
 
 held_elsewhere() { # sha: does a branch, remote branch or tag contain it?
@@ -107,8 +137,13 @@ held_elsewhere() { # sha: does a branch, remote branch or tag contain it?
     [ -n "$refs" ]
 }
 
-remove_safe() { # path branch
-    local rc=0
+remove_safe() { # path branch links
+    local rc=0 link
+    while IFS= read -r link; do
+        [ -n "$link" ] || continue
+        [ -L "$1/$link" ] || { fail "kept $1: $link is no longer a symlink"; return; }
+        rm -f -- "$1/$link" || { fail "kept $1: could not remove the $link link"; return; }
+    done <<< "$3"
     git -C "$MAIN" worktree remove "$1" || { fail "failed to remove $1"; return; }
     REMOVED=$((REMOVED + 1))
     [ -n "$2" ] || return 0
@@ -129,7 +164,7 @@ is_current() { # path: is the caller inside this worktree?
 }
 
 classify() { # path branch(empty when detached) sha locked prunable
-    local path=$1 branch=$2 sha=$3 locked=$4 prunable=$5 label admin active idle op status ignored rc=0 track
+    local path=$1 branch=$2 sha=$3 locked=$4 prunable=$5 label admin active idle op status changes links ignored rc=0 track
     label=${branch:-detached ${sha:0:8}}
     if [ "$locked" = true ]; then report keep "$path" "$label" 'locked'; return; fi
     if [ "$prunable" = true ] || [ ! -d "$path" ]; then report gone "$path" "$label" 'folder deleted'; return; fi
@@ -147,8 +182,10 @@ classify() { # path branch(empty when detached) sha locked prunable
     if ! status=$(git --no-optional-locks -C "$path" status --porcelain --ignored=matching 2>/dev/null); then
         report review "$path" "$label" "status unreadable, $idle"; return
     fi
-    if printf '%s\n' "$status" | grep -Eqv '^(!! |$)'; then
-        report review "$path" "$label" "uncommitted changes ($(printf '%s\n' "$status" | grep -Ecv '^(!! |$)') files), $idle"; return
+    links=$(regenerable_links "$path" "$status")
+    changes=$(count_changes "$status" "$links")
+    if [ "$changes" -gt 0 ]; then
+        report review "$path" "$label" "uncommitted changes ($changes files), $idle"; return
     fi
     ignored=$(kept_ignored "$status")
     if [ -n "$ignored" ]; then report review "$path" "$label" "ignored files $ignored, $idle"; return; fi
@@ -172,7 +209,7 @@ classify() { # path branch(empty when detached) sha locked prunable
         report keep "$path" "$label" "active in the last ${MIN_AGE_HOURS}h"; return
     fi
     report safe "$path" "$label" "clean, nothing unique, $idle"
-    [ "$APPLY" = false ] || remove_safe "$path" "$branch"
+    [ "$APPLY" = false ] || remove_safe "$path" "$branch" "$links"
 }
 
 # NUL-separated fields, an empty field between records (so a path holding a

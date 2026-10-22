@@ -595,6 +595,20 @@ Decisions: "safe" is clean (untracked files count; ignored files count unless th
 
 review: docs/reviews/20261022-160537-ship-auto.md
 
+### P47 - Worktree tidy treats node_modules links as regenerable, and the gate names it
+
+`[IN PROGRESS] [Iteration]`
+
+Matt approved on 22 Oct 2026, after P46's first run on Edward: of the 41 worktrees left in review, 33 differed from clean only by an untracked `node_modules` symlink to the main checkout (agent worktrees create it; the ignore pattern `node_modules/` does not match a symlink). And the tidy is a `/ship` step, but Edward sessions have answered the push gate's refusal without running `/ship` (P45), so the refusal now names it.
+
+Decisions: an untracked entry counts as regenerable only when it is a symlink and its last path component is in the regenerable list; `--apply` removes the link itself (`rm -f`, never recursive) after checking it is still a symlink, then runs `git worktree remove` without `--force` as before. A regular file or folder named `node_modules` stays a change. Change counting moved from a `printf | grep -q` pipe to a loop, fixing P46's open note that a status over about 64KB read as clean under pipefail. Paths git quotes in porcelain output (spaces) do not match as links and stay review.
+
+**Acceptance criteria:**
+- A worktree whose only difference is an untracked `node_modules` symlink is safe; `--apply` removes it and leaves the link target intact
+- A plain file named `node_modules` keeps the worktree in review
+- A worktree with 4,000 untracked files is review with the right count
+- The Claude and Codex push-gate refusals both tell the session to run `worktree-tidy.sh --apply` before the reply and report its `Worktrees:` and review lines
+
 ---
 
 ## Shipped Archive
