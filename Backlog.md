@@ -597,7 +597,7 @@ review: docs/reviews/20261022-160537-ship-auto.md
 
 ### P47 - Worktree tidy treats node_modules links as regenerable, and the gate names it
 
-`[IN PROGRESS] [Iteration]`
+`[SHIPPED - 2026-10-22] [Iteration]`
 
 Matt approved on 22 Oct 2026, after P46's first run on Edward: of the 41 worktrees left in review, 33 differed from clean only by an untracked `node_modules` symlink to the main checkout (agent worktrees create it; the ignore pattern `node_modules/` does not match a symlink). And the tidy is a `/ship` step, but Edward sessions have answered the push gate's refusal without running `/ship` (P45), so the refusal now names it.
 
@@ -611,6 +611,7 @@ Decisions: an untracked entry counts as regenerable only when it is a symlink an
 
 Review round 1 (on e740697): PASS from all three reviewers, no blocking findings. Notes not fixed: links are removed before `git worktree remove` and a failed remove does not mention them (MEDIUM, no data loss); the link exception is missing from ship.md and SKILL.md; the gate's tidy line gives no runtime path.
 review: docs/reviews/20261022-172138-ship-auto.md
+Merged to main in PR #48 (`1019874`) on 2026-10-22; installed for Claude and Codex.
 
 ---
 
