@@ -591,6 +591,10 @@ Decisions: "safe" is clean (untracked files count; ignored files count unless th
 
 **Review round 1 (22 Oct 2026, on `4e6e19a`):** security, code and silent-failure each BLOCK on the same class: ignored files (`.env`, local databases) were deleted with a "clean" worktree, and an unreadable age defaulted to 0 and read as idle. Tests passed at the blocked commit. Fixed with the ignored-file check and age-unreadable review above; the MEDIUM findings (paused operations, local default fallback, caller guard, unguarded git calls, locked-and-gone, branch-delete reporting, step order, failure wording) were fixed in the same pass.
 
+**Review round 2 (22 Oct 2026, on `4f5a170`):** all three PASS. Notes left open: a status over about 64KB can label a dirty worktree safe (git still refuses the removal), regenerable names match at any depth, and a long-held clean worktree is not detected.
+
+review: docs/reviews/20261022-160537-ship-auto.md
+
 ---
 
 ## Shipped Archive
