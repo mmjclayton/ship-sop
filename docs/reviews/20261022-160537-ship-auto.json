@@ -1,0 +1,160 @@
+{
+  "schema_version": 2,
+  "base": "efe0808ea09c1948092aff138015a1473a5b37d0",
+  "head": "4f5a1702434feac124d080bd8dbe27af271cfd9b",
+  "tree": "afd2ad3aca88ae8dd8211a450a900f118a661d7e",
+  "policy_sha256": "76049105bc652b9a92fb3e34c6424e1c38bf8e198780f112ba52e07253717025",
+  "written_at": "2026-10-22T05:05:37Z",
+  "tests": {
+    "status": "PASS",
+    "evidence": "At 4f5a170 on macOS (bash 3.2, git 2.39.5): for t in tests/*.sh - claude-install, codex-install, codex-usage, install-agents, install-hooks, legacy-hook, push-gate, receipt-contract, receipt-integration, receipt-lib-check, receipt-totals, severity-rule, validate-state-transitions, worktree-tidy all exit 0; shellcheck -S warning on setup.sh scripts/*.sh scripts/hooks/*.sh tests/*.sh clean; validate-state-transitions OK (0 warnings)."
+  },
+  "bypasses": [],
+  "reviewers": [
+    {
+      "name": "security-reviewer",
+      "version": "0f8a59958459703fc4108ecf1977f4638b6a4565",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 1,
+      "findings": [
+        {
+          "severity": "INFO",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 147,
+          "message": "fixed in 4f5a170: a clean worktree was removed with its gitignored files (.env, local databases); non-regenerable ignored files now keep it in review"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 42,
+          "message": "regenerable folders match on the last path component at any depth, so an ignored folder named build, out or target holding hand-made output counts as disposable"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 15,
+          "message": "a session holding a clean worktree open for over 24 hours without committing is not detected; documented"
+        }
+      ],
+      "usage": {
+        "source": "claude-task-notification",
+        "runs": [
+          {
+            "instance": 1,
+            "tokens": 42148,
+            "duration_ms": 75483
+          },
+          {
+            "instance": 1,
+            "tokens": 50208,
+            "duration_ms": 25963
+          }
+        ],
+        "tokens": {
+          "total_tokens": 50208
+        },
+        "duration_ms": 101446
+      }
+    },
+    {
+      "name": "code-reviewer",
+      "version": "cb5fe962fe950203b8f3b3c259f2d94fd65b8fbd",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 1,
+      "findings": [
+        {
+          "severity": "INFO",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 147,
+          "message": "fixed in 4f5a170: gitignored files were deleted with a clean worktree; tidy step order and failure wording in /ship and the skill corrected"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 42,
+          "message": "the regenerable list (out, build, target) is not named in the README or ship.md"
+        },
+        {
+          "severity": "LOW",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 150,
+          "message": "under pipefail a status over the pipe buffer can make grep -q read as no changes; git worktree remove still refuses a dirty worktree"
+        }
+      ],
+      "usage": {
+        "source": "claude-task-notification",
+        "runs": [
+          {
+            "instance": 1,
+            "tokens": 57470,
+            "duration_ms": 95393
+          },
+          {
+            "instance": 1,
+            "tokens": 75034,
+            "duration_ms": 53836
+          }
+        ],
+        "tokens": {
+          "total_tokens": 75034
+        },
+        "duration_ms": 149229
+      }
+    },
+    {
+      "name": "silent-failure-hunter",
+      "version": "46bcbfc7adb8b13d1e0f0d9bcdf16d512b165d89",
+      "model": "runtime-default-unresolved",
+      "verdict": "PASS",
+      "launches": 1,
+      "rechecks": 1,
+      "block_rounds": 1,
+      "findings": [
+        {
+          "severity": "INFO",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 45,
+          "message": "fixed in 4f5a170: an unreadable age defaulted to 0 and read as idle; it is now review; unguarded git calls, locked-and-gone and branch-delete reporting also fixed"
+        },
+        {
+          "severity": "MEDIUM",
+          "file": "scripts/worktree-tidy.sh",
+          "line": 150,
+          "message": "status output over about 64KB makes printf | grep -q return SIGPIPE under pipefail, so a dirty worktree is labelled safe; git worktree remove then refuses it and the run exits 1, no data lost"
+        }
+      ],
+      "usage": {
+        "source": "claude-task-notification",
+        "runs": [
+          {
+            "instance": 1,
+            "tokens": 40426,
+            "duration_ms": 56484
+          },
+          {
+            "instance": 1,
+            "tokens": 51794,
+            "duration_ms": 32955
+          }
+        ],
+        "tokens": {
+          "total_tokens": 51794
+        },
+        "duration_ms": 89439
+      }
+    }
+  ],
+  "block_tests": [
+    {
+      "commit": "4e6e19aac7bc0d057a793c1275919c1007779f0f",
+      "result": "PASS",
+      "evidence": "Ran for t in tests/*.sh at 4e6e19a before any fix: all 14 test files exit 0. The suite did not catch the blocked defects (ignored files deleted, unreadable age read as idle)."
+    }
+  ]
+}

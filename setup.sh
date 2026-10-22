@@ -413,6 +413,7 @@ uninstall_mode() {
     local user_claude_dir="${SHIP_SOP_USER_HOME:-$HOME}/.claude"
 
     remove_shipped "$SCRIPT_DIR/scripts/ship-receipt.sh" "$user_claude_dir/scripts/ship-sop/ship-receipt.sh"
+    remove_shipped "$SCRIPT_DIR/scripts/worktree-tidy.sh" "$user_claude_dir/scripts/ship-sop/worktree-tidy.sh"
     rmdir "$user_claude_dir/scripts/ship-sop" 2>/dev/null || true
 
     # User-scope push gate: registration first, then the scripts.
@@ -586,6 +587,8 @@ mkdir -p "$USER_CLAUDE_DIR/agents" "$USER_CLAUDE_DIR/commands"
 mkdir -p "$USER_CLAUDE_DIR/scripts/ship-sop"
 install_shipped "$SCRIPT_DIR/scripts/ship-receipt.sh" "$USER_CLAUDE_DIR/scripts/ship-sop/ship-receipt.sh" \
     || { echo 'Receipt tool installation failed' >&2; exit 1; }
+install_shipped "$SCRIPT_DIR/scripts/worktree-tidy.sh" "$USER_CLAUDE_DIR/scripts/ship-sop/worktree-tidy.sh" \
+    || { echo 'Worktree tidy installation failed' >&2; exit 1; }
 echo "Installing agents to ~/.claude/agents/"
 for src in "$SCRIPT_DIR"/.claude/agents/*.md; do
     [ -f "$src" ] || continue

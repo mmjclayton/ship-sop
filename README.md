@@ -23,6 +23,15 @@ such a receipt exists.
   `gh pr create` in an auto-mode project until a valid receipt covers `HEAD`. It
   ignores prose-only changes and non-code projects, and fails closed on internal
   errors.
+- **Worktree tidy.** At the end of each `ship`, linked worktrees that are clean
+  (no uncommitted, untracked or ignored files other than regenerable folders
+  such as `node_modules`), have no paused rebase, merge or bisect, hold no
+  commit missing from another ref and have been idle for 24 hours are removed,
+  with their branch when it is merged into the default remote branch; records
+  of deleted folders are pruned. Anything else is listed for you and never
+  removed. "Idle" reads the worktree's checkout and commit times, so a session
+  that has had a clean worktree open longer without committing is not seen.
+  `worktree-tidy.sh` without `--apply` only reports.
 - **Audit and release.** A whole-repository compliance audit (`audit`) and a
   deliberate release workflow (`release`) that can prepare notes without
   publishing. `ship` itself never commits, pushes or publishes.
@@ -75,7 +84,7 @@ changes are not covered.
 | `~/.agents/skills/`, `$CODEX_HOME/agents/` | The same workflows as skills, and the reviewer profiles | Codex |
 | `~/.claude/scripts/hooks/ship-sop/` (Codex: `$CODEX_HOME/scripts/hooks/ship-sop/`) | The push gate and its library | Both |
 | `~/.claude/settings.json` (Codex: `$CODEX_HOME/hooks.json`) | One `PreToolUse` entry for the push gate; other hooks are kept and the file is backed up first | Both |
-| `~/.claude/scripts/ship-sop/`, `$CODEX_HOME/scripts/ship-sop/` | The receipt tool and, for Codex, the reviewer runner | Both |
+| `~/.claude/scripts/ship-sop/`, `$CODEX_HOME/scripts/ship-sop/` | The receipt tool, worktree tidy and, for Codex, the reviewer runner | Both |
 | The project | `ship-sop.config.json`, `docs/templates/ship-sop.schema.json`, `docs/reviews/`, and `.ship/` added to `.gitignore` | Both |
 
 Re-running setup from an updated checkout updates installed files that you have

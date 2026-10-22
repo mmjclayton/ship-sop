@@ -19,11 +19,11 @@ gate_count() { jq '[.hooks[]?[]?.hooks[]?.command | select(test("sop-push-gate")
 
 # Every agent, command and the receipt tool setup ships is listed, so an installed
 # copy of it counts as unedited.
-for src in "$SOURCE"/.claude/agents/*.md "$SOURCE"/.claude/commands/*.md "$SOURCE/scripts/ship-receipt.sh"; do
+for src in "$SOURCE"/.claude/agents/*.md "$SOURCE"/.claude/commands/*.md "$SOURCE/scripts/ship-receipt.sh" "$SOURCE/scripts/worktree-tidy.sh"; do
     grep -qx "$(blob "$src") $(basename "$src")" "$LIST" || { echo "FAIL: $(basename "$src") at its current content is not in scripts/shipped-user-files.txt"; exit 1; }
 done
 test -f "$SOURCE/.claude/agents/security-reviewer.md"; test -f "$SOURCE/.claude/agents/code-reviewer.md"
-printf 'PASS: every shipped agent, command and the receipt tool is listed\n'
+printf 'PASS: every shipped agent, command, the receipt tool and worktree tidy is listed\n'
 
 mkdir -p "$WORK/project"
 git init -q -b main "$WORK/project"
@@ -38,6 +38,7 @@ jq -e --arg c "bash \"$SHIP_SOP_USER_HOME/.claude/scripts/hooks/ship-sop/sop-pus
 test -x "$SHIP_SOP_USER_HOME/.claude/scripts/hooks/ship-sop/sop-push-gate.sh"
 grep -q 'Push gate registered' "$WORK/install.log"
 grep -q 'provides every function ship-sop needs' "$WORK/install.log"
+cmp "$SOURCE/scripts/worktree-tidy.sh" "$SHIP_SOP_USER_HOME/.claude/scripts/ship-sop/worktree-tidy.sh"
 printf 'PASS: fresh install creates five agents and registers one push gate\n'
 
 # The registered command, exactly as written to settings.json, refuses an
@@ -80,6 +81,7 @@ git -C "$SOURCE" cat-file blob "$OLD" > "$AGENTS/compliance-reviewer.md"
 bash "$SOURCE/setup.sh" "$WORK/project" --runtime claude --uninstall > "$WORK/uninstall.log" 2>&1
 test "$(gate_count)" = 0
 test ! -e "$SHIP_SOP_USER_HOME/.claude/scripts/hooks/ship-sop"
+test ! -e "$SHIP_SOP_USER_HOME/.claude/scripts/ship-sop/worktree-tidy.sh"
 test ! -e "$AGENTS/compliance-reviewer.md"; test ! -e "$AGENTS/security-reviewer.md"
 cmp "$WORK/edited" "$AGENTS/code-reviewer.md"
 printf 'PASS: uninstall removes the gate and unedited agents, keeps edited ones\n'
