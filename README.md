@@ -23,11 +23,15 @@ such a receipt exists.
   `gh pr create` in an auto-mode project until a valid receipt covers `HEAD`. It
   ignores prose-only changes and non-code projects, and fails closed on internal
   errors.
-- **Worktree tidy.** At the end of each `ship`, linked worktrees that are clean,
-  hold no commit missing from another ref and have been idle for 24 hours are
-  removed, with their branch when it is merged; records of deleted folders are
-  pruned. Worktrees with uncommitted changes or unique commits are listed for
-  you and never removed. `worktree-tidy.sh` without `--apply` only reports.
+- **Worktree tidy.** At the end of each `ship`, linked worktrees that are clean
+  (no uncommitted, untracked or ignored files other than regenerable folders
+  such as `node_modules`), have no paused rebase, merge or bisect, hold no
+  commit missing from another ref and have been idle for 24 hours are removed,
+  with their branch when it is merged into the default remote branch; records
+  of deleted folders are pruned. Anything else is listed for you and never
+  removed. "Idle" reads the worktree's checkout and commit times, so a session
+  that has had a clean worktree open longer without committing is not seen.
+  `worktree-tidy.sh` without `--apply` only reports.
 - **Audit and release.** A whole-repository compliance audit (`audit`) and a
   deliberate release workflow (`release`) that can prepare notes without
   publishing. `ship` itself never commits, pushes or publishes.

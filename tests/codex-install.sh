@@ -62,6 +62,7 @@ jq -e '.trigger.mode == "manual"' "$WORK/project/ship-sop.config.json" >/dev/nul
 test -f "$WORK/project/scripts/codex-review.sh"
 test -f "$SHIP_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
 test -x "$SHIP_SOP_USER_HOME/.codex/scripts/ship-sop/codex-usage.sh"
+test -f "$SHIP_SOP_USER_HOME/.codex/scripts/ship-sop/worktree-tidy.sh"
 jq -e '.trigger.mode == "manual" and (.agents | has("code-reviewer"))' "$SHIP_SOP_USER_HOME/.codex/ship-sop.config.json" >/dev/null
 jq -e '.agents["silent-failure-hunter"].enabled == true' "$WORK/project/ship-sop.config.json" >/dev/null
 jq -e 'has("local_path")' "$SHIP_SOP_USER_HOME/.codex/ship-sop.source.json" >/dev/null
@@ -173,6 +174,7 @@ bash "$SOURCE/setup.sh" "$WORK/project" --runtime codex --uninstall > "$WORK/uni
 test -f "$WORK/project/AGENTS.md"; test -f "$WORK/project/ship-sop.config.json"
 test ! -f "$SHIP_SOP_USER_HOME/.agents/skills/ship/SKILL.md"
 test ! -f "$SHIP_SOP_USER_HOME/.codex/scripts/ship-sop/codex-usage.sh"
+test ! -f "$SHIP_SOP_USER_HOME/.codex/scripts/ship-sop/worktree-tidy.sh"
 printf 'PASS: missing reviewers fail and uninstall preserves project data\n'
 
 

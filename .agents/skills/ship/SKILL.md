@@ -84,7 +84,18 @@ code signal. Non-code projects stop with an explanation.
    bypasses since the previous receipt are unknown, and repair the log. Only a validated JSON receipt satisfies
    the gate; a Covers: line in Markdown is informational. Existing Markdown-only
    reports remain history and need a new review to qualify.
-5. Small fixes may be applied in scope, but a new code commit needs a fresh review
+5. Before writing the reply, whatever the verdict, run
+   `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/worktree-tidy.sh" --apply`
+   from the repository root. It removes only linked worktrees with no
+   uncommitted, untracked or non-regenerable ignored files and no paused
+   rebase, merge or bisect, whose HEAD another ref holds (a branch: merged into
+   the default remote branch), idle for 24 hours; it deletes a removed
+   worktree's merged branch and prunes records of deleted folders. Put its
+   `Worktrees:` line in the reply and list each `review` line; never remove
+   those yourself, they are the user's call. A missing script, a non-zero exit
+   or no `Worktrees:` line is a tidy failure: quote the exit code and stderr in
+   the reply and claim no removals. It does not change the ship verdict.
+6. Small fixes may be applied in scope, but a new code commit needs a fresh review
    of that HEAD. Do not stamp an old review with a newer SHA. Do not commit, push,
    tag or publish as part of ship. Do not file findings into Backlog automatically.
    Fix only findings at or above their reviewer's threshold; list the rest in the
@@ -94,15 +105,6 @@ code signal. Non-code projects stop with an explanation.
    any security-reviewer note. Count a block
    round only when a finding met the threshold. Report blocking findings first. Cite the same report from the Backlog
    entry's `review:` line.
-
-6. After the reply's findings, run
-   `bash "${CODEX_HOME:-$HOME/.codex}/scripts/ship-sop/worktree-tidy.sh" --apply`
-   from the repository root. It removes only linked worktrees that are clean,
-   hold nothing no other ref holds and have been idle for 24 hours, deletes
-   their branches when merged, and prunes records of deleted folders. Copy its
-   `Worktrees:` summary line into the reply and list each `review` line; never
-   remove those yourself, they are the user's call. A tidy failure is
-   reported, not a ship failure.
 
 The review script requires a committed snapshot. If the intended scope includes
 uncommitted changes, state that limitation; use a temporary snapshot for review
