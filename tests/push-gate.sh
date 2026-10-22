@@ -234,6 +234,8 @@ if grep -q 'Run /ship (it covers reviewers, usage and block tests)' "$HOOK_ERR" 
    && grep -q "record each reviewer's token and duration figures" "$HOOK_ERR" \
    && grep -q "run the project's tests at the blocked commit before fixing it" "$HOOK_ERR" \
    && ! grep -qi 'SOP_SKIP_GATE\|bypass' "$HOOK_ERR"; then ok "push-demand-names-ship-usage-and-block-tests"; else bad "push-demand-names-ship-usage-and-block-tests" "stderr='$(cat "$HOOK_ERR")'"; fi
+# P47: the demand names the worktree tidy, so a session skipping /ship still runs it.
+if grep -q 'run worktree-tidy.sh --apply' "$HOOK_ERR" && grep -q 'Worktrees: line' "$HOOK_ERR"; then ok "push-demand-names-worktree-tidy"; else bad "push-demand-names-worktree-tidy" "stderr='$(cat "$HOOK_ERR")'"; fi
 
 run_hook "$PUSH" "$GATED" "$(push_json 'gh pr create --fill')"
 if refused; then ok "push-gh-pr-create-refused"; else bad "push-gh-pr-create-refused" "exit $HOOK_EXIT"; fi
@@ -648,6 +650,7 @@ if [ "$CX" = 2 ] && grep -q '\[ship-sop\] push refused' "$TMP/cx.err" && grep -q
 # P45: the Codex demand names the same two records and no bypass.
 if grep -q 'Review evidence:" directory' "$TMP/cx.err" && grep -q "tests at the blocked commit before fixing it" "$TMP/cx.err" \
    && ! grep -qi 'SOP_SKIP_GATE\|bypass\|/ship' "$TMP/cx.err"; then ok "codex-demand-names-usage-and-block-tests"; else bad "codex-demand-names-usage-and-block-tests" "$(cat "$TMP/cx.err")"; fi
+if grep -q 'run worktree-tidy.sh --apply' "$TMP/cx.err"; then ok "codex-demand-names-worktree-tidy"; else bad "codex-demand-names-worktree-tidy" "$(cat "$TMP/cx.err")"; fi
 for ev in SessionStart UserPromptSubmit Stop; do
     printf '%s' "$CODEX_INPUT" | bash "$CODEX_HOOK" "$ev" > "$TMP/cx.out" 2> "$TMP/cx.err"; CX=$?
     if [ "$CX" = 0 ] && [ ! -s "$TMP/cx.out" ] && [ ! -s "$TMP/cx.err" ]; then ok "codex-dispatcher-retired-$ev-is-a-no-op"; else bad "codex-dispatcher-retired-$ev-is-a-no-op" "exit $CX"; fi

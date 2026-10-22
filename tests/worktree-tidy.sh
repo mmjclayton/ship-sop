@@ -33,12 +33,22 @@ git -C "$R" worktree add -q --detach "$WORK/regenerable" main
 mkdir -p "$WORK/regenerable/web/node_modules/x"; printf 'x\n' > "$WORK/regenerable/web/node_modules/x/i.js"
 git -C "$R" worktree add -q --detach "$WORK/secrets" main
 printf 'KEY=1\n' > "$WORK/secrets/.env"
+# An agent worktree's node_modules link to the main checkout is regenerable; a
+# plain untracked file with that name is not.
+mkdir -p "$WORK/shared-modules/pkg"; printf 'x\n' > "$WORK/shared-modules/pkg/i.js"
+git -C "$R" worktree add -q --detach "$WORK/linked" main
+ln -s "$WORK/shared-modules" "$WORK/linked/node_modules"
+git -C "$R" worktree add -q --detach "$WORK/fake-link" main
+printf 'not a link\n' > "$WORK/fake-link/node_modules"
+# A status larger than a pipe buffer is still read as changed.
+git -C "$R" worktree add -q --detach "$WORK/big" main
+(cd "$WORK/big" && seq -f 'untracked-file-with-a-long-name-%05g.txt' 1 4000 | xargs touch)
 # A paused operation keeps an otherwise clean worktree.
 git -C "$R" worktree add -q --detach "$WORK/bisecting" main
 touch "$(git -C "$WORK/bisecting" rev-parse --absolute-git-dir)/BISECT_LOG"
 
 # Age every worktree except "recent" past the 24-hour guard.
-for name in merged detached-held ahead detached-lost dirty locked regenerable secrets bisecting; do
+for name in merged detached-held ahead detached-lost dirty locked regenerable secrets bisecting linked fake-link big; do
     admin=$(git -C "$WORK/$name" rev-parse --absolute-git-dir)
     for f in "$admin/HEAD" "$admin/logs/HEAD" "$admin/index"; do [ ! -e "$f" ] || touch -t 202001010000 "$f"; done
 done
@@ -62,10 +72,14 @@ expect "$WORK/report" "$WORK/recent" keep
 expect "$WORK/report" "$WORK/regenerable" safe
 expect "$WORK/report" "$WORK/secrets" review
 expect "$WORK/report" "$WORK/bisecting" review
+expect "$WORK/report" "$WORK/linked" safe
+expect "$WORK/report" "$WORK/fake-link" review
+expect "$WORK/report" "$WORK/big" review
+grep -q "big  .*uncommitted changes (4000 files)" "$WORK/report" || { echo 'FAIL: large status count'; cat "$WORK/report"; exit 1; }
 grep -q "secrets  .*ignored files 1 (first: .env)" "$WORK/report" || { echo 'FAIL: ignored-file reason'; cat "$WORK/report"; exit 1; }
-grep -q '^Worktrees: 3 safe, 5 need review, 1 gone, 2 kept (report only' "$WORK/report" \
+grep -q '^Worktrees: 4 safe, 7 need review, 1 gone, 2 kept (report only' "$WORK/report" \
     || { echo 'FAIL: report summary'; cat "$WORK/report"; exit 1; }
-[ "$(git -C "$R" worktree list | wc -l | tr -d ' ')" = 12 ] || { echo 'FAIL: report-only run changed worktrees'; exit 1; }
+[ "$(git -C "$R" worktree list | wc -l | tr -d ' ')" = 15 ] || { echo 'FAIL: report-only run changed worktrees'; exit 1; }
 printf 'PASS: each worktree lands in its category and a report changes nothing\n'
 
 # The caller's own worktree is never a candidate, even when clean and idle.
@@ -87,20 +101,21 @@ printf 'PASS: an unreadable age is review\n'
 (cd "$R" && bash "$TIDY" --apply) > "$WORK/apply"
 [ ! -d "$WORK/merged" ] && [ ! -d "$WORK/detached-held" ] || { echo 'FAIL: safe worktrees not removed'; exit 1; }
 ! git -C "$R" show-ref -q --verify refs/heads/merged || { echo 'FAIL: merged branch not deleted'; exit 1; }
-[ ! -d "$WORK/regenerable" ] || { echo 'FAIL: regenerable-only worktree not removed'; exit 1; }
-for name in ahead detached-lost dirty locked recent secrets bisecting; do
+[ ! -d "$WORK/regenerable" ] && [ ! -e "$WORK/linked" ] || { echo 'FAIL: regenerable-only worktree not removed'; exit 1; }
+[ -f "$WORK/shared-modules/pkg/i.js" ] || { echo 'FAIL: link target touched'; exit 1; }
+for name in ahead detached-lost dirty locked recent secrets bisecting fake-link big; do
     [ -d "$WORK/$name" ] || { echo "FAIL: $name was removed"; exit 1; }
 done
 git -C "$R" show-ref -q --verify refs/heads/ahead || { echo 'FAIL: unmerged branch deleted'; exit 1; }
 [ -f "$WORK/dirty/untracked.txt" ] && [ -f "$WORK/secrets/.env" ] || { echo 'FAIL: untracked or ignored file lost'; exit 1; }
 ! git -C "$R" worktree list --porcelain | grep -q "^worktree $WORK/deleted$" || { echo 'FAIL: deleted worktree not pruned'; exit 1; }
-grep -q '^Worktrees: 3 safe (3 removed), 5 need review, 1 gone (1 pruned), 2 kept$' "$WORK/apply" \
+grep -q '^Worktrees: 4 safe (4 removed), 7 need review, 1 gone (1 pruned), 2 kept$' "$WORK/apply" \
     || { echo 'FAIL: apply summary'; cat "$WORK/apply"; exit 1; }
-printf 'PASS: --apply removes only safe worktrees and merged branches, and prunes deleted folders\n'
+printf 'PASS: --apply removes only safe worktrees, their node_modules links (not the target) and merged branches, and prunes deleted folders\n'
 
 # A second apply has nothing left to remove.
 (cd "$R" && bash "$TIDY" --apply) > "$WORK/again"
-grep -q '^Worktrees: 0 safe (0 removed), 5 need review, 0 gone (0 pruned), 2 kept$' "$WORK/again" \
+grep -q '^Worktrees: 0 safe (0 removed), 7 need review, 0 gone (0 pruned), 2 kept$' "$WORK/again" \
     || { echo 'FAIL: second apply'; cat "$WORK/again"; exit 1; }
 printf 'PASS: a repeat run is a no-op\n'
 

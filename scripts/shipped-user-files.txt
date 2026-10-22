@@ -67,3 +67,4 @@ f3d02c92adbb09b0d960d571fdbb9c64e3d8dbfb ship.md
 b952137820adcb718f87d144b36a7c21ce6a2bc8 ship-receipt.sh
 93883cc072b6f92cbca02ccc7a7311b53d39c595 ship.md
 d62a22c6cb9270f3f51ab27c0a4b8622d6e095dd worktree-tidy.sh
+3f0ca9b90bd1642d7926134b0d39dfac46548536 worktree-tidy.sh
